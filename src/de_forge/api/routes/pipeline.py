@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -61,7 +61,7 @@ async def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db
 
     orchestrator = PipelineOrchestrator(db)
     try:
-        final_state = orchestrator.run_pipeline(payload.report_id)
+        orchestrator.run_pipeline(payload.report_id)
     except PipelineTransitionError:
         pass
 
