@@ -17,7 +17,7 @@ CANONICAL_TRANSITIONS: dict[str, tuple[str, ...]] = {
     "DYNAMIC_VALIDATED": ("RULE_VALIDATED", "FAILED_VALIDATION"),
     "RULE_VALIDATED": ("AWAITING_REVIEW",),
     "AWAITING_REVIEW": ("APPROVED", "REJECTED"),
-    "APPROVED": ("EXPORTED",),
+    "APPROVED": tuple(),
     "EXPORTED": tuple(),
     "ABSTAINED": tuple(),
     "FAILED_VALIDATION": tuple(),
