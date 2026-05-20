@@ -58,3 +58,35 @@ class RunStatusResponse(BaseModel):
     stage: str | None = Field(default=None, description="Current or last completed stage")
     detection_spec_id: str | None = Field(default=None, description="DetectionSpec ID if generated")
     rule_id: str | None = Field(default=None, description="Rule ID if generated")
+
+
+class ReviewRequest(BaseModel):
+    """Request schema for POST /v1/reviews."""
+
+    run_id: str = Field(description="Run ID to review")
+    reviewer: str = Field(description="Reviewer identifier")
+    decision: Literal["approved", "rejected"] = Field(description="Review decision")
+    comments: str = Field(description="Review comments")
+
+
+class ReviewResponse(BaseModel):
+    """Response schema for POST /v1/reviews."""
+
+    review_id: str = Field(description="Generated review ID")
+    run_id: str = Field(description="Reviewed run ID")
+    decision: Literal["approved", "rejected"] = Field(description="Review decision")
+    created_at: str = Field(description="ISO 8601 timestamp of review creation")
+
+
+class ExportSigmaRequest(BaseModel):
+    """Request schema for POST /v1/exports/sigma."""
+
+    run_id: str = Field(description="Run ID to export")
+
+
+class ExportSigmaResponse(BaseModel):
+    """Response schema for POST /v1/exports/sigma."""
+
+    rule_id: str = Field(description="Exported rule ID")
+    format: Literal["sigma"] = Field(description="Export format")
+    content: str = Field(description="Sigma rule YAML content")
