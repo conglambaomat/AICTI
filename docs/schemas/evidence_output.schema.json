@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/evidence_output.schema.json",
+  "title": "EvidenceOutput",
+  "type": "object",
+  "required": ["evidence_spans", "abstain", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "evidence_spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "behavior_label",
+          "quote",
+          "chunk_id",
+          "start_offset",
+          "end_offset",
+          "confidence",
+          "rationale"
+        ],
+        "properties": {
+          "behavior_label": {"type": "string", "minLength": 1},
+          "quote": {"type": "string", "minLength": 1},
+          "chunk_id": {"type": "string", "minLength": 1},
+          "start_offset": {"type": "integer", "minimum": 0},
+          "end_offset": {"type": "integer", "minimum": 0},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "abstain": {"type": "boolean"},
+    "abstain_reason": {"type": "string", "minLength": 1},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retrieval_chunk_count", "total_tokens"],
+      "properties": {
+        "retrieval_chunk_count": {"type": "integer", "minimum": 0},
+        "total_tokens": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"abstain": {"const": true}}},
+      "then": {
+        "required": ["abstain_reason"],
+        "properties": {"evidence_spans": {"maxItems": 0}}
+      },
+      "else": {
+        "properties": {"evidence_spans": {"minItems": 1}}
+      }
+    }
+  ]
+}

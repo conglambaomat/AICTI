@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/ground-truth.schema.json",
+  "title": "GroundTruthReport",
+  "type": "object",
+  "required": ["report_id", "complexity", "ground_truth"],
+  "additionalProperties": false,
+  "properties": {
+    "report_id": {"type": "string", "minLength": 1},
+    "complexity": {"type": "string", "enum": ["simple", "medium", "hard"]},
+    "ground_truth": {
+      "type": "object",
+      "required": ["evidence", "attack_mapping", "required_telemetry", "allowed_fields", "expected_decision"],
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["quote", "start_offset", "end_offset", "category"],
+            "additionalProperties": false,
+            "properties": {
+              "quote": {"type": "string", "minLength": 1},
+              "start_offset": {"type": "integer", "minimum": 0},
+              "end_offset": {"type": "integer", "minimum": 0},
+              "category": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "attack_mapping": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["technique_id", "confidence"],
+            "additionalProperties": false,
+            "properties": {
+              "technique_id": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"},
+              "confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+            }
+          }
+        },
+        "required_telemetry": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "allowed_fields": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "detection_logic": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "expected_decision": {"type": "string", "enum": ["behavior_rule", "abstain"]},
+        "abstain_reason": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

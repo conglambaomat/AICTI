@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/attack_mapping_output.schema.json",
+  "title": "AttackMappingOutput",
+  "type": "object",
+  "required": ["mappings", "abstain", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "technique_id",
+          "technique_name",
+          "confidence",
+          "evidence_ids",
+          "rationale"
+        ],
+        "properties": {
+          "technique_id": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"},
+          "technique_name": {"type": "string", "minLength": 1},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "evidence_ids": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1
+          },
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "abstain": {"type": "boolean"},
+    "abstain_reason": {"type": "string", "minLength": 1},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_tokens"],
+      "properties": {
+        "total_tokens": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"abstain": {"const": true}}},
+      "then": {
+        "required": ["abstain_reason"],
+        "properties": {"mappings": {"maxItems": 0}}
+      },
+      "else": {
+        "properties": {"mappings": {"minItems": 1}}
+      }
+    }
+  ]
+}

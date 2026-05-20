@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/detection_spec_output.schema.json",
+  "title": "DetectionSpecOutput",
+  "type": "object",
+  "required": ["detection_spec"],
+  "additionalProperties": false,
+  "properties": {
+    "detection_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "version"],
+      "properties": {
+        "decision": {"type": "string", "enum": ["behavior_rule", "abstain"]},
+        "version": {"type": "integer", "minimum": 1},
+        "evidence": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "attack_mapping": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"}
+        },
+        "required_telemetry": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "allowed_fields": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "detection_logic": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "false_positive_hypotheses": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "test_plan": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "abstain": {"$ref": "abstain.schema.json"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"decision": {"const": "behavior_rule"}}},
+          "then": {
+            "required": [
+              "evidence",
+              "attack_mapping",
+              "required_telemetry",
+              "allowed_fields",
+              "detection_logic",
+              "false_positive_hypotheses",
+              "test_plan"
+            ]
+          },
+          "else": {
+            "required": ["abstain"]
+          }
+        }
+      ]
+    }
+  }
+}

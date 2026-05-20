@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/abstain.schema.json",
+  "title": "StructuredAbstain",
+  "type": "object",
+  "required": ["abstain_code", "abstain_context", "human_message"],
+  "additionalProperties": false,
+  "properties": {
+    "abstain_code": {
+      "type": "string",
+      "enum": [
+        "NO_EVIDENCE_BACKED_BEHAVIOR",
+        "NO_TELEMETRY_SUPPORT",
+        "ONLY_CVE_WITHOUT_OBSERVABLES",
+        "ONLY_TOOL_OR_MALWARE_NAME_NO_BEHAVIOR",
+        "OVERBROAD_AFTER_BOUNDED_REFINEMENT",
+        "CONTRACT_VALIDATION_EXHAUSTED"
+      ]
+    },
+    "abstain_context": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "human_message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  }
+}

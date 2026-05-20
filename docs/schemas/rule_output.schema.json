@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/rule_output.schema.json",
+  "title": "RuleOutput",
+  "type": "object",
+  "required": ["abstain", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "sigma_rule": {"type": "string", "minLength": 1},
+    "abstain": {"type": "boolean"},
+    "abstain_reason": {"type": "string", "minLength": 1},
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "prompt_version", "total_tokens"],
+      "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "prompt_version": {"type": "string", "minLength": 1},
+        "total_tokens": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"abstain": {"const": true}}},
+      "then": {"required": ["abstain_reason"]},
+      "else": {"required": ["sigma_rule"]}
+    }
+  ]
+}

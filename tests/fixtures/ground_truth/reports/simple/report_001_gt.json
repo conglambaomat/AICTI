@@ -1,0 +1,27 @@
+{
+  "report_id": "report_001",
+  "complexity": "simple",
+  "ground_truth": {
+    "evidence": [
+      {
+        "quote": "powershell.exe -enc ...",
+        "start_offset": 0,
+        "end_offset": 25,
+        "category": "process_execution"
+      }
+    ],
+    "attack_mapping": [
+      {
+        "technique_id": "T1059.001",
+        "confidence": "high"
+      }
+    ],
+    "required_telemetry": ["process_creation"],
+    "allowed_fields": ["CommandLine", "Image", "ParentImage"],
+    "detection_logic": {
+      "description": "Detect encoded PowerShell execution via process command line patterns"
+    },
+    "expected_decision": "behavior_rule",
+    "abstain_reason": null
+  }
+}
