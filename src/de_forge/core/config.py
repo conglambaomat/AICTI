@@ -22,6 +22,11 @@ class Settings(BaseSettings):
         default="sqlite:///./de_forge.db",
         description="Database connection URL",
     )
+    database_echo: bool = Field(default=False, description="Enable SQLAlchemy SQL echo logging")
+    database_pool_pre_ping: bool = Field(
+        default=True,
+        description="Enable SQLAlchemy pool pre-ping health checks",
+    )
 
     # OpenAI-compatible API
     openai_api_key: str = Field(default="", description="OpenAI API key")
