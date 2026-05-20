@@ -40,7 +40,8 @@ class IngestionService:
         raw_text = content_bytes.decode("utf-8")
         content_hash = sha256(content_bytes).hexdigest()
 
-        # Check if report with same content_hash already exists
+        # Idempotency policy: reports are deduplicated by content_hash only.
+        # Same content with different filename/source_type returns the existing report.
         existing_report = self.db.execute(
             select(Report).where(Report.content_hash == content_hash)
         ).scalar_one_or_none()
@@ -80,22 +81,26 @@ class IngestionService:
 
         chunks = self._build_chunks(report_id=report.id, text=raw_text)
 
-        self.db.add(report)
-        for chunk in chunks:
-            self.db.add(
-                ReportChunk(
-                    id=chunk.chunk_id,
-                    report_id=report.id,
-                    chunk_index=chunks.index(chunk),
-                    section_title=None,
-                    chunk_text=raw_text[chunk.char_start:chunk.char_end],
-                    char_start=chunk.char_start,
-                    char_end=chunk.char_end,
-                    chunk_type="paragraph",
-                    created_at="1970-01-01T00:00:00Z",
+        try:
+            self.db.add(report)
+            for idx, chunk in enumerate(chunks):
+                self.db.add(
+                    ReportChunk(
+                        id=chunk.chunk_id,
+                        report_id=report.id,
+                        chunk_index=idx,
+                        section_title=None,
+                        chunk_text=raw_text[chunk.char_start:chunk.char_end],
+                        char_start=chunk.char_start,
+                        char_end=chunk.char_end,
+                        chunk_type="paragraph",
+                        created_at="1970-01-01T00:00:00Z",
+                    )
                 )
-            )
-        self.db.commit()
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
 
         return IngestionResult(report_id=report.id, chunks=chunks)
 
