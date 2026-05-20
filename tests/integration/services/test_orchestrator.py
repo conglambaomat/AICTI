@@ -72,3 +72,26 @@ def test_run_pipeline_rejects_empty_report_text() -> None:
             validation_issues=[],
             iteration=1,
         )
+
+
+def test_run_pipeline_is_deterministic_for_same_inputs() -> None:
+    service = OrchestratorService()
+
+    first = service.run_pipeline(
+        report_text="PowerShell -enc command launches",
+        profile="balanced",
+        telemetry_registry=_telemetry_registry(),
+        baseline_delta_pass=True,
+        validation_issues=[],
+        iteration=1,
+    )
+    second = service.run_pipeline(
+        report_text="PowerShell -enc command launches",
+        profile="balanced",
+        telemetry_registry=_telemetry_registry(),
+        baseline_delta_pass=True,
+        validation_issues=[],
+        iteration=1,
+    )
+
+    assert first == second
