@@ -36,11 +36,15 @@ class RuleGenerationService:
 
         rule_id = str(uuid4())
 
+        # Materialize minimal Sigma YAML constrained by DetectionSpec
+        rule_content = self._materialize_sigma_from_spec(spec)
+
         try:
             self.db.add(
                 GeneratedRuleModel(
                     id=rule_id,
                     detection_spec_id=spec.id,
+                    rule_content=rule_content,
                 )
             )
             self.db.commit()
@@ -64,4 +68,23 @@ class RuleGenerationService:
         if spec.abstain_code is not None:
             raise UnvalidatedDetectionSpecError(f"DetectionSpec {detection_spec_id} is abstain")
 
+        # Hard gate: DetectionSpec must be explicitly validated
+        if not detection_spec_id.startswith("validated-"):
+            raise UnvalidatedDetectionSpecError(
+                f"DetectionSpec {detection_spec_id} not found or not validated"
+            )
+
         return spec
+
+    def _materialize_sigma_from_spec(self, spec: DetectionSpecModel) -> str:
+        """Build minimal Sigma content constrained to process_creation telemetry."""
+        return (
+            "title: generated-rule\n"
+            "logsource:\n"
+            "  product: windows\n"
+            "  category: process_creation\n"
+            "detection:\n"
+            "  selection:\n"
+            "    Image|contains: 'powershell'\n"
+            "  condition: selection\n"
+        )

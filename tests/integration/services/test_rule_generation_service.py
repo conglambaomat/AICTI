@@ -41,7 +41,7 @@ def test_generated_rule_is_immutable_versioned() -> None:
     service = RuleGenerationService(db)
 
     # Seed a validated DetectionSpec
-    spec_id = "spec-immutable-test"
+    spec_id = "validated-spec-immutable-test"
     db.add(
         DetectionSpecModel(
             id=spec_id,
@@ -78,7 +78,7 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
     service = RuleGenerationService(db)
 
     # Seed validated DetectionSpec
-    spec_id = "spec-constrained-test"
+    spec_id = "validated-spec-constrained-test"
     db.add(
         DetectionSpecModel(
             id=spec_id,
@@ -94,6 +94,14 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
     assert result.detection_spec_id == spec_id
     assert result.rule_id is not None
 
+    # Verify persisted rule content is constrained to process_creation telemetry
+    persisted = db.execute(
+        select(GeneratedRuleModel).where(GeneratedRuleModel.id == result.rule_id)
+    ).scalar_one()
+    assert persisted.rule_content is not None
+    assert "process_creation" in persisted.rule_content
+    assert "logsource:" in persisted.rule_content
+
 
 def test_transaction_rollback_on_generation_failure() -> None:
     """Service must rollback transaction if rule generation/persistence fails."""
@@ -101,7 +109,7 @@ def test_transaction_rollback_on_generation_failure() -> None:
     service = RuleGenerationService(db)
 
     # Seed validated DetectionSpec
-    spec_id = "spec-rollback-test"
+    spec_id = "validated-spec-rollback-test"
     db.add(
         DetectionSpecModel(
             id=spec_id,

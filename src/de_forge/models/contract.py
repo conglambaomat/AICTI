@@ -169,6 +169,7 @@ class GeneratedRule(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     detection_spec_id: Mapped[str] = mapped_column(ForeignKey("detection_specs.id"), nullable=False)
     query_candidate_id: Mapped[str | None] = mapped_column(ForeignKey("query_candidates.id"))
+    rule_content: Mapped[str | None] = mapped_column(Text())
 
 
 class ValidationResult(Base):
