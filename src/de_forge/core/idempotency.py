@@ -1,13 +1,10 @@
 import hashlib
-import json
-from typing import Any
+
+from de_forge.core.constants import IDEMPOTENCY_KEY_PREFIX
+from de_forge.core.hashing import JsonValue, canonicalize_payload
 
 
-def _canonicalize(payload: Any) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def make_idempotency_key(stage_identifier: str, payload: Any) -> str:
-    canonical = _canonicalize(payload)
+def make_idempotency_key(stage_identifier: str, payload: JsonValue) -> str:
+    canonical = canonicalize_payload(payload)
     digest = hashlib.sha256(f"{stage_identifier}|{canonical}".encode("utf-8")).hexdigest()
-    return f"idem_{digest}"
+    return f"{IDEMPOTENCY_KEY_PREFIX}{digest}"
