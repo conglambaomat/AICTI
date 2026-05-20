@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.services.static_validation import StaticValidationService
 
 
-class PipelineState(str, Enum):
+class PipelineState(StrEnum):
     INGESTED = "ingested"
     SPEC_VALIDATED = "spec_validated"
     RULE_GENERATED = "rule_generated"
@@ -42,7 +42,9 @@ class PipelineOrchestrator:
             raise PipelineTransitionError("abstain DetectionSpec cannot proceed to rule generation")
 
         rule = self.db.execute(
-            select(GeneratedRuleModel).where(GeneratedRuleModel.detection_spec_id == detection_spec_id)
+            select(GeneratedRuleModel).where(
+                GeneratedRuleModel.detection_spec_id == detection_spec_id
+            )
         ).scalar_one_or_none()
         if rule is None:
             raise PipelineTransitionError("generated rule required before validation")

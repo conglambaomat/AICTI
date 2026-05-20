@@ -2,7 +2,6 @@
 
 from collections.abc import Mapping
 
-
 CANONICAL_TRANSITIONS: dict[str, tuple[str, ...]] = {
     "INGESTED": ("CHUNKED",),
     "CHUNKED": ("EVIDENCE_EXTRACTED",),
@@ -26,7 +25,9 @@ CANONICAL_TRANSITIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-def can_transition(state_from: str, state_to: str, transitions: Mapping[str, tuple[str, ...]] | None = None) -> bool:
+def can_transition(
+    state_from: str, state_to: str, transitions: Mapping[str, tuple[str, ...]] | None = None
+) -> bool:
     """Return True if state_to is a permitted transition from state_from."""
     transition_map = transitions or CANONICAL_TRANSITIONS
     return state_to in transition_map.get(state_from, tuple())

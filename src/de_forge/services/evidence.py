@@ -104,7 +104,9 @@ class EvidenceService:
 
         # Support claim must be non-empty
         if not ev.supports_claim or len(ev.supports_claim) == 0:
-            raise EvidenceExtractionError(f"Evidence {ev.evidence_id}: supports_claim must be non-empty")
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: supports_claim must be non-empty"
+            )
 
         # Confidence must be in [0.0, 1.0]
         if not (0.0 <= ev.confidence <= 1.0):
@@ -114,7 +116,9 @@ class EvidenceService:
 
         # Quote offsets must be valid
         if ev.char_start < 0:
-            raise EvidenceExtractionError(f"Evidence {ev.evidence_id}: char_start must be >= 0, got {ev.char_start}")
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: char_start must be >= 0, got {ev.char_start}"
+            )
 
         if ev.char_end < ev.char_start:
             raise EvidenceExtractionError(
@@ -124,7 +128,9 @@ class EvidenceService:
         # Verify chunk exists and offsets are within chunk bounds (absolute coordinates)
         chunk = self.db.get(ReportChunk, ev.chunk_id)
         if not chunk:
-            raise EvidenceExtractionError(f"Evidence {ev.evidence_id}: chunk_id {ev.chunk_id} not found")
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: chunk_id {ev.chunk_id} not found"
+            )
 
         # Evidence offsets are absolute (same coordinate space as chunk offsets)
         if ev.char_start < chunk.char_start:

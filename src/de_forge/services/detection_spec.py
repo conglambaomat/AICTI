@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -35,15 +36,13 @@ class DetectionSpecService:
         """Persist behavior DetectionSpec after strict telemetry runtime gate."""
         self._enforce_behavior_telemetry_gate(spec, available_telemetry)
 
-        detection_spec_id = make_idempotency_key(
-            "detection_spec",
-            {
-                "report_id": spec.report_id,
-                "behavior_rules": [rule.model_dump() for rule in spec.behavior_rules],
-                "false_positive_hypotheses": spec.false_positive_hypotheses,
-                "test_plan": spec.test_plan,
-            },
-        )
+        idempotency_payload: dict[str, Any] = {
+            "report_id": spec.report_id,
+            "behavior_rules": [rule.model_dump(mode="json") for rule in spec.behavior_rules],
+            "false_positive_hypotheses": spec.false_positive_hypotheses,
+            "test_plan": spec.test_plan,
+        }
+        detection_spec_id = make_idempotency_key("detection_spec", idempotency_payload)
 
         try:
             self.db.add(

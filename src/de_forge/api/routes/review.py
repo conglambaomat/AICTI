@@ -21,7 +21,9 @@ class ReviewDecisionResponse(BaseModel):
 
 
 @router.post("/decision", response_model=ReviewDecisionResponse)
-def record_decision(request: ReviewDecisionRequest, db: Session = Depends(get_db)) -> ReviewDecisionResponse:
+def record_decision(
+    request: ReviewDecisionRequest, db: Session = Depends(get_db)
+) -> ReviewDecisionResponse:
     service = ReviewService(db)
     decision_id = service.record_decision(
         rule_id=request.rule_id,

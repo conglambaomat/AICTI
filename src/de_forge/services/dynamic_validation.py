@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
@@ -23,8 +24,8 @@ class DynamicValidationService:
     def run_synthetic_validation(
         self,
         rule: str,
-        attack_events: list[dict],
-        benign_events: list[dict],
+        attack_events: list[dict[str, Any]],
+        benign_events: list[dict[str, Any]],
     ) -> DynamicValidationResult:
         """Run deterministic synthetic validation against attack and benign event corpus."""
         try:
@@ -73,7 +74,7 @@ class DynamicValidationService:
             benign_total=len(benign_events),
         )
 
-    def _matches(self, event: dict, selection: dict) -> bool:
+    def _matches(self, event: dict[str, Any], selection: dict[str, Any]) -> bool:
         """Check if event matches selection criteria deterministically."""
         for key, value in selection.items():
             if "|contains" in key:

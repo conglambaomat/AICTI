@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
+from typing import Any
 
 import yaml
 from sqlalchemy import select
@@ -54,7 +54,7 @@ class StaticValidationService:
 
         return ValidationReport(is_valid=len(issues) == 0, issues=sorted(set(issues)))
 
-    def _parse_sigma(self, rule_content: str, issues: list[str]) -> dict | None:
+    def _parse_sigma(self, rule_content: str, issues: list[str]) -> dict[str, Any] | None:
         try:
             parsed = yaml.safe_load(rule_content)
         except yaml.YAMLError:
@@ -67,14 +67,14 @@ class StaticValidationService:
 
         return parsed
 
-    def _validate_structure(self, parsed: dict, issues: list[str]) -> None:
+    def _validate_structure(self, parsed: dict[str, Any], issues: list[str]) -> None:
         if "logsource" not in parsed or not isinstance(parsed.get("logsource"), dict):
             issues.append("missing logsource structure")
 
         if "detection" not in parsed or not isinstance(parsed.get("detection"), dict):
             issues.append("invalid detection structure")
 
-    def _validate_telemetry_and_fields(self, parsed: dict, issues: list[str]) -> None:
+    def _validate_telemetry_and_fields(self, parsed: dict[str, Any], issues: list[str]) -> None:
         logsource = parsed.get("logsource", {})
         category = logsource.get("category")
         if category != "process_creation":
@@ -94,16 +94,21 @@ class StaticValidationService:
             if field_name not in allowed_fields:
                 issues.append(f"unknown telemetry field: {field_name}")
 
-    def _validate_overbroad(self, rule_content: str, parsed: dict, issues: list[str]) -> None:
+    def _validate_overbroad(
+        self, rule_content: str, parsed: dict[str, Any], issues: list[str]
+    ) -> None:
         detection = parsed.get("detection", {})
         if not isinstance(detection, dict):
             return
         selection = detection.get("selection", {})
 
-        if isinstance(selection, dict) and set(selection.keys()) == {"EventID"}:
-            if str(selection.get("EventID")) == "1" or selection.get("EventID") == 1:
-                issues.append("rule is overbroad: matches all process_creation events")
-                return
+        if (
+            isinstance(selection, dict)
+            and set(selection.keys()) == {"EventID"}
+            and (str(selection.get("EventID")) == "1" or selection.get("EventID") == 1)
+        ):
+            issues.append("rule is overbroad: matches all process_creation events")
+            return
 
         if "Image|contains" not in rule_content and "CommandLine|contains" not in rule_content:
             issues.append("rule is too broad: missing behavior-specific selectors")

@@ -51,11 +51,15 @@ class IngestionService:
 
         if existing_report:
             # Return existing report and its chunks
-            existing_chunks = self.db.execute(
-                select(ReportChunk)
-                .where(ReportChunk.report_id == existing_report.id)
-                .order_by(ReportChunk.chunk_index)
-            ).scalars().all()
+            existing_chunks = (
+                self.db.execute(
+                    select(ReportChunk)
+                    .where(ReportChunk.report_id == existing_report.id)
+                    .order_by(ReportChunk.chunk_index)
+                )
+                .scalars()
+                .all()
+            )
 
             return IngestionResult(
                 report_id=existing_report.id,
@@ -70,7 +74,10 @@ class IngestionService:
             )
 
         report = Report(
-            id=make_idempotency_key("report", {"source_type": source_type, "filename": filename, "content_hash": content_hash}),
+            id=make_idempotency_key(
+                "report",
+                {"source_type": source_type, "filename": filename, "content_hash": content_hash},
+            ),
             source_type=source_type,
             source_uri=filename,
             title=filename,
@@ -93,7 +100,7 @@ class IngestionService:
                         report_id=report.id,
                         chunk_index=idx,
                         section_title=None,
-                        chunk_text=raw_text[chunk.char_start:chunk.char_end],
+                        chunk_text=raw_text[chunk.char_start : chunk.char_end],
                         char_start=chunk.char_start,
                         char_end=chunk.char_end,
                         chunk_type="paragraph",

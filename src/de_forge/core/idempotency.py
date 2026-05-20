@@ -19,5 +19,5 @@ def make_idempotency_key(stage_identifier: str, payload: JsonValue) -> str:
         ValueError: If payload contains NaN or infinity.
     """
     canonical = canonicalize_payload(payload)
-    digest = hashlib.sha256(f"{stage_identifier}|{canonical}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{stage_identifier}|{canonical}".encode()).hexdigest()
     return f"{IDEMPOTENCY_KEY_PREFIX}{digest}"

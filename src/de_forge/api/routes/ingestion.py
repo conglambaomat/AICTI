@@ -26,10 +26,10 @@ async def ingest_report(
     Raises:
         HTTPException: If file exceeds 10MB or contains invalid UTF-8.
     """
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    max_file_size = 10 * 1024 * 1024  # 10MB
     content_bytes = await file.read()
 
-    if len(content_bytes) > MAX_FILE_SIZE:
+    if len(content_bytes) > max_file_size:
         raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
     filename = file.filename or "unknown"
 

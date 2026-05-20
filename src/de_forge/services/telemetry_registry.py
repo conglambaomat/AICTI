@@ -31,7 +31,6 @@ PROCESS_CREATION_ALLOWED_FIELDS = frozenset(
         "Company",
         "Product",
         "Description",
-        "CommandLine",
     }
 )
 

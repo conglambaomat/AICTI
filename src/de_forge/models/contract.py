@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from de_forge.db.base import Base
@@ -39,7 +49,9 @@ class ReportChunk(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id", ondelete="CASCADE"), nullable=False)
+    report_id: Mapped[str] = mapped_column(
+        ForeignKey("reports.id", ondelete="CASCADE"), nullable=False
+    )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     section_title: Mapped[str | None] = mapped_column(Text())
     chunk_text: Mapped[str] = mapped_column(Text(), nullable=False)
@@ -54,9 +66,7 @@ class EvidenceSpan(Base):
     __table_args__ = (
         CheckConstraint("length(quote) > 0", name="ck_evidence_spans_quote_non_empty"),
         CheckConstraint("char_start >= 0", name="ck_evidence_spans_char_start_gte_0"),
-        CheckConstraint(
-            "char_end >= char_start", name="ck_evidence_spans_char_end_gte_char_start"
-        ),
+        CheckConstraint("char_end >= char_start", name="ck_evidence_spans_char_end_gte_char_start"),
         CheckConstraint(
             "length(supports_claim) > 0", name="ck_evidence_spans_supports_claim_non_empty"
         ),
@@ -86,7 +96,10 @@ class ExtractedIOC(Base):
     __tablename__ = "extracted_iocs"
     __table_args__ = (
         UniqueConstraint(
-            "report_id", "ioc_type", "normalized_value", name="uq_extracted_iocs_report_type_normalized"
+            "report_id",
+            "ioc_type",
+            "normalized_value",
+            name="uq_extracted_iocs_report_type_normalized",
         ),
         CheckConstraint(
             "ioc_type in ('ip', 'domain', 'hash', 'url', 'email', 'file_path')",

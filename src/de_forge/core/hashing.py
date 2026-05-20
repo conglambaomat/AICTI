@@ -2,7 +2,6 @@ import hashlib
 import json
 from typing import TypeAlias
 
-
 JsonPrimitive: TypeAlias = None | bool | int | float | str
 JsonValue: TypeAlias = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
 

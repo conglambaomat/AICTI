@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from uuid import uuid4
 
@@ -73,6 +72,8 @@ class AgentAuditService:
             raise ValueError(f"agent run {run_id} not found")
 
         if not verify_snapshot_hash(input_snapshot, agent_run.input_hash):
-            raise IntegrityError("input hash mismatch: stored hash does not match provided snapshot")
+            raise IntegrityError(
+                "input hash mismatch: stored hash does not match provided snapshot"
+            )
 
         return agent_run

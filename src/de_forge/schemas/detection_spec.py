@@ -4,7 +4,6 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 ATTACK_ID_PATTERN = re.compile(r"^T\d{4}(?:\.\d{3})?$")
 MVP_ALLOWED_ATTACK_IDS = {"T1059.001", "T1059.003", "T1105"}
 MVP_ALLOWED_TELEMETRY = {"process_creation"}
