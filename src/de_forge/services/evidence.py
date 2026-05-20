@@ -1,8 +1,9 @@
-"""Evidence extraction service with fail-fast contract validation."""
+"""Evidence services for fail-fast persistence and retrieval-grounded extraction."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -11,8 +12,6 @@ from de_forge.models import EvidenceSpan, ReportChunk
 
 class EvidenceExtractionError(Exception):
     """Raised when evidence extraction fails contract validation."""
-
-    pass
 
 
 @dataclass(frozen=True)
@@ -41,30 +40,12 @@ class EvidenceService:
         created_by_agent: str,
         evidence: list[EvidenceInput],
     ) -> list[str]:
-        """
-        Persist evidence spans with strict contract validation.
-
-        Args:
-            report_id: Parent report ID for lineage
-            run_id: Execution run ID for traceability
-            created_by_agent: Agent name that extracted evidence
-            evidence: List of evidence spans to persist
-
-        Returns:
-            List of persisted evidence IDs
-
-        Raises:
-            EvidenceExtractionError: If evidence payload is empty or violates contract
-        """
-        # Fail-fast: empty evidence list
         if not evidence:
             raise EvidenceExtractionError("Empty evidence payload: cannot proceed with generation")
 
-        # Validate each evidence span before persisting
         for ev in evidence:
             self._validate_evidence_span(ev)
 
-        # Persist all evidence spans atomically
         try:
             evidence_ids = []
             for ev in evidence:
@@ -86,59 +67,89 @@ class EvidenceService:
 
             self.db.commit()
             return evidence_ids
-
         except Exception:
             self.db.rollback()
             raise
 
     def _validate_evidence_span(self, ev: EvidenceInput) -> None:
-        """
-        Validate evidence span contract.
-
-        Raises:
-            EvidenceExtractionError: If validation fails
-        """
-        # Quote must be non-empty
-        if not ev.quote or len(ev.quote) == 0:
+        if not ev.quote:
             raise EvidenceExtractionError(f"Evidence {ev.evidence_id}: quote must be non-empty")
-
-        # Support claim must be non-empty
-        if not ev.supports_claim or len(ev.supports_claim) == 0:
+        if not ev.supports_claim:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: supports_claim must be non-empty"
             )
-
-        # Confidence must be in [0.0, 1.0]
         if not (0.0 <= ev.confidence <= 1.0):
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: confidence must be between 0.0 and 1.0, got {ev.confidence}"
             )
-
-        # Quote offsets must be valid
         if ev.char_start < 0:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: char_start must be >= 0, got {ev.char_start}"
             )
-
         if ev.char_end < ev.char_start:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: char_end must be >= char_start, got char_start={ev.char_start}, char_end={ev.char_end}"
             )
 
-        # Verify chunk exists and offsets are within chunk bounds (absolute coordinates)
         chunk = self.db.get(ReportChunk, ev.chunk_id)
         if not chunk:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: chunk_id {ev.chunk_id} not found"
             )
-
-        # Evidence offsets are absolute (same coordinate space as chunk offsets)
         if ev.char_start < chunk.char_start:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: char_start {ev.char_start} is before chunk start {chunk.char_start}"
             )
-
         if ev.char_end > chunk.char_end:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: char_end {ev.char_end} exceeds chunk end {chunk.char_end}"
             )
+
+
+@dataclass(slots=True)
+class EvidenceAgentService:
+    """Evidence extraction service using retrieval grounding and structured LLM output."""
+
+    retrieval_service: Any
+    llm_client: Any
+
+    def extract(self, *, report_id: str, report_text: str) -> dict[str, Any]:
+        query_plan = {"query": report_text}
+        chunks = self.retrieval_service.retrieve(query_plan["query"], report_id)
+
+        llm_output = self.llm_client.generate_structured(
+            schema_name="evidence_output",
+            payload={"report_id": report_id, "report_text": report_text, "chunks": chunks},
+        )
+
+        evidence = llm_output.get("evidence", [])
+        grounded: list[dict[str, Any]] = []
+        chunk_map = {chunk["chunk_id"]: chunk["text"] for chunk in chunks}
+
+        for item in evidence:
+            chunk_id = item.get("chunk_id")
+            quote = item.get("quote")
+            start_offset = item.get("start_offset")
+            end_offset = item.get("end_offset")
+            if not isinstance(chunk_id, str) or not isinstance(quote, str):
+                continue
+            if not isinstance(start_offset, int) or not isinstance(end_offset, int):
+                continue
+            chunk_text = chunk_map.get(chunk_id)
+            if not isinstance(chunk_text, str):
+                continue
+            if start_offset < 0 or end_offset > len(chunk_text) or start_offset >= end_offset:
+                continue
+            if chunk_text[start_offset:end_offset] != quote:
+                continue
+            grounded.append(item)
+
+        if not grounded:
+            return {
+                "status": "abstain",
+                "abstain_code": "NO_EVIDENCE_BACKED_BEHAVIOR",
+                "query_plan": query_plan,
+                "evidence": [],
+            }
+
+        return {"status": "ok", "query_plan": query_plan, "evidence": grounded}
