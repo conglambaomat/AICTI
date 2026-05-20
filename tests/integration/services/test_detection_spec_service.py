@@ -75,6 +75,9 @@ def test_abstain_spec_persists_structured_reason() -> None:
         select(DetectionSpecModel).where(DetectionSpecModel.id == result.detection_spec_id)
     ).scalar_one()
     assert persisted.report_id == "report-456"
+    assert persisted.abstain_code == "NO_TELEMETRY"
+    assert persisted.abstain_context == abstain_decision.abstain_context
+    assert persisted.abstain_human_message == abstain_decision.human_message
 
 
 def test_valid_behavior_spec_persists_with_lineage() -> None:

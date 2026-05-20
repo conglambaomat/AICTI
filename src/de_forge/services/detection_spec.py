@@ -81,6 +81,9 @@ class DetectionSpecService:
                 DetectionSpecModel(
                     id=detection_spec_id,
                     report_id=report_id,
+                    abstain_code=abstain_decision.abstain_code,
+                    abstain_context=abstain_decision.abstain_context,
+                    abstain_human_message=abstain_decision.human_message,
                 )
             )
             self.db.commit()

@@ -159,6 +159,9 @@ class DetectionSpec(Base):
     __tablename__ = "detection_specs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), nullable=False)
+    abstain_code: Mapped[str | None] = mapped_column(String(80))
+    abstain_context: Mapped[str | None] = mapped_column(Text())
+    abstain_human_message: Mapped[str | None] = mapped_column(Text())
 
 
 class GeneratedRule(Base):
