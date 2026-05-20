@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://de-forge.local/schemas/AgentIO.schema.json",
+  "title": "Agent IO Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent_name", "run_id", "trace_id", "input", "output", "status"],
+  "properties": {
+    "agent_name": {
+      "type": "string",
+      "enum": [
+        "ObjectiveDecomposerAgent",
+        "CTIEvidenceAgent",
+        "AttackMapperAgent",
+        "TelemetryScoutAgent",
+        "DetectionArchitectAgent",
+        "QueryRuleBuilderAgent",
+        "VerifierRefinerAgent"
+      ]
+    },
+    "run_id": { "type": "string", "minLength": 1 },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "input": { "type": "object", "additionalProperties": true },
+    "output": { "type": ["object", "null"], "additionalProperties": true },
+    "status": { "type": "string", "enum": ["success", "abstain", "failed"] },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z_0-9]+$" },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempt", "max_attempts", "policy"],
+      "properties": {
+        "attempt": { "type": "integer", "minimum": 1 },
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "policy": { "type": "string", "enum": ["none", "transient_backoff", "rate_limit_backoff", "parse_once"] }
+      }
+    },
+    "metadata": { "type": "object", "additionalProperties": true }
+  }
+}

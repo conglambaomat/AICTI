@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://de-forge.local/schemas/TelemetryRegistry.schema.json",
+  "title": "Telemetry Registry",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "source_id",
+      "platform",
+      "source",
+      "event_id",
+      "category",
+      "sigma_logsource",
+      "fields",
+      "supported_modifiers"
+    ],
+    "properties": {
+      "source_id": { "type": "string", "pattern": "^[a-z0-9_\\-]+$" },
+      "platform": { "type": "string", "enum": ["windows", "linux", "cloud", "aks", "macos"] },
+      "source": { "type": "string", "minLength": 1 },
+      "event_id": { "anyOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+      "category": { "type": "string", "minLength": 1 },
+      "sigma_logsource": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["product", "category", "service"],
+        "properties": {
+          "product": { "type": "string", "minLength": 1 },
+          "category": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+          "service": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] }
+        }
+      },
+      "fields": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field_name", "field_type", "description", "required"],
+          "properties": {
+            "field_name": { "type": "string", "minLength": 1 },
+            "field_type": { "type": "string", "enum": ["string", "integer", "number", "boolean", "datetime", "array", "object"] },
+            "description": { "type": "string", "minLength": 1 },
+            "required": { "type": "boolean" }
+          }
+        }
+      },
+      "supported_modifiers": {
+        "type": "array",
+        "items": { "type": "string", "enum": ["contains", "endswith", "startswith", "re", "contains|all"] },
+        "minItems": 1,
+        "uniqueItems": true
+      }
+    }
+  }
+}

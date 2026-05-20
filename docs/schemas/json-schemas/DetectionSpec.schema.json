@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://de-forge.local/schemas/DetectionSpec.schema.json",
+  "title": "DetectionSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_id",
+    "source_report_id",
+    "detection_type",
+    "evidence",
+    "attack_mapping",
+    "required_telemetry",
+    "detection_logic",
+    "false_positive_hypotheses",
+    "test_plan",
+    "abstain_reason"
+  ],
+  "properties": {
+    "spec_id": { "type": "string", "pattern": "^ds-[A-Za-z0-9-]+$" },
+    "source_report_id": { "type": "string", "minLength": 1 },
+    "detection_type": {
+      "type": "string",
+      "enum": ["behavior_rule", "ioc_watchlist", "cve_exposure", "abstain"]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chunk_id", "quote", "char_start", "char_end", "supports"],
+        "properties": {
+          "chunk_id": { "type": "string", "minLength": 1 },
+          "quote": { "type": "string", "minLength": 1 },
+          "char_start": { "type": "integer", "minimum": 0 },
+          "char_end": { "type": "integer", "minimum": 0 },
+          "supports": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "attack_mapping": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["technique_id", "technique_name", "tactic", "confidence", "mapping_reason"],
+          "properties": {
+            "technique_id": { "type": "string", "pattern": "^T\\d{4}(\\.\\d{3})?$" },
+            "technique_name": { "type": "string", "minLength": 1 },
+            "tactic": { "type": "string", "minLength": 1 },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "mapping_reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "required_telemetry": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "source", "event_id", "category", "fields", "attestation_method"],
+        "properties": {
+          "platform": { "type": "string", "enum": ["windows", "linux", "cloud", "aks", "macos"] },
+          "source": { "type": "string", "minLength": 1 },
+          "event_id": { "anyOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+          "category": { "type": "string", "minLength": 1 },
+          "fields": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "attestation_method": { "type": "string", "enum": ["schema_verified", "sample_verified", "tool_verified"] }
+        }
+      }
+    },
+    "detection_logic": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["condition"],
+          "properties": {
+            "selection": { "type": "object", "additionalProperties": true },
+            "filter": { "type": "object", "additionalProperties": true },
+            "condition": { "type": "string", "minLength": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "false_positive_hypotheses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "test_plan": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["static_validation", "dynamic_test_method", "expected_attack_behavior"],
+          "properties": {
+            "static_validation": { "type": "boolean" },
+            "dynamic_test_method": { "type": "string", "enum": ["synthetic_log", "replay", "atomic_red_team", "none"] },
+            "expected_attack_behavior": { "type": "string", "minLength": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "abstain_reason": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "ioc_list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value", "evidence_quote"],
+        "properties": {
+          "type": { "type": "string", "enum": ["ip", "domain", "hash", "url", "email"] },
+          "value": { "type": "string", "minLength": 1 },
+          "evidence_quote": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "cve_id": { "type": "string", "pattern": "^CVE-\\d{4}-\\d{4,}$" },
+    "metadata": { "type": "object", "additionalProperties": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "detection_type": { "const": "behavior_rule" } }, "required": ["detection_type"] },
+      "then": {
+        "properties": {
+          "evidence": { "minItems": 1 },
+          "required_telemetry": { "minItems": 1 },
+          "attack_mapping": { "type": "object" },
+          "detection_logic": { "type": "object" },
+          "test_plan": { "type": "object" },
+          "abstain_reason": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "detection_type": { "const": "abstain" } }, "required": ["detection_type"] },
+      "then": {
+        "properties": {
+          "abstain_reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  ]
+}
