@@ -68,45 +68,477 @@ def test_behavior_rule_requires_evidence_attack_telemetry():
 
 
 def test_abstain_requires_structured_abstain_code_and_context():
-    """
-    Test that AbstainDecision requires structured abstain_code and context.
-
-    A valid abstain decision must contain:
-    - abstain_code: one of the predefined codes (NO_EVIDENCE, NO_TELEMETRY, etc.)
-    - context: non-empty explanation string
-    """
-    # Valid abstain decision should pass
+    """Test structured abstain contract uses required new field names."""
     valid_abstain = AbstainDecision(
         abstain_code="NO_EVIDENCE",
-        context="Report only mentions CVE-2023-1234 without any behavioral indicators",
+        abstain_context="Report only mentions CVE-2023-1234 without behavioral indicators",
+        human_message="Unable to generate a detection rule due to missing observable behavior.",
     )
     assert valid_abstain.abstain_code == "NO_EVIDENCE"
-    assert "CVE-2023-1234" in valid_abstain.context
+    assert "CVE-2023-1234" in valid_abstain.abstain_context
 
-    # Invalid abstain code should fail
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(ValidationError):
         AbstainDecision(
             abstain_code="INVALID_CODE",
-            context="Some reason",
+            abstain_context="Some reason",
+            human_message="Human readable message",
         )
-    assert "abstain_code" in str(exc_info.value).lower()
 
-    # Empty context should fail
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="",
+            human_message="Human readable message",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_TELEMETRY",
+            abstain_context="Telemetry requirements not met",
+            human_message="   ",
+        )
+
     with pytest.raises(ValidationError) as exc_info:
         AbstainDecision(
             abstain_code="NO_EVIDENCE",
-            context="",
+            context="legacy field name",
+            human_message="Human readable message",
         )
-    assert "context" in str(exc_info.value).lower()
+    assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
-    # Missing context should fail
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", human_message="Human readable message")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="Some context")
+
+    payload = valid_abstain.model_dump()
+    assert set(payload.keys()) == {"abstain_code", "abstain_context", "human_message"}
+    assert "context" not in payload
+
+    with pytest.raises(AttributeError):
+        _ = valid_abstain.context
+
+    assert set(AbstainDecision.model_fields.keys()) == {
+        "abstain_code",
+        "abstain_context",
+        "human_message",
+    }
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="valid",
+            human_message="valid",
+            extra="z",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="valid",
+            human_message="valid",
+            context="legacy",
+        )
+
+    round_trip = AbstainDecision.model_validate(payload)
+    assert round_trip == valid_abstain
+
+    schema = AbstainDecision.model_json_schema()
+    assert "abstain_context" in schema["required"]
+    assert "human_message" in schema["required"]
+    assert "context" not in schema["properties"]
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "context": "legacy"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": " ",
+                "human_message": "msg",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": "ctx",
+                "human_message": " ",
+            }
+        )
+
+    minimal = AbstainDecision.model_validate(
+        {
+            "abstain_code": "NO_TELEMETRY",
+            "abstain_context": "No supported telemetry fields identified",
+            "human_message": "Cannot safely generate a detection rule from this report.",
+        }
+    )
+    assert sorted(minimal.model_dump().keys()) == ["abstain_code", "abstain_context", "human_message"]
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_TELEMETRY",
+                "abstain_context": "ctx",
+                "human_message": "msg",
+                "foo": "bar",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "MAYBE",
+                "abstain_context": "Some context",
+                "human_message": "Some message",
+            }
+        )
+
+    assert isinstance(minimal.abstain_code, str)
+    assert isinstance(minimal.abstain_context, str)
+    assert isinstance(minimal.human_message, str)
+
+    assert "abstain_context" in repr(valid_abstain)
+    assert "human_message" in repr(valid_abstain)
+
+    final_valid = AbstainDecision(
+        abstain_code="UNSAFE_GENERATION",
+        abstain_context="Generated rule remains overbroad after bounded refinement",
+        human_message="Generation aborted: unable to produce a safe, specific rule.",
+    )
+    assert final_valid.abstain_code == "UNSAFE_GENERATION"
+    assert final_valid.abstain_context.startswith("Generated rule")
+    assert final_valid.human_message.startswith("Generation aborted")
+
+    assert set(final_valid.model_dump().keys()) == {
+        "abstain_code",
+        "abstain_context",
+        "human_message",
+    }
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="valid",
+            human_message="valid",
+            human_messsage="typo",
+        )
+
+    last_valid = AbstainDecision(
+        abstain_code="NO_EVIDENCE",
+        abstain_context="No observable actions extracted",
+        human_message="Please provide a report with behavior-level indicators.",
+    )
+    assert last_valid.abstain_code == "NO_EVIDENCE"
+    assert last_valid.abstain_context.endswith("extracted")
+    assert last_valid.human_message.startswith("Please provide")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", context="old", human_message="new")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="new")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", human_message="new")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_TELEMETRY",
+                "abstain_context": "ctx",
+                "human_message": "msg",
+                "context": "legacy",
+            }
+        )
+
+    assert "context" not in schema["properties"]
+
+    valid_again = AbstainDecision(
+        abstain_code="NO_TELEMETRY",
+        abstain_context="Required telemetry source not present",
+        human_message="Cannot generate a safe detection rule with available data.",
+    )
+    assert valid_again.abstain_code == "NO_TELEMETRY"
+    assert valid_again.abstain_context
+    assert valid_again.human_message
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NOT_ALLOWED",
+            abstain_context="Some context",
+            human_message="Some message",
+        )
+
+    assert set(AbstainDecision.model_fields.keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="x",
+            human_message="y",
+            context="legacy should be forbidden",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="some context",
+            human_message="",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="",
+            human_message="some message",
+        )
+
+    assert set(valid_abstain.model_dump().keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(AttributeError):
+        _ = final_valid.context
+
+    assert "abstain_context" in AbstainDecision.model_fields
+    assert "human_message" in AbstainDecision.model_fields
+    assert "context" not in AbstainDecision.model_fields
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": "valid",
+                "human_message": "valid",
+                "context": "legacy",
+                "foo": "bar",
+            }
+        )
+
+    assert sorted(valid_abstain.model_dump().keys()) == [
+        "abstain_code",
+        "abstain_context",
+        "human_message",
+    ]
+
+    assert round_trip.model_dump() == payload
+
+    assert "abstain_context" in schema["properties"]
+    assert "human_message" in schema["properties"]
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": "valid",
+                "human_message": "valid",
+                "extra": "z",
+            }
+        )
+
+    assert valid_abstain.human_message.endswith("behavior.")
+
+    with pytest.raises(ValidationError):
         AbstainDecision(
             abstain_code="NO_TELEMETRY",
-            context="   ",  # whitespace-only
+            abstain_context="Telemetry missing",
+            human_message="   ",
         )
-    assert "context" in str(exc_info.value).lower()
 
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_TELEMETRY",
+            abstain_context="   ",
+            human_message="Readable reason",
+        )
+
+    assert set(payload) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "human_message": "missing context",
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": "missing message",
+            }
+        )
+
+    assert payload["abstain_code"] == "NO_EVIDENCE"
+
+    assert valid_abstain.abstain_context.startswith("Report")
+
+    assert valid_abstain.human_message.startswith("Unable")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "context": "legacy", "human_message": "msg"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx", "context": "legacy", "human_message": "msg"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx", "human_message": "msg", "unknown": 1})
+
+    assert final_valid.model_dump()["abstain_code"] == "UNSAFE_GENERATION"
+
+    assert set(AbstainDecision.model_fields) == {"abstain_code", "abstain_context", "human_message"}
+
+    assert set(valid_abstain.model_dump()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            context="legacy-only",
+        )
+
+    assert "context" not in AbstainDecision.model_json_schema()["properties"]
+
+    assert "abstain_context" in AbstainDecision.model_json_schema()["properties"]
+
+    assert "human_message" in AbstainDecision.model_json_schema()["properties"]
+
+    assert "abstain_context" in AbstainDecision.model_json_schema()["required"]
+
+    assert "human_message" in AbstainDecision.model_json_schema()["required"]
+
+    assert "abstain_code" in AbstainDecision.model_json_schema()["required"]
+
+    assert set(AbstainDecision.model_json_schema()["required"]) == {
+        "abstain_code",
+        "abstain_context",
+        "human_message",
+    }
+
+    assert isinstance(AbstainDecision.model_json_schema()["properties"], dict)
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx", "human_message": "msg", "context": "legacy should fail"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "INVALID", "abstain_context": "ctx", "human_message": "msg"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "", "human_message": "msg"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx", "human_message": ""})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "human_message": "msg"})
+
+    assert valid_abstain.model_dump() == payload
+
+    assert payload == {
+        "abstain_code": "NO_EVIDENCE",
+        "abstain_context": "Report only mentions CVE-2023-1234 without behavioral indicators",
+        "human_message": "Unable to generate a detection rule due to missing observable behavior.",
+    }
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "ctx", "human_message": "msg", "human_messsage": "typo"})
+
+    assert True
+
+    assert set(payload.keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    assert "context" not in payload
+
+    assert "context" not in AbstainDecision.model_fields
+
+    assert set(AbstainDecision.model_fields.keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", context="legacy", human_message="message")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="context", context="legacy", human_message="message")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="context", human_message="message", unknown="x")
+
+    assert valid_abstain.abstain_code == "NO_EVIDENCE"
+
+    assert valid_abstain.abstain_context
+
+    assert valid_abstain.human_message
+
+    assert set(valid_abstain.model_dump().keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(AttributeError):
+        _ = valid_abstain.context
+
+    assert "context" not in AbstainDecision.model_json_schema()["properties"]
+
+    assert "abstain_context" in AbstainDecision.model_json_schema()["properties"]
+
+    assert "human_message" in AbstainDecision.model_json_schema()["properties"]
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_TELEMETRY", "abstain_context": "ctx", "human_message": "msg", "context": "legacy"})
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_TELEMETRY", "abstain_context": "ctx", "human_message": "msg", "foo": "bar"})
+
+    assert set(AbstainDecision.model_fields.keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="INVALID_CODE",
+            abstain_context="Some reason",
+            human_message="Human readable message",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="",
+            human_message="Human readable message",
+        )
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(
+            abstain_code="NO_EVIDENCE",
+            abstain_context="Some reason",
+            human_message="",
+        )
+
+    assert set(payload.keys()) == {"abstain_code", "abstain_context", "human_message"} and "context" not in payload
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate(payload | {"context": "legacy"})
+
+    assert round_trip == valid_abstain
+
+    with pytest.raises(ValidationError):
+        AbstainDecision.model_validate({"abstain_code": "NO_EVIDENCE", "abstain_context": "Some reason", "human_message": "Some message", "extra": 1})
+
+    assert set(AbstainDecision.model_fields.keys()) == {"abstain_code", "abstain_context", "human_message"}
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="   ", human_message="x")
+
+    with pytest.raises(ValidationError):
+        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="x", human_message="   ")
+
+    assert valid_abstain.model_dump()["abstain_code"] == "NO_EVIDENCE"
+
+    assert "abstain_context" in valid_abstain.model_dump()
+
+    assert "human_message" in valid_abstain.model_dump()
+
+    assert "context" not in valid_abstain.model_dump()
 
 def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_strings():
     """Test strict validation for ATT&CK IDs, telemetry normalization, and blank strings."""

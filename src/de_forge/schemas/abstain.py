@@ -16,17 +16,18 @@ AbstainCode = Literal[
 
 
 class AbstainDecision(BaseModel):
-    """Structured abstain decision with mandatory code and context."""
+    """Structured abstain decision with mandatory code, context, and human message."""
 
     model_config = ConfigDict(extra="forbid")
 
     abstain_code: AbstainCode
-    context: str = Field(min_length=1)
+    abstain_context: str = Field(min_length=1)
+    human_message: str = Field(min_length=1)
 
-    @field_validator("context")
+    @field_validator("abstain_context", "human_message")
     @classmethod
-    def validate_context_not_blank(cls, value: str) -> str:
-        """Ensure context is not empty or whitespace-only."""
+    def validate_strings_not_blank(cls, value: str) -> str:
+        """Ensure abstain_context and human_message are not empty or whitespace-only."""
         if not value.strip():
-            raise ValueError("context must not be empty or whitespace-only")
+            raise ValueError("field must not be empty or whitespace-only")
         return value
