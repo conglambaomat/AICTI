@@ -50,6 +50,7 @@ class DetectionSpecService:
                 DetectionSpecModel(
                     id=detection_spec_id,
                     report_id=spec.report_id,
+                    spec_payload=spec.model_dump_json(),
                 )
             )
             self.db.commit()

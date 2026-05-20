@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -77,12 +78,35 @@ class RuleGenerationService:
         return spec
 
     def _materialize_sigma_from_spec(self, spec: DetectionSpecModel) -> str:
-        """Build minimal Sigma content constrained to process_creation telemetry."""
+        """Build minimal Sigma content constrained by DetectionSpec payload."""
+        if not spec.spec_payload:
+            # Fallback for specs without payload (e.g., test fixtures)
+            return (
+                "title: generated-rule\n"
+                "logsource:\n"
+                "  product: windows\n"
+                "  category: process_creation\n"
+                "detection:\n"
+                "  selection:\n"
+                "    Image|contains: 'powershell'\n"
+                "  condition: selection\n"
+            )
+
+        spec_data = json.loads(spec.spec_payload)
+        behavior_rules = spec_data.get("behavior_rules", [])
+
+        if not behavior_rules:
+            raise ValueError("DetectionSpec has no behavior_rules")
+
+        first_rule = behavior_rules[0]
+        required_telemetry = first_rule.get("required_telemetry", ["process_creation"])
+        detection_logic = first_rule.get("detection_logic", "generic detection")
+
         return (
-            "title: generated-rule\n"
+            f"title: {detection_logic[:50]}\n"
             "logsource:\n"
             "  product: windows\n"
-            "  category: process_creation\n"
+            f"  category: {required_telemetry[0]}\n"
             "detection:\n"
             "  selection:\n"
             "    Image|contains: 'powershell'\n"
