@@ -13,4 +13,4 @@ class Report(Base):
     __table_args__ = (UniqueConstraint("content_hash", name="uq_reports_content_hash"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    content_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
