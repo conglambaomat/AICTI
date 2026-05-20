@@ -70,7 +70,7 @@ class RuleGenerationService:
             raise UnvalidatedDetectionSpecError(f"DetectionSpec {detection_spec_id} is abstain")
 
         # Hard gate: DetectionSpec must be explicitly validated
-        if not detection_spec_id.startswith("validated-"):
+        if not spec.is_validated:
             raise UnvalidatedDetectionSpecError(
                 f"DetectionSpec {detection_spec_id} not found or not validated"
             )
@@ -89,8 +89,8 @@ class RuleGenerationService:
             raise ValueError("DetectionSpec has no behavior_rules")
 
         first_rule = behavior_rules[0]
-        required_telemetry = first_rule.get("required_telemetry", ["process_creation"])
-        detection_logic = first_rule.get("detection_logic", "generic detection")
+        required_telemetry = first_rule["required_telemetry"]
+        detection_logic = first_rule["detection_logic"]
 
         return (
             f"title: {detection_logic[:50]}\n"

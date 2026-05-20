@@ -163,6 +163,7 @@ class DetectionSpec(Base):
     abstain_context: Mapped[str | None] = mapped_column(Text())
     abstain_human_message: Mapped[str | None] = mapped_column(Text())
     spec_payload: Mapped[str | None] = mapped_column(Text())
+    is_validated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class GeneratedRule(Base):

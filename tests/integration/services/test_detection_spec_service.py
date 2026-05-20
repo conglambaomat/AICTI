@@ -110,6 +110,7 @@ def test_valid_behavior_spec_persists_with_lineage() -> None:
         select(DetectionSpecModel).where(DetectionSpecModel.id == result.detection_spec_id)
     ).scalar_one()
     assert persisted.report_id == "report-789"
+    assert persisted.is_validated is True
 
 
 def test_transaction_rollback_on_persistence_failure() -> None:

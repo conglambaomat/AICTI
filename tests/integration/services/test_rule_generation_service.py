@@ -47,6 +47,7 @@ def test_generated_rule_is_immutable_versioned() -> None:
             id=spec_id,
             report_id="report-123",
             spec_payload='{"report_id":"report-123","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
         )
     )
     db.commit()
@@ -85,6 +86,7 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
             id=spec_id,
             report_id="report-456",
             spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect suspicious powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
         )
     )
     db.commit()
@@ -118,6 +120,7 @@ def test_transaction_rollback_on_generation_failure() -> None:
             id=spec_id,
             report_id="report-789",
             spec_payload='{"report_id":"report-789","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
         )
     )
     db.commit()
@@ -153,6 +156,7 @@ def test_abstain_spec_blocks_rule_generation() -> None:
             abstain_code="NO_TELEMETRY",
             abstain_context="No supported telemetry",
             abstain_human_message="Cannot generate detection",
+            is_validated=True,
         )
     )
     db.commit()
