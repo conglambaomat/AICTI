@@ -1,7 +1,7 @@
 import pytest
 
 from de_forge.core.idempotency import make_idempotency_key
-from de_forge.core.hashing import verify_snapshot_hash
+from de_forge.core.hashing import snapshot_hash, verify_snapshot_hash
 
 
 def test_idempotency_key_is_deterministic_for_same_payload() -> None:
@@ -29,6 +29,13 @@ def test_make_idempotency_key_rejects_nan_and_infinity() -> None:
 def test_make_idempotency_key_rejects_non_serializable_input() -> None:
     with pytest.raises(TypeError):
         make_idempotency_key("stage.ingest", {"bad": {1, 2, 3}})
+
+
+def test_snapshot_hash_is_deterministic_for_equivalent_payloads() -> None:
+    digest1 = snapshot_hash({"b": 2, "a": 1})
+    digest2 = snapshot_hash({"a": 1, "b": 2})
+
+    assert digest1 == digest2
 
 
 def test_verify_snapshot_hash_detects_tampering() -> None:
