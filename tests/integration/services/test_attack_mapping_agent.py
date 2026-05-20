@@ -50,3 +50,53 @@ def test_invalid_technique_format_rejected() -> None:
                 "rationale": "x",
             }
         )
+
+
+def test_profile_threshold_abstains_when_confidence_too_low_for_strict() -> None:
+    service = AttackMappingService()
+    low_confidence_evidence = [
+        {
+            "evidence_id": "e1",
+            "behavior_label": "suspicious_scripting",
+            "quote": "script.exe ran",
+        }
+    ]
+
+    result = service.map_attack(low_confidence_evidence, profile="strict")
+
+    assert result["abstain"] is True
+    assert result["mappings"] == []
+    assert result["abstain_reason"] == "ATTACK_CONFIDENCE_BELOW_PROFILE_THRESHOLD"
+
+
+def test_profile_threshold_allows_balanced_for_same_evidence() -> None:
+    service = AttackMappingService()
+    low_confidence_evidence = [
+        {
+            "evidence_id": "e1",
+            "behavior_label": "suspicious_scripting",
+            "quote": "script.exe ran",
+        }
+    ]
+
+    result = service.map_attack(low_confidence_evidence, profile="balanced")
+
+    assert result["abstain"] is False
+    assert result["mappings"]
+    assert result["mappings"][0]["confidence"] == 0.8
+
+
+def test_unknown_profile_falls_back_to_balanced_threshold() -> None:
+    service = AttackMappingService()
+    low_confidence_evidence = [
+        {
+            "evidence_id": "e1",
+            "behavior_label": "suspicious_scripting",
+            "quote": "script.exe ran",
+        }
+    ]
+
+    result = service.map_attack(low_confidence_evidence, profile="unknown")
+
+    assert result["abstain"] is False
+    assert result["mappings"]

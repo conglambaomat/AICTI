@@ -44,20 +44,38 @@ class AttackMappingService:
                 "metadata": {"total_tokens": 0},
             }
 
+        first = evidence_spans[0]
+        behavior_label = str(first.get("behavior_label", "")).lower()
+        confidence = 0.8 if behavior_label == "suspicious_scripting" else 0.9
+
+        threshold = self._profile_threshold(profile)
+        if confidence < threshold:
+            return {
+                "mappings": [],
+                "abstain": True,
+                "abstain_reason": "ATTACK_CONFIDENCE_BELOW_PROFILE_THRESHOLD",
+                "metadata": {"total_tokens": 0, "profile_threshold": threshold},
+            }
+
         mapping = {
             "technique_id": "T1059.001",
             "technique_name": "Command and Scripting Interpreter: PowerShell",
-            "confidence": 0.9 if profile == "strict" else 0.85,
-            "evidence_ids": [str(evidence_spans[0].get("evidence_id", "e1"))],
-            "rationale": "Evidence shows explicit PowerShell command execution",
+            "confidence": confidence,
+            "evidence_ids": [str(first.get("evidence_id", "e1"))],
+            "rationale": "Evidence shows explicit or probable scripting execution",
         }
         self.validate_mapping(mapping)
 
         return {
             "mappings": [mapping],
             "abstain": False,
-            "metadata": {"total_tokens": 0},
+            "metadata": {"total_tokens": 0, "profile_threshold": threshold},
         }
+
+    @staticmethod
+    def _profile_threshold(profile: str) -> float:
+        thresholds = {"strict": 0.85, "balanced": 0.75, "exploratory": 0.6}
+        return thresholds.get(profile, thresholds["balanced"])
 
     def validate_mapping(self, mapping: dict[str, Any]) -> None:
         technique_id = str(mapping.get("technique_id", ""))

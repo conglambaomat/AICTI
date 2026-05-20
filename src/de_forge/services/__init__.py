@@ -1,1 +1,1 @@
-"""Services package for DE-Forge."""
+"""DE-Forge services package."""
