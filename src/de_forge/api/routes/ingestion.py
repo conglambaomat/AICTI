@@ -1,6 +1,6 @@
 """Ingestion API routes."""
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from de_forge.db.session import get_db
@@ -22,8 +22,15 @@ async def ingest_report(
 
     Returns:
         Dictionary with report_id and chunk_count.
+
+    Raises:
+        HTTPException: If file exceeds 10MB or contains invalid UTF-8.
     """
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
     content_bytes = await file.read()
+
+    if len(content_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
     filename = file.filename or "unknown"
 
     # Determine source type from filename extension
@@ -32,11 +39,14 @@ async def ingest_report(
         source_type = "pdf"
 
     service = IngestionService(db)
-    result = service.ingest(
-        source_type=source_type,
-        filename=filename,
-        content_bytes=content_bytes,
-    )
+    try:
+        result = service.ingest(
+            source_type=source_type,
+            filename=filename,
+            content_bytes=content_bytes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "report_id": result.report_id,

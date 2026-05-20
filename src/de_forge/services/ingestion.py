@@ -37,7 +37,10 @@ class IngestionService:
 
     def ingest(self, source_type: str, filename: str, content_bytes: bytes) -> IngestionResult:
         """Ingest report bytes and persist report with deterministic chunks."""
-        raw_text = content_bytes.decode("utf-8")
+        try:
+            raw_text = content_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("content_bytes must be valid UTF-8") from exc
         content_hash = sha256(content_bytes).hexdigest()
 
         # Idempotency policy: reports are deduplicated by content_hash only.
