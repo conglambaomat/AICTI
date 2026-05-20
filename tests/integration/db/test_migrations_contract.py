@@ -38,9 +38,11 @@ def test_expected_core_tables_exist(migrated_engine) -> None:
         "reports",
         "report_chunks",
         "evidence_spans",
+        "extracted_iocs",
         "attack_mappings",
         "telemetry_selections",
         "detection_specs",
+        "query_candidates",
         "generated_rules",
         "validation_results",
         "test_runs",
@@ -102,3 +104,99 @@ def test_indexes_match_core_contract(migrated_engine) -> None:
     assert "ix_report_chunks_report_id" in chunks_indexes
     assert "ix_report_chunks_report_id_chunk_index" in chunks_indexes
     assert ("report_id", "chunk_index") in chunks_uniques
+
+    evidence_indexes = {idx["name"] for idx in inspector.get_indexes("evidence_spans")}
+    assert "ix_evidence_spans_report_id" in evidence_indexes
+    assert "ix_evidence_spans_chunk_id" in evidence_indexes
+    assert "ix_evidence_spans_run_id" in evidence_indexes
+
+    extracted_iocs_indexes = {idx["name"] for idx in inspector.get_indexes("extracted_iocs")}
+    extracted_iocs_uniques = {
+        tuple(uc["column_names"]) for uc in inspector.get_unique_constraints("extracted_iocs")
+    }
+    assert "ix_extracted_iocs_report_id" in extracted_iocs_indexes
+    assert "ix_extracted_iocs_ioc_type" in extracted_iocs_indexes
+    assert "ix_extracted_iocs_normalized_value" in extracted_iocs_indexes
+    assert ("report_id", "ioc_type", "normalized_value") in extracted_iocs_uniques
+
+    query_candidates_indexes = {idx["name"] for idx in inspector.get_indexes("query_candidates")}
+    query_candidates_uniques = {
+        tuple(uc["column_names"]) for uc in inspector.get_unique_constraints("query_candidates")
+    }
+    assert "ix_query_candidates_detection_spec_id" in query_candidates_indexes
+    assert "ix_query_candidates_selected" in query_candidates_indexes
+    assert "ix_query_candidates_run_id" in query_candidates_indexes
+    assert ("detection_spec_id", "query_id") in query_candidates_uniques
+
+
+def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
+    """Task 3 subset should include critical checks and foreign keys."""
+    inspector = inspect(migrated_engine)
+
+    evidence_checks = {check["name"] for check in inspector.get_check_constraints("evidence_spans")}
+    assert "ck_evidence_spans_quote_non_empty" in evidence_checks
+    assert "ck_evidence_spans_char_start_gte_0" in evidence_checks
+    assert "ck_evidence_spans_char_end_gte_char_start" in evidence_checks
+    assert "ck_evidence_spans_supports_claim_non_empty" in evidence_checks
+    assert "ck_evidence_spans_confidence_between_0_and_1" in evidence_checks
+
+    extracted_iocs_checks = {check["name"] for check in inspector.get_check_constraints("extracted_iocs")}
+    assert "ck_extracted_iocs_ioc_type_allowed" in extracted_iocs_checks
+    assert "ck_extracted_iocs_confidence_between_0_and_1" in extracted_iocs_checks
+
+    query_candidates_checks = {check["name"] for check in inspector.get_check_constraints("query_candidates")}
+    assert "ck_query_candidates_query_type_allowed" in query_candidates_checks
+    assert "ck_query_candidates_query_language_allowed" in query_candidates_checks
+
+    extracted_iocs_fks = inspector.get_foreign_keys("extracted_iocs")
+    assert any(
+        fk["referred_table"] == "reports" and fk["constrained_columns"] == ["report_id"]
+        for fk in extracted_iocs_fks
+    )
+    assert any(
+        fk["referred_table"] == "evidence_spans" and fk["constrained_columns"] == ["evidence_id"]
+        for fk in extracted_iocs_fks
+    )
+
+    query_candidates_fks = inspector.get_foreign_keys("query_candidates")
+    assert any(
+        fk["referred_table"] == "detection_specs"
+        and fk["constrained_columns"] == ["detection_spec_id"]
+        for fk in query_candidates_fks
+    )
+
+    generated_rules_fks = inspector.get_foreign_keys("generated_rules")
+    assert any(
+        fk["referred_table"] == "query_candidates"
+        and fk["constrained_columns"] == ["query_candidate_id"]
+        for fk in generated_rules_fks
+    )
+
+    validation_fks = inspector.get_foreign_keys("validation_results")
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in validation_fks
+    )
+
+    test_run_fks = inspector.get_foreign_keys("test_runs")
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in test_run_fks
+    )
+
+    review_fks = inspector.get_foreign_keys("review_decisions")
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in review_fks
+    )
+
+    refinement_fks = inspector.get_foreign_keys("refinement_iterations")
+    assert any(
+        fk["referred_table"] == "detection_specs"
+        and fk["constrained_columns"] == ["detection_spec_id"]
+        for fk in refinement_fks
+    )
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in refinement_fks
+    )
