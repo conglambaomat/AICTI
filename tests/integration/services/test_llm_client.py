@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from de_forge.services.llm_client import (
     InternalServerError,
+    InvalidRequestError,
     LLMClient,
     LLMRequest,
     ParseError,
+    RateLimitError,
     SchemaValidationError,
     TimeoutError,
     TokenUsage,
@@ -65,7 +67,7 @@ def test_retry_on_transient_error_then_success() -> None:
             ),
         ]
     )
-    client = LLMClient(transport=transport)
+    client = LLMClient(transport=transport, api_key="test-key")
 
     response = client.call(_req())
 
@@ -74,11 +76,18 @@ def test_retry_on_transient_error_then_success() -> None:
 
 
 def test_timeout_behavior_raises_timeout_error() -> None:
-    transport = FakeTransport([TimeoutError("request timed out")])
-    client = LLMClient(transport=transport)
+    transport = FakeTransport([
+        TimeoutError("request timed out"),
+        TimeoutError("request timed out"),
+        TimeoutError("request timed out"),
+        TimeoutError("request timed out"),
+    ])
+    client = LLMClient(transport=transport, api_key="test-key")
 
     with pytest.raises(TimeoutError):
         client.call(_req())
+
+    assert transport.calls == 4
 
 
 def test_schema_validation_raises_contract_error() -> None:
@@ -90,7 +99,7 @@ def test_schema_validation_raises_contract_error() -> None:
             )
         ]
     )
-    client = LLMClient(transport=transport)
+    client = LLMClient(transport=transport, api_key="test-key")
 
     schema = {
         "type": "object",
@@ -112,7 +121,7 @@ def test_token_accounting_and_cost_in_metadata() -> None:
             )
         ]
     )
-    client = LLMClient(transport=transport)
+    client = LLMClient(transport=transport, api_key="test-key")
 
     response = client.call(_req())
 
@@ -127,7 +136,7 @@ def test_parse_error_retries_once_then_fails() -> None:
             FakeHTTPResponse(content="still-not-json", usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}),
         ]
     )
-    client = LLMClient(transport=transport)
+    client = LLMClient(transport=transport, api_key="test-key")
 
     with pytest.raises(ParseError):
         client.call_with_schema(_req(), {"type": "object"})
