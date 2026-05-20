@@ -83,6 +83,7 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-456",
+            spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect suspicious powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
         )
     )
     db.commit()
@@ -101,6 +102,7 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
     assert persisted.rule_content is not None
     assert "process_creation" in persisted.rule_content
     assert "logsource:" in persisted.rule_content
+    assert "detect suspicious powershell" in persisted.rule_content
 
 
 def test_transaction_rollback_on_generation_failure() -> None:

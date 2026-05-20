@@ -80,17 +80,7 @@ class RuleGenerationService:
     def _materialize_sigma_from_spec(self, spec: DetectionSpecModel) -> str:
         """Build minimal Sigma content constrained by DetectionSpec payload."""
         if not spec.spec_payload:
-            # Fallback for specs without payload (e.g., test fixtures)
-            return (
-                "title: generated-rule\n"
-                "logsource:\n"
-                "  product: windows\n"
-                "  category: process_creation\n"
-                "detection:\n"
-                "  selection:\n"
-                "    Image|contains: 'powershell'\n"
-                "  condition: selection\n"
-            )
+            raise ValueError("DetectionSpec missing spec_payload for constrained rule generation")
 
         spec_data = json.loads(spec.spec_payload)
         behavior_rules = spec_data.get("behavior_rules", [])
