@@ -354,3 +354,84 @@ Abstain when:
 When uncertain, stop and ask for clarification instead of guessing.
 
 Detection quality priority: correctness and traceability first.
+
+## Production-Completion Upgrade Requirements (Post-Agentic)
+
+This section governs the next upgrade phase after the completed 14-task agentic deep-analysis service implementation.
+
+### 1) API Layer (Mandatory)
+- Implement pipeline API under `src/de_forge/api/routes/` with contract-first schemas in `src/de_forge/schemas/`.
+- Canonical endpoint set:
+  - `POST /v1/reports:ingest`
+  - `POST /v1/pipeline:run`
+  - `GET /v1/runs/{run_id}`
+  - `POST /v1/reviews`
+  - `POST /v1/exports/sigma`
+- Enforce no raw-report-to-rule bypass path at API level.
+- Standardize response model:
+  - `status=abstain` for safe non-generation outcomes.
+  - `status=failed` for hard-fail outcomes.
+- Export endpoint must hard-block unless human review approval exists.
+
+### 2) Persistence Layer (Mandatory)
+- Add SQLAlchemy domain models in `src/de_forge/models/` and Alembic migrations in `alembic/versions/`.
+- Persist required lineage fields for every run and artifact:
+  - `report_id`, `run_id`, `trace_id`, `agent_run_id`, `detection_spec_id`, `rule_id`, `evidence_id`, `chunk_id`.
+- Generated artifacts are immutable; rule edits create new versions.
+- Persistence failures are fail-fast blockers (do not continue stage progression).
+- Keep schema design PostgreSQL-compatible while supporting SQLite local runtime.
+
+### 3) E2E Validation Layer (Mandatory)
+- Add profile-based full-path E2E suite under `tests/e2e/`.
+- Validate end-to-end flow: ingest -> pipeline -> review -> export.
+- Validate abstain and hard-fail behavior through external API contracts.
+- Deterministic replay requirement:
+  - same input/profile/config yields same decision path and artifact hashes (excluding timestamps/opaque DB ids).
+
+### 4) Benchmark Evaluation Runner (Mandatory)
+- Implement benchmark runner and tests under `tests/benchmark/`.
+- Must enforce baseline delta and KPI matrix gates from:
+  - `docs/benchmark/eval-dataset-manifest.md`
+  - `docs/implementation/kpi-threshold-matrix.md`
+  - `docs/implementation/evaluation-protocol-agentic-deep-analysis.md`
+- Promotion decision must fail if any hard gate or baseline delta requirement fails.
+
+### 5) Real LLM Integration Testing (Mandatory)
+- Add opt-in provider integration tests for real LLM calls.
+- Gate with env var (example): `RUN_REAL_LLM_TESTS=1`.
+- Use configured provider/model contract:
+  - base URL `https://shopapikey.com/v1`
+  - model `cx/gpt-5.5`
+- Never log API keys or sensitive prompt content.
+- Keep bounded retries/timeouts per LLM client contract.
+
+### 6) Safety and Invariant Preservation
+- Preserve existing invariants from current service layer:
+  - DetectionSpec-first
+  - hard gates
+  - abstain policy
+  - bounded refinement loops
+  - human review gate
+- No unsupported claims may pass without evidence/citation integrity.
+- No schema-invalid output may advance stage state.
+
+### 7) Required Verification Gates for This Upgrade
+```bash
+pytest tests/ -v --cov=src --cov-report=term-missing
+mypy src/
+ruff check src/
+ruff format --check src/
+pytest tests/e2e/test_agentic_pipeline_profiles.py -v
+pytest tests/benchmark/test_baseline_delta.py -v
+```
+
+### 8) Implementation Order (Risk-Minimized)
+1. API schemas/routes (contract-first)
+2. DB models + migrations
+3. repository/persistence wiring in orchestrator flow
+4. E2E profile validation
+5. benchmark delta gates
+6. real LLM integration tests
+
+Reference spec for exact handoff tasks:
+- `docs/superpowers/specs/2026-05-20-de-forge-production-completion-design.md`.
