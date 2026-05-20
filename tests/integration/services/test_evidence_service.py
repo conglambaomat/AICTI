@@ -15,7 +15,11 @@ def _build_session() -> Session:
     return maker()
 
 
-def _seed_report_and_chunk(db: Session, chunk_text: str = "powershell -enc abc") -> tuple[str, str]:
+def _seed_report_and_chunk(
+    db: Session,
+    chunk_text: str = "powershell -enc abc",
+    chunk_char_start: int = 0,
+) -> tuple[str, str]:
     report = Report(
         id="report-1",
         source_type="txt",
@@ -34,8 +38,8 @@ def _seed_report_and_chunk(db: Session, chunk_text: str = "powershell -enc abc")
         chunk_index=0,
         section_title=None,
         chunk_text=chunk_text,
-        char_start=0,
-        char_end=len(chunk_text),
+        char_start=chunk_char_start,
+        char_end=chunk_char_start + len(chunk_text),
         chunk_type="paragraph",
         created_at="1970-01-01T00:00:00Z",
     )
@@ -91,3 +95,34 @@ def test_valid_evidence_persists_with_lineage_fields() -> None:
     assert persisted.report_id == report_id
     assert persisted.chunk_id == chunk_id
     assert persisted.run_id == "run-2"
+
+
+def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
+    """Evidence offsets are absolute and must stay within non-zero chunk bounds."""
+    db = _build_session()
+    report_id, chunk_id = _seed_report_and_chunk(db, chunk_char_start=100)
+    service = EvidenceService(db)
+
+    result = service.persist_evidence(
+        report_id=report_id,
+        run_id="run-3",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-2",
+                chunk_id=chunk_id,
+                quote="powershell -enc",
+                char_start=100,
+                char_end=115,
+                supports_claim="PowerShell execution detected",
+                confidence=0.88,
+            )
+        ],
+    )
+
+    assert result == ["evidence-2"]
+
+    persisted = db.execute(select(EvidenceSpan).where(EvidenceSpan.id == "evidence-2")).scalar_one()
+    assert persisted.char_start == 100
+    assert persisted.char_end == 115
+    assert persisted.chunk_id == chunk_id

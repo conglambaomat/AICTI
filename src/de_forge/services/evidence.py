@@ -121,13 +121,18 @@ class EvidenceService:
                 f"Evidence {ev.evidence_id}: char_end must be >= char_start, got char_start={ev.char_start}, char_end={ev.char_end}"
             )
 
-        # Verify chunk exists and offsets are within chunk bounds
+        # Verify chunk exists and offsets are within chunk bounds (absolute coordinates)
         chunk = self.db.get(ReportChunk, ev.chunk_id)
         if not chunk:
             raise EvidenceExtractionError(f"Evidence {ev.evidence_id}: chunk_id {ev.chunk_id} not found")
 
-        chunk_length = chunk.char_end - chunk.char_start
-        if ev.char_end > chunk_length:
+        # Evidence offsets are absolute (same coordinate space as chunk offsets)
+        if ev.char_start < chunk.char_start:
             raise EvidenceExtractionError(
-                f"Evidence {ev.evidence_id}: char_end {ev.char_end} exceeds chunk bounds (chunk length: {chunk_length})"
+                f"Evidence {ev.evidence_id}: char_start {ev.char_start} is before chunk start {chunk.char_start}"
+            )
+
+        if ev.char_end > chunk.char_end:
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: char_end {ev.char_end} exceeds chunk end {chunk.char_end}"
             )
