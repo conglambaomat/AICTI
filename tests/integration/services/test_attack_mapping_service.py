@@ -1,10 +1,11 @@
 """Integration tests for ATT&CK mapping service."""
 
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
-from de_forge.models import EvidenceSpan, Report, ReportChunk
+from de_forge.models import AttackMapping, EvidenceSpan, Report, ReportChunk
 from de_forge.services.attack_mapping import (
     AttackMappingError,
     AttackMappingInput,
@@ -69,7 +70,7 @@ def test_invalid_technique_id_fails_contract_gate() -> None:
     report_id, evidence_id = _seed_report_chunk_evidence(db)
     service = AttackMappingService(db)
 
-    try:
+    with pytest.raises(AttackMappingError) as exc_info:
         service.persist_mappings(
             report_id=report_id,
             mappings=[
@@ -81,9 +82,34 @@ def test_invalid_technique_id_fails_contract_gate() -> None:
                 )
             ],
         )
-        assert False, "Expected AttackMappingError for out-of-allowlist ATT&CK ID"
-    except AttackMappingError as exc:
-        assert "allowlist" in str(exc).lower() or "invalid" in str(exc).lower()
+
+    assert "not in MVP allowlist" in str(exc_info.value)
+
+
+def test_valid_mapping_persists_attack_mapping_row() -> None:
+    """Valid ATT&CK mapping should persist to attack_mappings table."""
+    db = _build_session()
+    report_id, evidence_id = _seed_report_chunk_evidence(db)
+    service = AttackMappingService(db)
+
+    mapping_ids = service.persist_mappings(
+        report_id=report_id,
+        mappings=[
+            AttackMappingInput(
+                mapping_id="map-ok-1",
+                evidence_id=evidence_id,
+                technique_id="T1059.001",
+                confidence=0.95,
+            )
+        ],
+    )
+
+    assert mapping_ids == ["map-ok-1"]
+
+    row = db.execute(select(AttackMapping).where(AttackMapping.id == "map-ok-1")).scalar_one()
+    assert row.id == "map-ok-1"
+    assert row.report_id == report_id
+    assert row.evidence_id == evidence_id
 
 
 def test_insufficient_evidence_returns_structured_abstain() -> None:
