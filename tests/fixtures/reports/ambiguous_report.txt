@@ -1,0 +1,7 @@
+Threat Advisory: CVE-2024-12345 Vulnerability Disclosure
+
+A new vulnerability has been discovered in the XYZ software package version 3.2.1. The vulnerability allows remote code execution under certain conditions.
+
+No specific attack behavior or observables have been documented at this time. Organizations using affected versions should apply the vendor patch immediately.
+
+Further technical details will be released after a 90-day disclosure period.
