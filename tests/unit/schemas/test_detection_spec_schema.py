@@ -140,6 +140,26 @@ def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_stri
     errors = exc_info.value.errors()
     assert any(e["loc"] == ("evidence",) for e in errors)
 
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["valid evidence"],
+            attack_ids=["T1547"],
+            required_telemetry=["process_creation"],
+            detection_logic="valid logic",
+        )
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("attack_ids",) for e in errors)
+
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["valid evidence"],
+            attack_ids=["T1105"],
+            required_telemetry=["file_creation"],
+            detection_logic="valid logic",
+        )
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("required_telemetry",) for e in errors)
+
     normalized = BehaviorRule(
         evidence=["  valid evidence  "],
         attack_ids=[" T1105 "],
@@ -221,8 +241,8 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
             BehaviorRule(
                 evidence=["Malware drops payload.exe to temp directory"],
                 attack_ids=["T1105"],
-                required_telemetry=["file_creation"],
-                detection_logic="File creation in temp directory with suspicious name",
+                required_telemetry=["process_creation"],
+                detection_logic="Process creation with suspicious payload execution",
             )
         ],
         false_positive_hypotheses=["Legitimate software updates may trigger this"],
