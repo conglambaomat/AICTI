@@ -17,8 +17,11 @@ from de_forge.schemas.api_pipeline import (
     PipelineRunResponse,
     ReportIngestRequest,
     ReportIngestResponse,
+<<<<<<< HEAD
     ReviewRequest,
     ReviewResponse,
+=======
+>>>>>>> 2eb3075 (feat(api): add run status endpoint contract)
     RunStatusResponse,
 )
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
@@ -85,6 +88,7 @@ async def get_run_status(run_id: str) -> RunStatusResponse | JSONResponse:
         report_id="rep_demo",
         stage="canary",
     )
+<<<<<<< HEAD
 
 
 @router.post("/reviews", response_model=ReviewResponse, status_code=201)
@@ -107,3 +111,5 @@ async def export_sigma(payload: ExportSigmaRequest) -> ExportSigmaResponse | JSO
         format="sigma",
         content="title: Example Sigma Rule\nid: 00000000-0000-0000-0000-000000000000\nstatus: experimental",
     )
+=======
+>>>>>>> 2eb3075 (feat(api): add run status endpoint contract)

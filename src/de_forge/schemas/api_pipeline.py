@@ -46,3 +46,15 @@ class PipelineRunResponse(BaseModel):
     detection_spec_id: str | None = Field(default=None, description="DetectionSpec ID if generated")
     rule_id: str | None = Field(default=None, description="Rule ID if generated")
     canary: dict[str, Any] | None = Field(default=None, description="Canary decision if applicable")
+
+
+class RunStatusResponse(BaseModel):
+    """Response schema for GET /v1/runs/{run_id}."""
+
+    run_id: str = Field(description="Pipeline run ID")
+    status: Literal["pending", "running", "completed", "failed"] = Field(description="Run status")
+    created_at: str = Field(description="ISO 8601 timestamp of run creation")
+    report_id: str | None = Field(default=None, description="Associated report ID")
+    stage: str | None = Field(default=None, description="Current or last completed stage")
+    detection_spec_id: str | None = Field(default=None, description="DetectionSpec ID if generated")
+    rule_id: str | None = Field(default=None, description="Rule ID if generated")
