@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from de_forge.api.routes.ingestion import router as ingestion_router
 from de_forge.core.config import settings
 
 app = FastAPI(
@@ -18,6 +19,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(ingestion_router)
 
 
 @app.get("/")
