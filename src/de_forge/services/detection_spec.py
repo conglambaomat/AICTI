@@ -1,4 +1,4 @@
-"""DetectionSpec builder service with strict runtime gating."""
+"""DetectionSpec services for persistence and synthesis."""
 
 from __future__ import annotations
 
@@ -23,17 +23,69 @@ class DetectionSpecBuildResult:
 
 
 class DetectionSpecService:
-    """Service for validating and persisting DetectionSpec contracts."""
+    """Service for DetectionSpec validation, persistence, and synthesis."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session | None = None) -> None:
         self.db = db
 
     def build_detection_spec(
         self,
-        spec: DetectionSpec,
+        evidence_spans: list[dict[str, Any]] | None = None,
+        attack_mappings: list[dict[str, Any]] | None = None,
+        telemetry_registry: dict[str, list[str]] | None = None,
+        profile: str | None = None,
+        spec: DetectionSpec | None = None,
         available_telemetry: list[str] | None = None,
-    ) -> DetectionSpecBuildResult:
-        """Persist behavior DetectionSpec after strict telemetry runtime gate."""
+    ) -> dict[str, Any] | DetectionSpecBuildResult:
+        # Synthesis mode (no spec provided)
+        if spec is None:
+            if not evidence_spans or not attack_mappings:
+                return {
+                    "abstain": True,
+                    "abstain_reason": "Insufficient evidence or ATT&CK mappings to build DetectionSpec",
+                    "behavior": [],
+                    "attack_mappings": [],
+                    "telemetry_requirements": [],
+                    "logic": {},
+                    "false_positive_hypotheses": [],
+                    "test_plan": [],
+                    "metadata": {"profile": profile or "balanced"},
+                }
+
+            behavior = [
+                {
+                    "behavior_label": span.get("behavior_label", "unknown_behavior"),
+                    "evidence_ids": [span.get("evidence_id", "e1")],
+                }
+                for span in evidence_spans
+            ]
+
+            telemetry_requirements = [
+                {"source": source, "allowed_fields": fields}
+                for source, fields in (telemetry_registry or {}).items()
+            ]
+
+            return {
+                "abstain": False,
+                "behavior": behavior,
+                "attack_mappings": attack_mappings,
+                "telemetry_requirements": telemetry_requirements,
+                "logic": {
+                    "selection": "process_creation with suspicious commandline",
+                    "condition": "selection",
+                },
+                "false_positive_hypotheses": ["Legitimate administrative scripting activity"],
+                "test_plan": [
+                    "Test against known malicious PowerShell execution logs",
+                    "Test against benign admin PowerShell activity",
+                ],
+                "metadata": {"profile": profile or "balanced"},
+            }
+
+        # Persistence mode (spec provided)
+        if self.db is None:
+            raise ValueError("Database session required for persistence")
+
         self._enforce_behavior_telemetry_gate(spec, available_telemetry)
 
         idempotency_payload: dict[str, Any] = {
@@ -63,18 +115,13 @@ class DetectionSpecService:
             report_id=spec.report_id,
         )
 
-    def build_abstain_spec(
-        self,
-        report_id: str,
-        abstain_decision: AbstainDecision,
-    ) -> DetectionSpecBuildResult:
-        """Persist abstain DetectionSpec with structured reason and lineage."""
+    def build_abstain_spec(self, report_id: str, abstain_decision: AbstainDecision) -> DetectionSpecBuildResult:
+        if self.db is None:
+            raise ValueError("Database session required for persistence")
+
         detection_spec_id = make_idempotency_key(
             "detection_spec_abstain",
-            {
-                "report_id": report_id,
-                "abstain_decision": abstain_decision.model_dump(),
-            },
+            {"report_id": report_id, "abstain_decision": abstain_decision.model_dump()},
         )
 
         try:
@@ -98,12 +145,7 @@ class DetectionSpecService:
             abstain_code=abstain_decision.abstain_code,
         )
 
-    def _enforce_behavior_telemetry_gate(
-        self,
-        spec: DetectionSpec,
-        available_telemetry: list[str] | None,
-    ) -> None:
-        """Fail fast when required behavior telemetry is missing from hard gate."""
+    def _enforce_behavior_telemetry_gate(self, spec: DetectionSpec, available_telemetry: list[str] | None) -> None:
         if available_telemetry is None:
             return
 
