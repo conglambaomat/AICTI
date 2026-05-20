@@ -1,5 +1,7 @@
 """Tests for profile-driven KPI thresholds and budgets."""
 
+import pytest
+
 from de_forge.core.config import Settings
 from de_forge.core.constants import PROFILE_THRESHOLDS
 
@@ -26,8 +28,5 @@ def test_settings_load_profile_and_thresholds() -> None:
 
 def test_settings_reject_invalid_profile() -> None:
     """Should reject unknown profile values."""
-    try:
+    with pytest.raises(ValueError):
         Settings(profile="invalid")
-        assert False, "Expected ValueError for invalid profile"
-    except ValueError:
-        assert True

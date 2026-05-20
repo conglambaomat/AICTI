@@ -2,7 +2,9 @@
 
 IDEMPOTENCY_KEY_PREFIX = "idem_"
 
-PROFILE_THRESHOLDS = {
+from typing import Mapping
+
+PROFILE_THRESHOLDS: Mapping[str, Mapping[str, float | int]] = {
     "strict": {
         "static_validity_rate_min": 0.99,
         "dynamic_precision_min": 0.92,
