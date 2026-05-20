@@ -41,3 +41,11 @@ def test_snapshot_hash_is_deterministic_for_equivalent_payloads() -> None:
 def test_verify_snapshot_hash_detects_tampering() -> None:
     payload = {"x": "safe"}
     assert verify_snapshot_hash(payload, "bad-hash") is False
+
+
+def test_verify_snapshot_hash_passes_for_matching_hash() -> None:
+    from de_forge.core.hashing import snapshot_hash
+
+    payload = {"x": "safe"}
+    digest = snapshot_hash(payload)
+    assert verify_snapshot_hash(payload, digest) is True
