@@ -43,7 +43,8 @@ def test_behavior_rule_requires_evidence_attack_telemetry():
             required_telemetry=["process_creation"],
             detection_logic="Process creation with powershell.exe",
         )
-    assert "evidence" in str(exc_info.value).lower()
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("evidence",) for e in errors)
 
     # Missing ATT&CK IDs should fail
     with pytest.raises(ValidationError) as exc_info:
@@ -105,6 +106,102 @@ def test_abstain_requires_structured_abstain_code_and_context():
             context="   ",  # whitespace-only
         )
     assert "context" in str(exc_info.value).lower()
+
+
+def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_strings():
+    """Test strict validation for ATT&CK IDs, telemetry normalization, and blank strings."""
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["valid evidence"],
+            attack_ids=["INVALID"],
+            required_telemetry=["process_creation"],
+            detection_logic="valid logic",
+        )
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("attack_ids",) for e in errors)
+
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["valid evidence"],
+            attack_ids=["T1059.001"],
+            required_telemetry=["   "],
+            detection_logic="valid logic",
+        )
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("required_telemetry",) for e in errors)
+
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["   "],
+            attack_ids=["T1059.001"],
+            required_telemetry=["process_creation"],
+            detection_logic="valid logic",
+        )
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("evidence",) for e in errors)
+
+    normalized = BehaviorRule(
+        evidence=["  valid evidence  "],
+        attack_ids=[" T1105 "],
+        required_telemetry=[" Process_Creation "],
+        detection_logic="  detect suspicious process  ",
+    )
+    assert normalized.evidence == ["valid evidence"]
+    assert normalized.attack_ids == ["T1105"]
+    assert normalized.required_telemetry == ["process_creation"]
+    assert normalized.detection_logic == "detect suspicious process"
+
+
+def test_contract_schemas_forbid_extra_fields():
+    """Test contract schemas reject undeclared fields via extra='forbid'."""
+    with pytest.raises(ValidationError) as exc_info:
+        BehaviorRule(
+            evidence=["ev"],
+            attack_ids=["T1105"],
+            required_telemetry=["process_creation"],
+            detection_logic="logic",
+            unknown_field="boom",
+        )
+    assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
+
+    with pytest.raises(ValidationError) as exc_info:
+        DetectionSpec(
+            report_id="report-1",
+            behavior_rules=[
+                BehaviorRule(
+                    evidence=["ev"],
+                    attack_ids=["T1105"],
+                    required_telemetry=["process_creation"],
+                    detection_logic="logic",
+                )
+            ],
+            false_positive_hypotheses=["fp"],
+            test_plan="plan",
+            extra_field=True,
+        )
+    assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
+
+    valid_spec = DetectionSpec(
+        report_id="report-1",
+        behavior_rules=[
+            BehaviorRule(
+                evidence=["ev"],
+                attack_ids=["T1105"],
+                required_telemetry=["process_creation"],
+                detection_logic="logic",
+            )
+        ],
+        false_positive_hypotheses=["fp"],
+        test_plan="plan",
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        RuleGenerationRequest(
+            detection_spec=valid_spec,
+            target_format="sigma",
+            surprise="nope",
+        )
+    assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
 
 def test_detection_spec_first_gate_rejects_missing_validated_spec():

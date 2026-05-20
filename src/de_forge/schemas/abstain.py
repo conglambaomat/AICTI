@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 AbstainCode = Literal[
@@ -17,6 +17,8 @@ AbstainCode = Literal[
 
 class AbstainDecision(BaseModel):
     """Structured abstain decision with mandatory code and context."""
+
+    model_config = ConfigDict(extra="forbid")
 
     abstain_code: AbstainCode
     context: str = Field(min_length=1)
