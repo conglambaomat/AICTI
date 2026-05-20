@@ -1,4 +1,4 @@
-"""Deterministic static validation service for generated Sigma rules."""
+"""Static validation services for DE-Forge."""
 
 from __future__ import annotations
 
@@ -94,9 +94,7 @@ class StaticValidationService:
             if field_name not in allowed_fields:
                 issues.append(f"unknown telemetry field: {field_name}")
 
-    def _validate_overbroad(
-        self, rule_content: str, parsed: dict[str, Any], issues: list[str]
-    ) -> None:
+    def _validate_overbroad(self, rule_content: str, parsed: dict[str, Any], issues: list[str]) -> None:
         detection = parsed.get("detection", {})
         if not isinstance(detection, dict):
             return
@@ -112,3 +110,47 @@ class StaticValidationService:
 
         if "Image|contains" not in rule_content and "CommandLine|contains" not in rule_content:
             issues.append("rule is too broad: missing behavior-specific selectors")
+
+
+def validate_retrieval_faithfulness(
+    evidence: list[dict[str, Any]],
+    chunks: dict[str, dict[str, Any]],
+    required_claims: list[str] | None = None,
+) -> dict[str, Any]:
+    """Validate retrieval faithfulness as a hard gate."""
+    errors: list[str] = []
+
+    for item in evidence:
+        chunk_id = str(item.get("chunk_id", ""))
+        quote = str(item.get("quote", ""))
+        char_start = int(item.get("char_start", -1))
+        char_end = int(item.get("char_end", -1))
+
+        chunk = chunks.get(chunk_id)
+        if chunk is None:
+            errors.append(f"Citation mismatch: chunk_id '{chunk_id}' not found")
+            continue
+
+        chunk_text = str(chunk.get("text", ""))
+        chunk_start = int(chunk.get("start_offset", 0))
+
+        quote_idx = chunk_text.find(quote)
+        if quote_idx == -1:
+            errors.append(f"Citation mismatch for chunk '{chunk_id}': quote not found in chunk text")
+            continue
+
+        expected_start = chunk_start + quote_idx
+        expected_end = expected_start + len(quote)
+
+        if char_start != expected_start or char_end != expected_end:
+            errors.append(
+                f"Offset mismatch for chunk '{chunk_id}': expected ({expected_start}, {expected_end}), got ({char_start}, {char_end})"
+            )
+
+    if required_claims is not None:
+        supported_claims = {str(item.get("supports", "")) for item in evidence}
+        for claim in required_claims:
+            if claim not in supported_claims:
+                errors.append(f"Unsupported claim: '{claim}' is not backed by evidence")
+
+    return {"valid": len(errors) == 0, "errors": errors}
