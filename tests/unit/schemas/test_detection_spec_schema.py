@@ -44,7 +44,7 @@ def test_behavior_rule_requires_evidence_attack_telemetry():
             detection_logic="Process creation with powershell.exe",
         )
     errors = exc_info.value.errors()
-    assert any(e["loc"] == ("evidence",) for e in errors)
+    assert any(e["loc"] == ("evidence",) and e["type"] == "too_short" for e in errors)
 
     # Missing ATT&CK IDs should fail
     with pytest.raises(ValidationError) as exc_info:
@@ -54,7 +54,8 @@ def test_behavior_rule_requires_evidence_attack_telemetry():
             required_telemetry=["process_creation"],
             detection_logic="Process creation with powershell.exe",
         )
-    assert "attack_ids" in str(exc_info.value).lower()
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("attack_ids",) and e["type"] == "too_short" for e in errors)
 
     # Missing telemetry should fail
     with pytest.raises(ValidationError) as exc_info:
@@ -64,7 +65,8 @@ def test_behavior_rule_requires_evidence_attack_telemetry():
             required_telemetry=[],
             detection_logic="Process creation with powershell.exe",
         )
-    assert "required_telemetry" in str(exc_info.value).lower()
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("required_telemetry",) and e["type"] == "too_short" for e in errors)
 
 
 def test_abstain_decision_valid_construction():
@@ -126,24 +128,21 @@ def test_abstain_decision_rejects_blank_strings():
 
 
 def test_abstain_decision_rejects_legacy_context_and_extra_fields():
-    """AbstainDecision forbids legacy `context` and unknown extra fields."""
+    """AbstainDecision rejects legacy `context` alias and undeclared input fields."""
     with pytest.raises(ValidationError) as exc_info:
-        AbstainDecision(
-            abstain_code="NO_EVIDENCE",
-            abstain_context="Some reason",
-            human_message="Human readable message",
-            context="legacy field name",
+        AbstainDecision.model_validate(
+            {
+                "abstain_code": "NO_EVIDENCE",
+                "abstain_context": "Report only lists CVE IDs without observable behavior.",
+                "human_message": "Cannot generate a safe rule without evidence-backed behaviors.",
+                "context": "legacy alias",
+                "unknown_field": "unexpected",
+            }
         )
-    assert any(e["loc"] == ("context",) and e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
-    with pytest.raises(ValidationError) as exc_info:
-        AbstainDecision(
-            abstain_code="NO_EVIDENCE",
-            abstain_context="Some reason",
-            human_message="Human readable message",
-            extra="z",
-        )
-    assert any(e["loc"] == ("extra",) and e["type"] == "extra_forbidden" for e in exc_info.value.errors())
+    errors = exc_info.value.errors()
+    assert any(e["loc"] == ("context",) and e["type"] == "extra_forbidden" for e in errors)
+    assert any(e["loc"] == ("unknown_field",) and e["type"] == "extra_forbidden" for e in errors)
 
     schema = AbstainDecision.model_json_schema()
     assert "context" not in schema["properties"]
@@ -152,8 +151,8 @@ def test_abstain_decision_rejects_legacy_context_and_extra_fields():
     with pytest.raises(AttributeError):
         _ = AbstainDecision(
             abstain_code="NO_TELEMETRY",
-            abstain_context="Required telemetry source not present",
-            human_message="Cannot generate a safe detection rule with available data.",
+            abstain_context="Sysmon process_creation data is unavailable for this environment.",
+            human_message="Cannot generate a safe detection rule with available telemetry.",
         ).context
 
     assert set(AbstainDecision.model_fields.keys()) == {
@@ -161,19 +160,6 @@ def test_abstain_decision_rejects_legacy_context_and_extra_fields():
         "abstain_context",
         "human_message",
     }
-
-    with pytest.raises(ValidationError) as exc_info:
-        AbstainDecision.model_validate(
-            {
-                "abstain_code": "NO_EVIDENCE",
-                "abstain_context": "Some reason",
-                "human_message": "Some message",
-                "context": "legacy",
-                "unknown": "x",
-            }
-        )
-    assert any(e["loc"] == ("context",) and e["type"] == "extra_forbidden" for e in exc_info.value.errors())
-    assert any(e["loc"] == ("unknown",) and e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
 def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_strings():
     """Test strict validation for ATT&CK IDs, telemetry normalization, and blank strings."""
