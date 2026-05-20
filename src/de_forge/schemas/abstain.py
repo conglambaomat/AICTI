@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AbstainCode = Literal[
     "NO_EVIDENCE",
+    "NO_EVIDENCE_BACKED_BEHAVIOR",
     "NO_TELEMETRY",
     "CVE_ONLY_NO_BEHAVIOR",
     "TOOL_NAME_ONLY",
