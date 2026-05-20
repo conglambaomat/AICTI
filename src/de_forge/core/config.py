@@ -1,5 +1,6 @@
 """Application configuration using Pydantic settings."""
 
+from collections.abc import Mapping
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -65,7 +66,7 @@ class Settings(BaseSettings):
     )
 
     @property
-    def profile_thresholds(self) -> dict[str, float | int]:
+    def profile_thresholds(self) -> Mapping[str, float | int]:
         """Return KPI thresholds and budgets for the active profile."""
         return PROFILE_THRESHOLDS[self.profile]
 

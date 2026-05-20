@@ -2,7 +2,7 @@
 
 IDEMPOTENCY_KEY_PREFIX = "idem_"
 
-from typing import Mapping
+from collections.abc import Mapping
 
 PROFILE_THRESHOLDS: Mapping[str, Mapping[str, float | int]] = {
     "strict": {

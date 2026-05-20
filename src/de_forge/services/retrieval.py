@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-from typing import Dict
-
+from dataclasses import dataclass
 
 CHUNK_SIZE_TOKENS = 512
 CHUNK_OVERLAP_TOKENS = 64
@@ -39,7 +37,7 @@ class ScoredChunk:
 
 class RetrievalService:
     def __init__(self) -> None:
-        self._indexes: Dict[str, Index] = {}
+        self._indexes: dict[str, Index] = {}
 
     def index_chunks(self, report_id: str, report_text: str) -> Index:
         chunks = self._chunk_report(report_text)

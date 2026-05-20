@@ -11,7 +11,6 @@ from typing import Any, Protocol
 
 import jsonschema
 
-
 # Retry policy constants
 MAX_RETRIES = 3
 TRANSIENT_BACKOFF_ATTEMPT_2 = 2.0
