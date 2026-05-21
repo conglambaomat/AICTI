@@ -1,8 +1,8 @@
 """Core constants for DE-Forge."""
 
-IDEMPOTENCY_KEY_PREFIX = "idem_"
-
 from collections.abc import Mapping
+
+IDEMPOTENCY_KEY_PREFIX = "idem_"
 
 PROFILE_THRESHOLDS: Mapping[str, Mapping[str, float | int]] = {
     "strict": {

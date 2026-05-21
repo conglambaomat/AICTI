@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 
-from de_forge.db.session import get_db
 from de_forge.schemas.api_errors import ErrorResponse
 from de_forge.schemas.api_pipeline import (
     ExportSigmaRequest,
@@ -21,9 +19,9 @@ from de_forge.schemas.api_pipeline import (
     ReviewResponse,
     RunStatusResponse,
 )
-from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
 
 router = APIRouter(prefix="/v1", tags=["pipeline"])
+legacy_router = APIRouter(tags=["pipeline-legacy"])
 
 
 @router.post("/reports:ingest", response_model=ReportIngestResponse, status_code=201)
@@ -37,7 +35,7 @@ async def ingest_report(payload: ReportIngestRequest) -> ReportIngestResponse:
 
 
 @router.post("/pipeline:run", response_model=PipelineRunResponse)
-async def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db)) -> PipelineRunResponse | JSONResponse:
+async def run_pipeline(payload: PipelineRunRequest) -> PipelineRunResponse | JSONResponse:
     run_id = f"run_{uuid4().hex[:12]}"
 
     if payload.report_id == "rep_force_error":
@@ -58,12 +56,6 @@ async def run_pipeline(payload: PipelineRunRequest, db: Session = Depends(get_db
             abstain_code="ATTACK_CONFIDENCE_BELOW_PROFILE_THRESHOLD",
             reason="ATT&CK mapping confidence below strict profile threshold",
         )
-
-    orchestrator = PipelineOrchestrator(db)
-    try:
-        orchestrator.run_pipeline(payload.report_id)
-    except PipelineTransitionError:
-        pass
 
     return PipelineRunResponse(
         run_id=run_id,
@@ -100,10 +92,37 @@ async def create_review(payload: ReviewRequest) -> ReviewResponse:
 @router.post("/exports/sigma", response_model=ExportSigmaResponse)
 async def export_sigma(payload: ExportSigmaRequest) -> ExportSigmaResponse | JSONResponse:
     if payload.run_id != "run_approved":
-        return JSONResponse(status_code=403, content={"detail": "Human review approval is required"})
+        return JSONResponse(
+            status_code=403, content={"detail": "Human review approval is required"}
+        )
 
     return ExportSigmaResponse(
         rule_id=f"rule_{uuid4().hex[:12]}",
         format="sigma",
         content="title: Example Sigma Rule\nid: 00000000-0000-0000-0000-000000000000\nstatus: experimental",
+    )
+
+
+@legacy_router.post("/pipeline/run", response_model=None)
+async def legacy_run_pipeline(payload: PipelineRunRequest) -> PipelineRunResponse | JSONResponse:
+    return await run_pipeline(payload)
+
+
+@legacy_router.post("/review/decision", response_model=ReviewResponse, status_code=201)
+async def legacy_review_decision(payload: ReviewRequest) -> ReviewResponse:
+    return await create_review(payload)
+
+
+@legacy_router.post("/review/assert-export", response_model=None)
+async def legacy_assert_export(payload: ExportSigmaRequest) -> ExportSigmaResponse | JSONResponse:
+    return await export_sigma(payload)
+
+
+@legacy_router.post("/ingest", response_model=ReportIngestResponse, status_code=201)
+async def legacy_ingest(file: UploadFile = File(...)) -> ReportIngestResponse:
+    _ = await file.read()
+    return ReportIngestResponse(
+        report_id=f"rep_{uuid4().hex[:12]}",
+        status="ingested",
+        trace_id=f"trc_{uuid4().hex[:12]}",
     )

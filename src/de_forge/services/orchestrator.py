@@ -49,7 +49,9 @@ class PipelineOrchestrator:
             raise PipelineTransitionError("abstain DetectionSpec cannot proceed to rule generation")
 
         rule = self.db.execute(
-            select(GeneratedRuleModel).where(GeneratedRuleModel.detection_spec_id == detection_spec_id)
+            select(GeneratedRuleModel).where(
+                GeneratedRuleModel.detection_spec_id == detection_spec_id
+            )
         ).scalar_one_or_none()
         if rule is None:
             raise PipelineTransitionError("generated rule required before validation")
@@ -101,12 +103,22 @@ class OrchestratorService:
                 "profile": profile,
             }
 
-        detection_spec = self.detection_spec.build_detection_spec(
+        detection_spec_result = self.detection_spec.build_detection_spec(
             evidence_spans=evidence_spans,
             attack_mappings=attack_result["mappings"],
             telemetry_registry=telemetry_registry,
             profile=profile,
         )
+
+        if isinstance(detection_spec_result, dict):
+            detection_spec = detection_spec_result
+        else:
+            detection_spec = {
+                "abstain": detection_spec_result.abstain_code is not None,
+                "abstain_reason": detection_spec_result.abstain_code,
+                "detection_spec_id": detection_spec_result.detection_spec_id,
+                "report_id": detection_spec_result.report_id,
+            }
 
         if detection_spec.get("abstain") is True:
             return {

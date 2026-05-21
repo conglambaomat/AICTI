@@ -3,15 +3,19 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from de_forge.db.base import Base
-from de_forge.models import DetectionSpec as DetectionSpecModel
-from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.orchestrator import PipelineOrchestrator, PipelineState, PipelineTransitionError
+from de_forge.models.contract import DetectionSpec as DetectionSpecModel
+from de_forge.models.contract import GeneratedRule as GeneratedRuleModel
+from de_forge.services.orchestrator import (
+    PipelineOrchestrator,
+    PipelineState,
+    PipelineTransitionError,
+)
 
 
 def _build_session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(bind=engine)
+    DetectionSpecModel.metadata.create_all(bind=engine)
+    GeneratedRuleModel.metadata.create_all(bind=engine)
     maker = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
     return maker()
 
