@@ -246,6 +246,23 @@ class ReviewDecision(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class ProofObligationRecord(Base):
+    __tablename__ = "proof_obligations"
+    __table_args__ = (
+        Index("ix_proof_obligations_rule_candidate_id", "rule_candidate_id"),
+        Index("ix_proof_obligations_run_id", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    rule_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    claim_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    claim_text: Mapped[str] = mapped_column(Text(), nullable=False)
+    required_artifact_types: Mapped[str] = mapped_column(Text(), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    justification: Mapped[str | None] = mapped_column(Text())
+
+
 class RefinementIteration(Base):
     __tablename__ = "refinement_iterations"
     __table_args__ = (

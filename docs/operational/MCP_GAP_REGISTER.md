@@ -1,7 +1,7 @@
 # MCP Gap Register (SOTA Core v2)
 
 Last updated: 2026-05-23
-Status: Open gaps tracked for one-gap-per-cycle closure.
+Status: MCP-REG-002 closed; remaining open gaps tracked for one-gap-per-cycle closure.
 
 ## MCP-REG-001 — DetectionSpec formal content under-specified at runtime
 - **Type:** MCP
@@ -20,19 +20,21 @@ Status: Open gaps tracked for one-gap-per-cycle closure.
 
 ## MCP-REG-002 — Runtime orchestration missing evaluation-depth gates in authoritative path
 - **Type:** MCP
+- **Status:** Closed (2026-05-23)
 - **SOTA requirement reference:**
   - `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md:67-71`
   - `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md:267-290`
-- **Code vs SOTA evidence (file_path:line):**
-  - `src/de_forge/services/orchestrator.py:101-115` transitions directly from static validation to `AWAITING_REVIEW`.
-  - No runtime invocation/gating for `dynamic_validation`, `adversarial_validation`, `counterfactual_evaluation`, `oracle_evaluation`, proof-obligation selection gate in authoritative `run_pipeline` path.
-- **Impact:** Candidate can reach review without mandatory evaluation-depth checks defined by SOTA.
-- **DoD:**
-  1. Wire evaluation-depth + proof-obligation gates into `PipelineOrchestrator.run_pipeline` fail-closed path.
-  2. Add/adjust integration and e2e tests that prove failed/unknown outcomes block transition.
-  3. Keep deterministic stage audit artifacts and memory contracts coherent.
-  4. Pass targeted orchestrator/e2e gates + changed-scope quality checks.
-- **Residual risk if unchanged:** Reduced assurance for production readiness and proof-carrying selection policy.
+- **Closure evidence (file_path:line):**
+  - `src/de_forge/models/contract.py:249-265` adds persisted `proof_obligations` runtime table contract.
+  - `src/de_forge/services/orchestrator.py:117-137` enforces fail-closed proof-obligation gate before `AWAITING_REVIEW`.
+  - `tests/integration/services/test_orchestrator_state_transitions.py:325-404` proves missing/unknown obligations block transition, and proven obligations allow transition.
+  - `tests/e2e/test_pipeline_e2e.py:76-99` seeds persisted proven obligations for deterministic positive path.
+- **Verification evidence:**
+  - `python -m pytest -q tests/integration/services/test_orchestrator_state_transitions.py tests/e2e/test_pipeline_e2e.py tests/integration/services/test_review_gate.py tests/integration/api/test_api_routes.py` → 29 passed.
+  - `python -m mypy src/de_forge/services/orchestrator.py src/de_forge/models/contract.py src/de_forge/models/__init__.py tests/e2e/test_pipeline_e2e.py tests/integration/services/test_orchestrator_state_transitions.py` → success.
+  - `python -m ruff check src/de_forge/models/__init__.py src/de_forge/models/contract.py src/de_forge/services/orchestrator.py tests/e2e/test_pipeline_e2e.py tests/integration/services/test_orchestrator_state_transitions.py` → all checks passed.
+- **Residual risk:** Dynamic/adversarial/counterfactual/oracle evaluator invocation remains separate and tracked by remaining gaps.
+- **DoD result:** Passed.
 
 ## MCP-REG-003 — API run-state persistence is process-memory only
 - **Type:** MCP

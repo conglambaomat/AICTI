@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.models.contract import DetectionSpec as DetectionSpecModel
 from de_forge.models.contract import GeneratedRule as GeneratedRuleModel
+from de_forge.models.contract import ProofObligationRecord as ProofObligationRecordModel
 from de_forge.services.orchestrator import (
     PipelineOrchestrator,
     PipelineState,
@@ -73,6 +74,30 @@ detection:
             "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
             "updated_at": "2026-05-23T00:00:01Z",
         },
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-1",
+            run_id=spec_id,
+            rule_candidate_id=rule_id,
+            claim_type="citation_faithful",
+            claim_text="Citations are faithful.",
+            required_artifact_types='["citation_verification"]',
+            status="proven",
+            justification=None,
+        )
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-2",
+            run_id=spec_id,
+            rule_candidate_id=rule_id,
+            claim_type="not_overbroad",
+            claim_text="Rule is not overbroad.",
+            required_artifact_types='["false_positive_analysis"]',
+            status="proven",
+            justification=None,
+        )
     )
     db.commit()
 

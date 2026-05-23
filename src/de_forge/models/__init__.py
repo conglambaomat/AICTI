@@ -1,6 +1,7 @@
+# ruff: noqa: F401
 """Persistence models for DE-Forge."""
 
-from de_forge.models.contract import (
+from de_forge.models.contract import (  # noqa: F401
     AgentRun,
     AttackMapping,
     DetectionSpec,
@@ -8,6 +9,7 @@ from de_forge.models.contract import (
     GeneratedRule,
     MemoryEvent,
     MemoryView,
+    ProofObligationRecord,
     QueryCandidate,
     RefinementIteration,
     Report,
@@ -27,6 +29,7 @@ __all__ = [
     "MemoryEvent",
     "MemoryView",
     "QueryCandidate",
+    "ProofObligationRecord",
     "RefinementIteration",
     "Report",
     "ReportChunk",

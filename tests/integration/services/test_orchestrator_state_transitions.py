@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.models import ProofObligationRecord as ProofObligationRecordModel
 from de_forge.services.orchestrator import (
     PipelineOrchestrator,
     PipelineState,
@@ -122,6 +123,13 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
     )
     db.commit()
     _seed_required_runtime_memory_contracts(db, spec_id)
+    seeded_rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_proof_obligations(
+        db,
+        run_id=spec_id,
+        rule_id=seeded_rule.rule_id,
+        statuses=["proven", "proven"],
+    )
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
@@ -237,6 +245,13 @@ detection:
     )
     db.commit()
     _seed_required_runtime_memory_contracts(db, spec_id)
+    seeded_rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_proof_obligations(
+        db,
+        run_id=spec_id,
+        rule_id=seeded_rule.rule_id,
+        statuses=["proven", "proven"],
+    )
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
@@ -305,6 +320,93 @@ def test_pipeline_fails_when_rule_generation_memory_contract_missing() -> None:
 
     with pytest.raises(PipelineTransitionError, match="memory contract"):
         orchestrator.run_pipeline(spec_id)
+
+
+def _persist_proof_obligations(
+    db: Session, *, run_id: str, rule_id: str, statuses: list[str]
+) -> None:
+    for idx, status in enumerate(statuses, start=1):
+        db.add(
+            ProofObligationRecordModel(
+                id=f"po-{run_id}-{idx}",
+                run_id=run_id,
+                rule_candidate_id=rule_id,
+                claim_type="citation_faithful",
+                claim_text="Citations are faithful.",
+                required_artifact_types='["citation_verification"]',
+                status=status,
+                justification=None,
+            )
+        )
+    db.commit()
+
+
+def test_pipeline_fails_when_proof_obligations_missing() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-proof-missing"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-proof-missing",
+            spec_payload='{"report_id":"report-proof-missing","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_required_runtime_memory_contracts(db, spec_id)
+
+    with pytest.raises(PipelineTransitionError, match="proof obligation gate failed"):
+        orchestrator.run_pipeline(spec_id)
+
+
+def test_pipeline_fails_when_any_proof_obligation_not_proven() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-proof-unknown"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-proof-unknown",
+            spec_payload='{"report_id":"report-proof-unknown","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_required_runtime_memory_contracts(db, spec_id)
+
+    rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_proof_obligations(db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "unknown"])
+
+    generated_state = None
+    with pytest.raises(PipelineTransitionError, match="proof obligation gate failed"):
+        generated_state = orchestrator.run_pipeline(spec_id)
+    assert generated_state is None
+
+
+def test_pipeline_reaches_awaiting_review_when_all_proof_obligations_proven() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-proof-proven"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-proof-proven",
+            spec_payload='{"report_id":"report-proof-proven","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_required_runtime_memory_contracts(db, spec_id)
+
+    rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_proof_obligations(db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "proven"])
+
+    final_state = orchestrator.run_pipeline(spec_id)
+    assert final_state == PipelineState.AWAITING_REVIEW
 
 
 def test_stub_orchestrator_service_is_not_available_in_runtime_path() -> None:
