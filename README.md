@@ -1,68 +1,64 @@
 # ai-threat-detection
 
-DE-Forge là hệ thống multi-agent, evidence-grounded cho bài toán sinh detection rule từ threat report với ưu tiên độ chính xác, độ tin cậy và khả năng vận hành thực chiến.
+DE-Forge is a single-user, production-grade, proof-carrying, evidence-graph controlled multi-agent detection engineering system for generating evidence-grounded Sigma detection artifacts from English TXT/PDF threat reports.
+
+## Current implementation track
+
+The active implementation track is **DE-Forge SOTA Core v2**.
+
+Before implementing, Claude CLI sessions must start with:
+
+- `docs/operational/START_HERE_FOR_CLAUDE.md`
+
+Then load governance policy:
+
+- `docs/governance/canonical_manifest.yaml`
+
+Source-of-truth documents:
+
+- Execution kit: `docs/operational/SOTA_CORE_V2_EXECUTION_KIT.md`
+- Quality gates: `docs/operational/QUALITY_GATES_SOTA_CORE_V2.md`
+- Blockers and escalation: `docs/operational/BLOCKERS_AND_ESCALATION.md`
+- Approved design: `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md`
+- Implementation plans: `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-*.md`
+
+Older 2026-05-20 MVP/Agentic Deep-Analysis documents are superseded for implementation.
+
+## Current status
+
+The repository now contains substantial implementation beyond the initial skeleton phase. Treat status assertions as verification-bound: establish current truth from up-to-date verification commands and the current code and test tree, not from older progress claims.
 
 ## Setup
 
 ```bash
-# Install dependencies
 uv sync
-
-# Run tests
-pytest
 ```
 
-## Development
+If `uv` is unavailable, use the project virtual environment or ask before installing tooling.
+
+## Run backend
 
 ```bash
-# Planned backend command (placeholder until Milestone 1 creates app entrypoint)
-uvicorn app.main:app --reload
-
-# Alternative placeholder for src-based layout
-# uv run python -m src.main
+uvicorn de_forge.main:app --reload
 ```
-
-If `app.main` or `src.main` does not exist yet, these commands are placeholders until the core skeleton is implemented.
 
 ## Testing
 
 ```bash
-# Unit + integration tests
 pytest tests/ -v
+mypy src/
+ruff check src/ tests/
+ruff format --check src/ tests/
 ```
 
-## Documentation
+Phase-specific commands are defined in `docs/operational/QUALITY_GATES_SOTA_CORE_V2.md` and the active implementation plan.
 
-### Project definition
-- Project brief: `docs/project-brief.md`
+## Architecture invariant
 
-### Architecture
-- Overview: `docs/architecture/00-overview.md`
-- Multi-agent design: `docs/architecture/01-multi-agent-design.md`
-- Orchestration state machine: `docs/architecture/02-orchestration-state-machine.md`
-- Dataflow: `docs/architecture/03-dataflow.md`
+Production detection artifacts must follow this path:
 
-### Schemas and contracts
-- DetectionSpec schema: `docs/schemas/detection-spec.md`
-- Agent contracts: `docs/schemas/agent-contracts.md`
-- Telemetry schema registry: `docs/schemas/telemetry-schema-registry.md`
+```text
+raw report -> evidence graph -> verified DetectionSpec -> detection AST -> compiled Sigma -> validation/proof -> human review
+```
 
-### Implementation policy
-- Core build plan: `docs/implementation/phase-1-core-build.md`
-- Validation pipeline: `docs/implementation/validation-pipeline.md`
-- Refinement policy: `docs/implementation/refinement-policy.md`
-
-### Prompt pack
-- Multi-agent prompts: `docs/prompts/multi-agent-prompts.md`
-
-### Benchmark (deferred)
-- CTI-REALM adapter design: `docs/benchmark/cti-realm-adapter-design.md`
-
-### Superpowers workflow artifacts
-- Design docs: `docs/superpowers/specs/`
-- Implementation plans: `docs/superpowers/plans/`
-
-## Current status
-- Documentation foundation completed.
-- Code implementation starts after design and planning approval flow.
-- Priority: robust product-mode pipeline first, benchmark integration second.
+There must be no raw-report-to-production-rule path.

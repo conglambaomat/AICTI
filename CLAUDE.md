@@ -1,437 +1,225 @@
 # Project Guidelines for Claude Code
 
 ## Project Identity
+
 Project name: DE-Forge
 
 Full name: Evidence-Grounded AI-assisted Detection Rule Generation from Threat Reports
 
-DE-Forge is a security engineering system that reads unstructured cyber threat intelligence reports and generates evidence-grounded detection artifacts through a controlled multi-agent pipeline.
+DE-Forge is a single-user, production-grade, proof-carrying, evidence-graph controlled multi-agent detection engineering system. It reads English TXT/PDF cyber threat reports and produces evidence-grounded Sigma detection artifacts through deterministic validators, controlled agents, proof obligations, and mandatory human review.
 
-Core pipeline:
-Threat report → evidence extraction → ATT&CK mapping → telemetry discovery → DetectionSpec → Sigma/KQL generation → validation → testing → human review
+## Current Source of Truth
 
-## Core Principle
+The active architecture and implementation track is **DE-Forge SOTA Core v2**.
+
+Claude CLI sessions must start here:
+
+- `docs/operational/START_HERE_FOR_CLAUDE.md`
+
+Then follow, in order:
+
+1. `docs/operational/SOTA_CORE_V2_EXECUTION_KIT.md`
+2. `docs/operational/SUBAGENT_EXECUTION_STRATEGY_SOTA_CORE_V2.md`
+3. `docs/operational/AUTONOMOUS_DECISION_POLICY.md`
+4. `docs/operational/QUALITY_GATES_SOTA_CORE_V2.md`
+5. `docs/operational/BLOCKERS_AND_ESCALATION.md`
+6. `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md`
+7. The active SOTA Core v2 implementation plan.
+
+Before execution, load `docs/governance/canonical_manifest.yaml` and perform manifest preflight.
+
+## Current Project Reality
+
+The repository now contains substantial implementation beyond the initial skeleton phase. Treat status assertions as verification-bound: establish current truth from up-to-date verification commands and the current code and test tree, not from older progress claims.
+
+## Mandatory Execution Order
+
+Execute the SOTA Core v2 plans in this order:
+
+1. `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-foundation-plan.md`
+2. `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-compiler-plan.md`
+3. `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-validation-oracle-regression-plan.md`
+4. `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-agents-plan.md`
+5. `docs/superpowers/plans/2026-05-21-de-forge-sota-core-v2-orchestrator-ui-dashboard-plan.md`
+
+Do not start agents, UI, dashboard, benchmark, or deployment work before the deterministic foundation and prerequisite plans pass.
+
+## Non-Negotiable Architecture Invariants
+
+1. No raw-report-to-production-rule path exists.
+2. DetectionSpec is mandatory before rule generation.
+3. Evidence citations are exact and verified.
+4. ATT&CK modeling uses:
+
+```text
+Technique -> Detection Strategy -> Analytic -> Data Component -> Telemetry Source -> Field
+```
+
+5. Required proof obligations must be proven before final candidate selection.
+6. Detection AST and compiler are the preferred source for Sigma YAML.
+7. Human review is mandatory before export.
+8. Agent/refinement loops are bounded.
+9. Feedback creates regression protection.
+10. Full artifact lineage and auditability are preserved.
+
+Any change that weakens these invariants is a hard failure.
+
+## Core Pipeline
+
+The mandatory production path is:
+
+```text
+raw report -> evidence graph -> verified DetectionSpec -> detection AST -> compiled Sigma -> validation/proof -> human review
+```
+
 The system must never generate production detection rules directly from raw report text.
 
-DetectionSpec is the mandatory intermediate representation and must contain:
-- evidence quotes
-- ATT&CK mapping
-- required telemetry and allowed fields
-- detection logic
-- false-positive hypotheses
-- test plan
-- abstain reason when generation is unsafe
-
-## MVP Scope
-MVP must support:
-- report ingestion (TXT/PDF)
-- evidence extraction
-- ATT&CK mapping
-- DetectionSpec generation
-- Sigma rule generation
-- static validation
-- basic synthetic log testing
-- human review
-
-Initial detection target:
-- Sigma as primary format
-- Windows Sysmon Event ID 1 (process_creation)
-- ATT&CK: T1059.001, T1059.003, T1105
-
-## Non-goals for MVP
-- No auto-deploy to production SIEM.
-- No claim to replace detection engineers.
-- No full OpenCTI/MISP integration.
-- No full enterprise multi-tenant auth.
-
-## Agentic Deep-Analysis Phase
-Agentic upgrade scope must enforce:
-- LLM-backed agents replace service stubs for evidence, ATT&CK mapping, DetectionSpec synthesis, and rule authoring/refinement.
-- Retrieval grounding is mandatory for evidence extraction and downstream claims.
-- Profile-driven KPI gates must be enforced for `strict`, `balanced`, and `exploratory` modes.
-- Baseline delta requirement must pass against MVP benchmark before rollout.
-
-## Mandatory Architecture Rules
-1. DetectionSpec is mandatory before rule generation.
-2. Controlled multi-agent orchestration only (no free-form debate).
-3. Deterministic validators are mandatory.
-4. Bounded refinement loops only.
-5. Abstain policy is mandatory.
-6. Human review gate is mandatory before export.
-7. Citation faithfulness = 100% is a hard gate.
-8. Retrieval-grounded evidence extraction is mandatory.
-9. No hallucinated claims are allowed in any agent output.
-10. No raw-report-to-rule bypass path is allowed.
-11. No schema-invalid output may advance stage state.
-12. MVP contract guarantees are immutable during upgrade.
-
-## Quality Gates
-All profile runs must meet thresholds defined in `docs/implementation/kpi-threshold-matrix.md`:
-- Evidence extraction quality thresholds (recall/precision)
-- ATT&CK mapping accuracy thresholds
-- Rule quality thresholds (precision/recall/F1)
-- Abstain quality thresholds (precision/coverage)
-- Cost and latency budget thresholds
-
-Failure to meet any hard threshold blocks progression or rollout.
-
-## Baseline Delta Requirement
-Before enabling agentic upgrade in rollout path, benchmark results must satisfy the baseline delta policy in:
-- `docs/implementation/evaluation-protocol-agentic-deep-analysis.md`
-- `docs/benchmark/eval-dataset-manifest.md`
-
-If baseline delta gates fail, rollout is blocked.
-
-## Loop Limits
-- max_static_refinement_iterations = 3
-- max_dynamic_refinement_iterations = 2
-
 ## Model and Provider Configuration
-Use one provider/model for all agent roles.
+
+Use one provider/model for all agent roles unless the user explicitly approves a different strategy.
 
 - Provider type: OpenAI-compatible
 - Base URL: `https://shopapikey.com/v1`
 - API key env var: `OPENAI_API_KEY`
-- Model (all roles): `cx/gpt-5.5`
+- Model: `cx/gpt-5.5`
 
-Do not add fallback model logic unless explicitly requested by user.
-
-## Retrieval and Grounding Guarantees
-- Every major claim must cite retrieved chunk IDs.
-- Evidence quotes must map to valid source offsets.
-- Citation mismatch is a hard validation failure.
-- Retrieval faithfulness is required before DetectionSpec and rule stages.
+Do not add fallback provider/model logic unless explicitly requested by the user.
 
 ## Tech Stack
+
 - Python 3.11+
 - FastAPI
 - SQLAlchemy + Alembic
-- SQLite for local default runtime
+- Pydantic v2
+- Pydantic Settings
+- SQLite local default runtime
 - PostgreSQL-compatible schema design for future migration
-- pytest + httpx
+- pytest + pytest-asyncio + pytest-cov + httpx
 - ruff + mypy
-- uv package manager
+- uv package manager when available
 
-## Persistence and Traceability
-All important outputs must be persisted with lineage:
-- report_id
-- chunk_id / evidence_id
-- detection_spec_id
-- rule_id
-- run_id / trace_id / agent_run_id
+## Superpowers Workflow
 
-Generated rules are immutable; edits create new versions.
+For development work, follow the repository Superpowers workflow:
 
-## Validation Requirements
-Validation must include deterministic checks for:
-- schema validity
-- evidence integrity
-- ATT&CK ID validity
-- telemetry field validity
-- broad-rule detection
-- Sigma syntax/structure validity
-- retrieval faithfulness
-- citation/offset integrity
+1. Use the approved SOTA Core v2 design spec.
+2. Use the active SOTA Core v2 implementation plan.
+3. Use `subagent-driven-development` as the default execution mode.
+4. Follow `docs/operational/SUBAGENT_EXECUTION_STRATEGY_SOTA_CORE_V2.md`.
+5. Use one implementation subagent at a time by default.
+6. Use parallel subagents aggressively for read-only research, independent review, debugging, and phase audits.
+7. Use `test-driven-development` for every implementation task.
+8. Use two-stage review after each task:
+   - spec compliance review,
+   - code quality review.
+9. Use `verification-before-completion` before claiming any task or phase complete.
 
-## Superpowers Workflow (Mandatory)
-1. Brainstorming → approved design in `docs/superpowers/specs/`
-2. Writing plans → detailed tasks in `docs/superpowers/plans/`
-3. Subagent-driven-development with reviews
-4. Finishing branch workflow
+## Runtime Todo and Checklist Policy
 
-Never skip brainstorming, even for small tasks.
+Claude CLI must create and maintain a runtime todo/checklist for every implementation session.
+
+The todo list must mirror:
+
+- all SOTA Core v2 phases,
+- active phase plan tasks,
+- per-task TDD gates,
+- spec compliance review,
+- code quality review,
+- final verification,
+- task-scoped commit,
+- phase-level tests, type checks, lint checks, format checks, and phase audit.
+
+Update the todo list after every meaningful step, before and after subagent dispatches, after each test/check command, after each review result, after each fix cycle, and after each commit. Do not mark a task complete until tests, reviews, verification, and commit policy all pass.
+
+On resume or context compaction, reconstruct progress from the todo list, git log, git status, and active plan before continuing.
+
+## Testing and Quality Gates
+
+Follow `docs/operational/QUALITY_GATES_SOTA_CORE_V2.md`.
+
+Universal task gates:
+
+1. Write a failing test first.
+2. Run it and observe failure for the expected reason.
+3. Add minimal implementation.
+4. Run the targeted test and observe pass.
+5. Run affected area tests.
+6. Complete spec compliance review.
+7. Complete code quality review.
+8. Avoid unrelated changes.
+9. Preserve all architecture invariants.
+
+Phase-level verification commands are defined in the quality gates document and in each active plan.
+
+## Overnight End-to-End Autonomy Policy
+
+When the user asks Claude CLI to run unattended or overnight, complete DE-Forge SOTA Core v2 end-to-end with maximum safe autonomy inside the approved plan/spec.
+
+Claude may autonomously:
+
+- Research the codebase, active docs, tests, and declared dependency documentation before choosing an implementation.
+- Choose the best in-scope approach when multiple approaches satisfy the approved SOTA Core v2 design, active plan, tests, and invariants.
+- Split large plan tasks into smaller internal subtasks without changing the approved outcome.
+- Set up or repair the development environment needed for verification, preferring project-local setup and installing/downloading missing tools or packages as needed.
+- Add missing dependencies to project metadata when clearly required by the approved plan and no existing dependency satisfies the need.
+- Use fake placeholder API keys for config, schema, unit, and non-network tests when real keys are unavailable.
+- Fix local test, type, lint, formatting, import, and package-structure failures caused by current-session implementation.
+- Update tests when they are clearly wrong relative to the approved spec/plan.
+- Create, modify, or delete files required by the active plan, plus disposable temporary/task artifacts Claude created in the current session.
+- Continue across tasks and phases when all gates pass.
+
+Claude must not stop solely because package managers, local tools, declared dependencies, clearly required missing dependencies, or API keys are missing. It should self-install or configure what is needed for local verification, use placeholder API keys for non-live tests, and stop only when continuing could endanger the repository, delete user work/data, publish or push external state, bypass gates, or change approved architecture/security behavior.
+
+## Commit and Local Conflict Policy
+
+For SOTA Core v2 end-to-end implementation, the user authorizes Claude CLI to create local git commits during the implementation session.
+
+- Commit after each completed, reviewed, and verified task.
+- Commit only files related to the current task.
+- Never stage or commit unrelated modified/untracked files.
+- Never commit secrets, `.env` files, local databases, cache files, or Claude/session lock files.
+- Never use `--no-verify` unless explicitly requested.
+- Do not amend commits unless explicitly requested.
+- Do not push, force-push, publish, or create PRs unless explicitly requested.
+- Resolve conflicts caused by Claude's own current-session changes when the active SOTA Core v2 plan/spec/tests clearly determine the correct result.
+- Ask before resolving conflicts involving pre-existing user changes, unclear safe commit boundaries, architecture/scope/security changes, or destructive git operations.
+
+## Blockers and Escalation
+
+Follow `docs/operational/BLOCKERS_AND_ESCALATION.md`.
+
+Ask the user only when required by that policy. Otherwise proceed autonomously inside the approved SOTA Core v2 spec and active plan.
+
+Must not continue when:
+
+- a raw-report-to-rule path is introduced or required,
+- DetectionSpec-first is bypassed,
+- citation mismatch is treated as warning instead of hard failure,
+- a candidate with failed/unknown required proof obligations would be selected,
+- human review would be skipped before export,
+- an agent loop becomes unbounded,
+- tests are failing and the next action is unrelated to fixing them,
+- the user explicitly says stop, pause, or wait.
+
+## Legacy Documentation Warning
+
+Older DE-Forge documents from 2026-05-20 and the previous Agentic Deep-Analysis/MVP track are superseded for implementation. Do not use them as execution instructions for SOTA Core v2.
+
+If an older document conflicts with the SOTA Core v2 spec, active SOTA Core v2 plan, quality gates, or blocker policy, trust SOTA Core v2.
 
 ## Coding Standards
-### Structure
-```
-src/
-├── api/
-├── models/
-├── schemas/
-├── services/
-└── utils/
-```
 
-### Style
-- PEP 8
-- Type hints required for all functions
-- Public function docstrings (Google style)
-- Max function length: 50 lines
-- Max file length: 500 lines
-
-### Naming
-- Files: `snake_case.py`
-- Classes: `PascalCase`
-- Functions/variables: `snake_case`
-- Constants: `UPPER_SNAKE_CASE`
-
-## Testing Requirements
-- Coverage minimum: 80%
-- Unit + Integration + E2E tests
-- Mirror `src/` structure in `tests/`
-
-## Verification Commands
-```bash
-pytest tests/ -v --cov=src --cov-report=term-missing
-mypy src/
-ruff check src/
-ruff format --check src/
-pytest tests/benchmark/test_baseline_delta.py -v
-pytest tests/e2e/test_agentic_pipeline_profiles.py -v
-pytest && mypy src/ && ruff check src/
-```
-
-## Anti-Patterns (Never Do)
-- Business logic inside API endpoints
-- Direct DB access inside endpoints
-- Mutable default arguments
-- Bare `except:` clauses
-- Magic numbers without constants
-- God classes/functions
+- Type hints are required for application code.
+- API routes should stay thin; business logic belongs in services.
+- Schemas define contracts; models define persistence; agents produce structured outputs; deterministic services validate and gate outputs.
+- Avoid speculative abstractions and unrelated refactors.
+- Do not introduce new dependencies unless approved by the active plan or the user.
+- Do not log secrets or raw sensitive model/report content outside approved audit storage.
 
 ## Build Priority
-1. Product-mode robustness and correctness
-2. Benchmark-mode compatibility
-3. Benchmark score optimization
 
-## Blocking and Abstain Conditions
-Fail-fast when:
-- empty/invalid extraction
-- impossible schema contract violations
-- persistent storage failures
-- retry limits exhausted
-- retrieval faithfulness gate fails
-- citation integrity checks fail
-
-Abstain when:
-- no evidence-backed behavior
-- no telemetry support
-- only CVE mention without observables
-- only tool/malware name without behavior
-- rule remains overbroad after bounded refinement
-
-## Documentation Map
-- Architecture contracts: `docs/architecture/`
-- Schemas/contracts: `docs/schemas/`
-- Implementation policy: `docs/implementation/`
-- Prompt pack: `docs/prompts/`
-- Benchmark adapter: `docs/benchmark/`
-- KPI thresholds: `docs/implementation/kpi-threshold-matrix.md`
-- Evaluation protocol: `docs/implementation/evaluation-protocol-agentic-deep-analysis.md`
-- Traceability matrix: `docs/implementation/module-traceability-matrix.md`
-- Upgrade precedence: `docs/architecture/agentic-upgrade-precedence.md`
-
-## Operating Rule
-When uncertain, stop and ask for clarification instead of guessing.
-When implementing agentic upgrade, follow upgrade precedence rules strictly. MVP contract guarantees are immutable.
-
-Detection quality priority: correctness and traceability first.
-Quality, grounding, and gate compliance take priority over speed.
-## Loop Limits
-- max_static_refinement_iterations = 3
-- max_dynamic_refinement_iterations = 2
-
-## Model and Provider Configuration
-Use one provider/model for all agent roles.
-
-- Provider type: OpenAI-compatible
-- Base URL: `https://shopapikey.com/v1`
-- API key env var: `OPENAI_API_KEY`
-- Model (all roles): `cx/gpt-5.5`
-
-Do not add fallback model logic unless explicitly requested by user.
-
-## Tech Stack
-- Python 3.11+
-- FastAPI
-- SQLAlchemy + Alembic
-- SQLite for local default runtime
-- PostgreSQL-compatible schema design for future migration
-- pytest + httpx
-- ruff + mypy
-- uv package manager
-
-## Persistence and Traceability
-All important outputs must be persisted with lineage:
-- report_id
-- chunk_id / evidence_id
-- detection_spec_id
-- rule_id
-- run_id / trace_id / agent_run_id
-
-Generated rules are immutable; edits create new versions.
-
-## Validation Requirements
-Validation must include deterministic checks for:
-- schema validity
-- evidence integrity
-- ATT&CK ID validity
-- telemetry field validity
-- broad-rule detection
-- Sigma syntax/structure validity
-
-## Superpowers Workflow (Mandatory)
-1. Brainstorming → approved design in `docs/superpowers/specs/`
-2. Writing plans → detailed tasks in `docs/superpowers/plans/`
-3. Subagent-driven-development with reviews
-4. Finishing branch workflow
-
-Never skip brainstorming, even for small tasks.
-
-## Coding Standards
-### Structure
-```
-src/
-├── api/
-├── models/
-├── schemas/
-├── services/
-└── utils/
-```
-
-### Style
-- PEP 8
-- Type hints required for all functions
-- Public function docstrings (Google style)
-- Max function length: 50 lines
-- Max file length: 500 lines
-
-### Naming
-- Files: `snake_case.py`
-- Classes: `PascalCase`
-- Functions/variables: `snake_case`
-- Constants: `UPPER_SNAKE_CASE`
-
-## Testing Requirements
-- Coverage minimum: 80%
-- Unit + Integration + E2E tests
-- Mirror `src/` structure in `tests/`
-
-## Verification Commands
-```bash
-pytest tests/ -v --cov=src --cov-report=term-missing
-mypy src/
-ruff check src/
-ruff format --check src/
-pytest && mypy src/ && ruff check src/
-```
-
-## Anti-Patterns (Never Do)
-- Business logic inside API endpoints
-- Direct DB access inside endpoints
-- Mutable default arguments
-- Bare `except:` clauses
-- Magic numbers without constants
-- God classes/functions
-
-## Build Priority
-1. Product-mode robustness and correctness
-2. Benchmark-mode compatibility
-3. Benchmark score optimization
-
-## Blocking and Abstain Conditions
-Fail-fast when:
-- empty/invalid extraction
-- impossible schema contract violations
-- persistent storage failures
-- retry limits exhausted
-
-Abstain when:
-- no evidence-backed behavior
-- no telemetry support
-- only CVE mention without observables
-- only tool/malware name without behavior
-- rule remains overbroad after bounded refinement
-
-## Documentation Map
-- Architecture contracts: `docs/architecture/`
-- Schemas/contracts: `docs/schemas/`
-- Implementation policy: `docs/implementation/`
-- Prompt pack: `docs/prompts/`
-- Benchmark adapter: `docs/benchmark/`
-
-## Operating Rule
-When uncertain, stop and ask for clarification instead of guessing.
-
-Detection quality priority: correctness and traceability first.
-
-## Production-Completion Upgrade Requirements (Post-Agentic)
-
-This section governs the next upgrade phase after the completed 14-task agentic deep-analysis service implementation.
-
-### 1) API Layer (Mandatory)
-- Implement pipeline API under `src/de_forge/api/routes/` with contract-first schemas in `src/de_forge/schemas/`.
-- Canonical endpoint set:
-  - `POST /v1/reports:ingest`
-  - `POST /v1/pipeline:run`
-  - `GET /v1/runs/{run_id}`
-  - `POST /v1/reviews`
-  - `POST /v1/exports/sigma`
-- Enforce no raw-report-to-rule bypass path at API level.
-- Standardize response model:
-  - `status=abstain` for safe non-generation outcomes.
-  - `status=failed` for hard-fail outcomes.
-- Export endpoint must hard-block unless human review approval exists.
-
-### 2) Persistence Layer (Mandatory)
-- Add SQLAlchemy domain models in `src/de_forge/models/` and Alembic migrations in `alembic/versions/`.
-- Persist required lineage fields for every run and artifact:
-  - `report_id`, `run_id`, `trace_id`, `agent_run_id`, `detection_spec_id`, `rule_id`, `evidence_id`, `chunk_id`.
-- Generated artifacts are immutable; rule edits create new versions.
-- Persistence failures are fail-fast blockers (do not continue stage progression).
-- Keep schema design PostgreSQL-compatible while supporting SQLite local runtime.
-
-### 3) E2E Validation Layer (Mandatory)
-- Add profile-based full-path E2E suite under `tests/e2e/`.
-- Validate end-to-end flow: ingest -> pipeline -> review -> export.
-- Validate abstain and hard-fail behavior through external API contracts.
-- Deterministic replay requirement:
-  - same input/profile/config yields same decision path and artifact hashes (excluding timestamps/opaque DB ids).
-
-### 4) Benchmark Evaluation Runner (Mandatory)
-- Implement benchmark runner and tests under `tests/benchmark/`.
-- Must enforce baseline delta and KPI matrix gates from:
-  - `docs/benchmark/eval-dataset-manifest.md`
-  - `docs/implementation/kpi-threshold-matrix.md`
-  - `docs/implementation/evaluation-protocol-agentic-deep-analysis.md`
-- Promotion decision must fail if any hard gate or baseline delta requirement fails.
-
-### 5) Real LLM Integration Testing (Mandatory)
-- Add opt-in provider integration tests for real LLM calls.
-- Gate with env var (example): `RUN_REAL_LLM_TESTS=1`.
-- Use configured provider/model contract:
-  - base URL `https://shopapikey.com/v1`
-  - model `cx/gpt-5.5`
-- Never log API keys or sensitive prompt content.
-- Keep bounded retries/timeouts per LLM client contract.
-
-### 6) Safety and Invariant Preservation
-- Preserve existing invariants from current service layer:
-  - DetectionSpec-first
-  - hard gates
-  - abstain policy
-  - bounded refinement loops
-  - human review gate
-- No unsupported claims may pass without evidence/citation integrity.
-- No schema-invalid output may advance stage state.
-
-### 7) Required Verification Gates for This Upgrade
-```bash
-pytest tests/ -v --cov=src --cov-report=term-missing
-mypy src/
-ruff check src/
-ruff format --check src/
-pytest tests/e2e/test_agentic_pipeline_profiles.py -v
-pytest tests/benchmark/test_baseline_delta.py -v
-```
-
-### 8) Implementation Order (Risk-Minimized)
-1. API schemas/routes (contract-first)
-2. DB models + migrations
-3. repository/persistence wiring in orchestrator flow
-4. E2E profile validation
-5. benchmark delta gates
-6. real LLM integration tests
-
-Reference spec for exact handoff tasks:
-- `docs/superpowers/specs/2026-05-20-de-forge-production-completion-design.md`.
+1. Product-mode correctness, traceability, and deterministic gates.
+2. Evidence/citation faithfulness.
+3. Rule quality and validation depth.
+4. Human review and auditability.
+5. Benchmark adapters after the product-mode core is stable.
