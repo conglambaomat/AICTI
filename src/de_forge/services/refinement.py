@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, text, select
 from sqlalchemy.orm import Session
 
 from de_forge.models import RefinementIteration as RefinementIterationModel
@@ -63,20 +63,39 @@ class RefinementService:
 
     def _persist_iteration(self, detection_spec_id: str | None, rule_id: str | None) -> str:
         iteration_id = str(uuid4())
+        bind = self.db.get_bind()
+        columns = {column["name"] for column in inspect(bind).get_columns("refinement_iterations")}
+        payload: dict[str, str | None] = {
+            "id": iteration_id,
+            "detection_spec_id": detection_spec_id,
+            "rule_id": rule_id,
+        }
+        if "run_id" in columns:
+            payload["run_id"] = "run_unknown"
+        if "feedback_ref" in columns:
+            payload["feedback_ref"] = ""
+        if "regression_ref" in columns:
+            payload["regression_ref"] = ""
+        if "created_at" in columns:
+            payload["created_at"] = "1970-01-01T00:00:00+00:00"
+
         try:
-            self.db.add(
-                RefinementIterationModel(
-                    id=iteration_id,
-                    detection_spec_id=detection_spec_id,
-                    rule_id=rule_id,
-                )
-            )
+            self.db.execute(text(self._build_refinement_insert_sql(columns)), payload)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
 
         return iteration_id
+
+    def _build_refinement_insert_sql(self, columns: set[str]) -> str:
+        ordered = ["id", "detection_spec_id", "rule_id"]
+        for optional in ("run_id", "feedback_ref", "regression_ref", "created_at"):
+            if optional in columns:
+                ordered.append(optional)
+        column_sql = ", ".join(ordered)
+        value_sql = ", ".join(f":{name}" for name in ordered)
+        return f"INSERT INTO refinement_iterations ({column_sql}) VALUES ({value_sql})"
 
 
 class RefinementController:

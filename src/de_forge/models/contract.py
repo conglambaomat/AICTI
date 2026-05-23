@@ -189,14 +189,32 @@ class GeneratedRule(Base):
 
 class ValidationResult(Base):
     __tablename__ = "validation_results"
+    __table_args__ = (
+        Index("ix_validation_results_rule_id", "rule_id"),
+        Index("ix_validation_results_run_id", "run_id"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    details_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class TestRun(Base):
     __tablename__ = "test_runs"
+    __table_args__ = (
+        Index("ix_test_runs_rule_id", "rule_id"),
+        Index("ix_test_runs_run_id", "run_id"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    result_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class AgentRun(Base):
@@ -214,18 +232,35 @@ class AgentRun(Base):
 
 class ReviewDecision(Base):
     __tablename__ = "review_decisions"
+    __table_args__ = (
+        Index("ix_review_decisions_rule_id", "rule_id"),
+        Index("ix_review_decisions_run_id", "run_id"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     decision: Mapped[str] = mapped_column(String(20), nullable=False)
     reviewer: Mapped[str] = mapped_column(Text(), nullable=False)
+    comments: Mapped[str] = mapped_column(Text(), nullable=False, default="")
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class RefinementIteration(Base):
     __tablename__ = "refinement_iterations"
+    __table_args__ = (
+        Index("ix_refinement_iterations_detection_spec_id", "detection_spec_id"),
+        Index("ix_refinement_iterations_rule_id", "rule_id"),
+        Index("ix_refinement_iterations_run_id", "run_id"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     detection_spec_id: Mapped[str | None] = mapped_column(ForeignKey("detection_specs.id"))
     rule_id: Mapped[str | None] = mapped_column(ForeignKey("generated_rules.id"))
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    feedback_ref: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    regression_ref: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class MemoryEvent(Base):

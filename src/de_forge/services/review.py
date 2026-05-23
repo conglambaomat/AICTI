@@ -6,11 +6,16 @@ from datetime import UTC, datetime
 from time import time_ns
 from uuid import uuid4
 
-from sqlalchemy import select, text
+from types import SimpleNamespace
+
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from de_forge.models import ReviewDecision as ReviewDecisionModel
+from de_forge.core.errors import ProofObligationError
+from de_forge.schemas.proof_obligation import ProofObligation
 from de_forge.schemas.review import ReviewAction, ReviewDecision, ReviewRequest
+from de_forge.services.proof_obligation_service import ProofObligationService
 
 
 class ExportBlockedError(ValueError):
@@ -43,16 +48,22 @@ class ReviewService:
         db = self._require_db()
         decision_id = str(uuid4())
         created_at = datetime.fromtimestamp(time_ns() / 1_000_000_000, tz=UTC).isoformat()
+        bind = db.get_bind()
+        columns = {column["name"] for column in inspect(bind).get_columns("review_decisions")}
+        payload: dict[str, str] = {
+            "id": decision_id,
+            "rule_id": rule_id,
+            "decision": decision,
+            "reviewer": reviewer,
+            "created_at": created_at,
+        }
+        if "run_id" in columns:
+            payload["run_id"] = "run_unknown"
+        if "comments" in columns:
+            payload["comments"] = ""
+
         try:
-            db.add(
-                ReviewDecisionModel(
-                    id=decision_id,
-                    rule_id=rule_id,
-                    decision=decision,
-                    reviewer=reviewer,
-                    created_at=created_at,
-                )
-            )
+            db.execute(text(self._build_review_insert_sql(columns)), payload)
             db.execute(
                 text(
                     """
@@ -74,13 +85,30 @@ class ReviewService:
 
         return decision_id
 
+    def _build_review_insert_sql(self, columns: set[str]) -> str:
+        ordered = ["id", "rule_id"]
+        if "run_id" in columns:
+            ordered.append("run_id")
+        ordered.extend(["decision", "reviewer"])
+        if "comments" in columns:
+            ordered.append("comments")
+        ordered.append("created_at")
+        column_sql = ", ".join(ordered)
+        value_sql = ", ".join(f":{name}" for name in ordered)
+        return f"INSERT INTO review_decisions ({column_sql}) VALUES ({value_sql})"
+
     def can_export(self, rule_status: str, review_decision: str | None) -> bool:
         """Check if rule can be exported based on status and review decision."""
         if rule_status != "awaiting_review":
             return False
         return review_decision == "approved"
 
-    def assert_can_export(self, rule_id: str, rule_status: str) -> None:
+    def assert_can_export(
+        self,
+        rule_id: str,
+        rule_status: str,
+        proof_obligations: list[ProofObligation] | None = None,
+    ) -> None:
         """Assert that rule can be exported, raising ExportBlockedError if not."""
         if not self._has_review_handoff_memory(rule_id):
             raise ExportBlockedError("review handoff memory required before export")
@@ -92,6 +120,48 @@ class ReviewService:
         if not self.can_export(rule_status, latest_decision.decision):
             raise ExportBlockedError("human approval required before export")
 
+        if proof_obligations is not None:
+            try:
+                ProofObligationService().verify_selectable(proof_obligations)
+            except ProofObligationError as exc:
+                raise ExportBlockedError(str(exc)) from exc
+
+            return
+
+        if self._has_failed_or_unknown_proof_obligations(rule_id):
+            raise ExportBlockedError("proof obligation gate failed before export")
+
+    def _has_failed_or_unknown_proof_obligations(self, rule_id: str) -> bool:
+        db = self._require_db()
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT status, justification
+                    FROM proof_obligations
+                    WHERE rule_candidate_id = :rule_candidate_id
+                    """
+                ),
+                {"rule_candidate_id": rule_id},
+            ).fetchall()
+        except SQLAlchemyError:
+            return False
+
+        if not rows:
+            return False
+
+        for status, justification in rows:
+            if status == "proven":
+                continue
+            if (
+                status == "not_applicable"
+                and isinstance(justification, str)
+                and justification.strip()
+            ):
+                continue
+            return True
+        return False
+
     def _has_review_handoff_memory(self, rule_id: str) -> bool:
         db = self._require_db()
         rows = db.execute(text("SELECT scope FROM memory_views WHERE key = 'latest'")).fetchall()
@@ -101,11 +171,33 @@ class ReviewService:
                 return True
         return False
 
-    def _get_latest_decision(self, rule_id: str) -> ReviewDecisionModel | None:
+    def _get_latest_decision(self, rule_id: str) -> SimpleNamespace | None:
         db = self._require_db()
-        return db.execute(
-            select(ReviewDecisionModel)
-            .where(ReviewDecisionModel.rule_id == rule_id)
-            .order_by(ReviewDecisionModel.created_at.desc(), ReviewDecisionModel.id.desc())
-            .limit(1)
-        ).scalar_one_or_none()
+        bind = db.get_bind()
+        columns = {column["name"] for column in inspect(bind).get_columns("review_decisions")}
+        selected = ["id", "rule_id", "decision", "reviewer", "created_at"]
+        if "run_id" in columns:
+            selected.insert(2, "run_id")
+        if "comments" in columns:
+            selected.insert(-1, "comments")
+
+        select_sql = ", ".join(selected)
+        row = (
+            db.execute(
+                text(
+                    f"""
+                SELECT {select_sql}
+                FROM review_decisions
+                WHERE rule_id = :rule_id
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """
+                ),
+                {"rule_id": rule_id},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return None
+        return SimpleNamespace(**dict(row))
