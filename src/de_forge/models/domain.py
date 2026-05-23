@@ -25,7 +25,9 @@ class Run(Base):
     __tablename__ = "runs"
 
     run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    report_id: Mapped[str] = mapped_column(String(64), ForeignKey("reports.report_id"), nullable=False)
+    report_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("reports.report_id"), nullable=False
+    )
     profile: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     trace_id: Mapped[str] = mapped_column(String(64), nullable=False)

@@ -121,13 +121,19 @@ class RetrievalService:
     ) -> list[ScoredChunk]:
         sparse_lookup = {chunk.chunk_id: score for chunk, score in sparse_ranked}
         dense_lookup = {chunk.chunk_id: score for chunk, score in dense_ranked}
-        sparse_ranks = {chunk.chunk_id: rank for rank, (chunk, _) in enumerate(sparse_ranked, start=1)}
-        dense_ranks = {chunk.chunk_id: rank for rank, (chunk, _) in enumerate(dense_ranked, start=1)}
+        sparse_ranks = {
+            chunk.chunk_id: rank for rank, (chunk, _) in enumerate(sparse_ranked, start=1)
+        }
+        dense_ranks = {
+            chunk.chunk_id: rank for rank, (chunk, _) in enumerate(dense_ranked, start=1)
+        }
         chunk_lookup = {chunk.chunk_id: chunk for chunk, _ in sparse_ranked}
 
         fused: list[ScoredChunk] = []
         for chunk_id, chunk in chunk_lookup.items():
-            rrf_score = (1 / (RRF_K + sparse_ranks[chunk_id])) + (1 / (RRF_K + dense_ranks[chunk_id]))
+            rrf_score = (1 / (RRF_K + sparse_ranks[chunk_id])) + (
+                1 / (RRF_K + dense_ranks[chunk_id])
+            )
             fused.append(
                 ScoredChunk(
                     chunk_id=chunk_id,

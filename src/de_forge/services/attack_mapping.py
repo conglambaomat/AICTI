@@ -129,7 +129,9 @@ class AttackMappingService:
                 f"Mapping {mapping.mapping_id}: confidence must be between 0.0 and 1.0, got {mapping.confidence}"
             )
 
-    def abstain_for_insufficient_evidence(self, report_id: str, evidence_count: int) -> AbstainDecision:
+    def abstain_for_insufficient_evidence(
+        self, report_id: str, evidence_count: int
+    ) -> AbstainDecision:
         return AbstainDecision(
             abstain_code="NO_EVIDENCE_BACKED_BEHAVIOR",
             abstain_context=f"report_id={report_id}, evidence_count={evidence_count}",

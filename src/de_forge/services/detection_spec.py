@@ -115,7 +115,9 @@ class DetectionSpecService:
             report_id=spec.report_id,
         )
 
-    def build_abstain_spec(self, report_id: str, abstain_decision: AbstainDecision) -> DetectionSpecBuildResult:
+    def build_abstain_spec(
+        self, report_id: str, abstain_decision: AbstainDecision
+    ) -> DetectionSpecBuildResult:
         if self.db is None:
             raise ValueError("Database session required for persistence")
 
@@ -145,7 +147,9 @@ class DetectionSpecService:
             abstain_code=abstain_decision.abstain_code,
         )
 
-    def _enforce_behavior_telemetry_gate(self, spec: DetectionSpec, available_telemetry: list[str] | None) -> None:
+    def _enforce_behavior_telemetry_gate(
+        self, spec: DetectionSpec, available_telemetry: list[str] | None
+    ) -> None:
         if available_telemetry is None:
             return
 

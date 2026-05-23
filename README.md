@@ -6,6 +6,8 @@ DE-Forge is a single-user, production-grade, proof-carrying, evidence-graph cont
 
 The active implementation track is **DE-Forge SOTA Core v2**.
 
+Authoritative documentation layout is frozen to: `docs/canonical`, `docs/operational`, `docs/governance`, and `docs/legacy` (legacy is non-authoritative).
+
 Before implementing, Claude CLI sessions must start with:
 
 - `docs/operational/START_HERE_FOR_CLAUDE.md`

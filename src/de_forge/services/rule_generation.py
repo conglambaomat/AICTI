@@ -37,7 +37,9 @@ class RuleGenerationService:
             return {
                 "sigma_rule": {},
                 "abstain": True,
-                "abstain_reason": str(detection_spec.get("abstain_reason", "DetectionSpec abstained")),
+                "abstain_reason": str(
+                    detection_spec.get("abstain_reason", "DetectionSpec abstained")
+                ),
                 "metadata": {"profile": profile},
             }
 

@@ -27,6 +27,7 @@ class LLMError(Exception):
 
 class RateLimitError(LLMError):
     """Rate limit exceeded (429)."""
+
     def __init__(self, message: str, retry_after: int | None = None) -> None:
         super().__init__(message)
         self.retry_after = retry_after
@@ -35,6 +36,7 @@ class RateLimitError(LLMError):
 
 class TimeoutError(LLMError):
     """Request timeout."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = True
@@ -42,6 +44,7 @@ class TimeoutError(LLMError):
 
 class ServiceUnavailableError(LLMError):
     """Service unavailable (503)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = True
@@ -49,6 +52,7 @@ class ServiceUnavailableError(LLMError):
 
 class InternalServerError(LLMError):
     """Internal server error (500)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = True
@@ -56,6 +60,7 @@ class InternalServerError(LLMError):
 
 class AuthenticationError(LLMError):
     """Authentication failed (401)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = False
@@ -63,6 +68,7 @@ class AuthenticationError(LLMError):
 
 class InvalidRequestError(LLMError):
     """Invalid request (400)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = False
@@ -70,6 +76,7 @@ class InvalidRequestError(LLMError):
 
 class ModelNotFoundError(LLMError):
     """Model not found (404)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = False
@@ -77,6 +84,7 @@ class ModelNotFoundError(LLMError):
 
 class ContentFilterError(LLMError):
     """Content policy violation."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = False
@@ -84,7 +92,10 @@ class ContentFilterError(LLMError):
 
 class SchemaValidationError(LLMError):
     """Response does not match expected schema."""
-    def __init__(self, message: str, validation_error: jsonschema.ValidationError | None = None) -> None:
+
+    def __init__(
+        self, message: str, validation_error: jsonschema.ValidationError | None = None
+    ) -> None:
         super().__init__(message)
         self.validation_error = validation_error
         self.retryable = False
@@ -92,6 +103,7 @@ class SchemaValidationError(LLMError):
 
 class ParseError(LLMError):
     """Cannot parse JSON response."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.retryable = False
@@ -137,13 +149,14 @@ class TransportResponse(Protocol):
 class Transport(Protocol):
     """Transport interface for OpenAI-compatible calls."""
 
-    def send(self, payload: dict[str, Any], timeout_seconds: int) -> TransportResponse:
-        ...
+    def send(self, payload: dict[str, Any], timeout_seconds: int) -> TransportResponse: ...
 
 
 def build_parse_retry_prompt(prompt: str, parse_error: str) -> str:
     """Append parse error context for one retry attempt."""
-    return f"{prompt}\n\nPrevious response parse error: {parse_error}\nReturn strict JSON object only."
+    return (
+        f"{prompt}\n\nPrevious response parse error: {parse_error}\nReturn strict JSON object only."
+    )
 
 
 def with_parse_context(request: LLMRequest, parse_error: str) -> LLMRequest:
@@ -250,18 +263,27 @@ class LLMClient:
                     latency_ms=int((time.perf_counter() - started) * 1000),
                     metadata={**request.metadata, "cost_usd": calculate_cost(usage)},
                 )
-            except (TimeoutError, RateLimitError, ServiceUnavailableError, InternalServerError) as exc:
+            except (
+                TimeoutError,
+                RateLimitError,
+                ServiceUnavailableError,
+                InternalServerError,
+            ) as exc:
                 if attempt > MAX_RETRIES:
                     raise exc
                 err_type = "rate_limit" if isinstance(exc, RateLimitError) else "transient"
                 retry_after = exc.retry_after if isinstance(exc, RateLimitError) else None
-                delay = calculate_backoff(attempt=attempt, error_type=err_type, retry_after=retry_after)
+                delay = calculate_backoff(
+                    attempt=attempt, error_type=err_type, retry_after=retry_after
+                )
                 if delay > 0:
                     time.sleep(delay)
 
         raise InternalServerError("retry loop exhausted")
 
-    def call_with_schema(self, request: LLMRequest, schema: dict[str, Any]) -> tuple[dict[str, Any], LLMResponse]:
+    def call_with_schema(
+        self, request: LLMRequest, schema: dict[str, Any]
+    ) -> tuple[dict[str, Any], LLMResponse]:
         """Execute LLM call, parse JSON object, and validate against schema."""
         current_request = request
         for parse_attempt in range(2):

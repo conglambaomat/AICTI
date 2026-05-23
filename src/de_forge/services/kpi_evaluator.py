@@ -20,9 +20,7 @@ class KPIEvaluator:
             for metric_name, threshold_value in threshold_values.items():
                 actual_value = category_metrics.get(metric_name)
                 if actual_value is None:
-                    raise ValueError(
-                        f"Missing required metric: {category}.{metric_name}"
-                    )
+                    raise ValueError(f"Missing required metric: {category}.{metric_name}")
 
                 is_upper_bound = metric_name.startswith("max_") or (
                     category == "abstain_quality" and metric_name == "coverage"

@@ -94,7 +94,9 @@ class StaticValidationService:
             if field_name not in allowed_fields:
                 issues.append(f"unknown telemetry field: {field_name}")
 
-    def _validate_overbroad(self, rule_content: str, parsed: dict[str, Any], issues: list[str]) -> None:
+    def _validate_overbroad(
+        self, rule_content: str, parsed: dict[str, Any], issues: list[str]
+    ) -> None:
         detection = parsed.get("detection", {})
         if not isinstance(detection, dict):
             return
@@ -136,7 +138,9 @@ def validate_retrieval_faithfulness(
 
         quote_idx = chunk_text.find(quote)
         if quote_idx == -1:
-            errors.append(f"Citation mismatch for chunk '{chunk_id}': quote not found in chunk text")
+            errors.append(
+                f"Citation mismatch for chunk '{chunk_id}': quote not found in chunk text"
+            )
             continue
 
         expected_start = chunk_start + quote_idx
