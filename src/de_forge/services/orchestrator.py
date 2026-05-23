@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 from enum import StrEnum
+
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -10,10 +12,10 @@ from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.agent_audit import AgentAuditService
+from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
 from de_forge.services.refinement import RefinementLimitExceededError, RefinementService
 from de_forge.services.rule_generation import RuleGenerationService
 from de_forge.services.state_machine import StateMachine
-from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
 from de_forge.services.static_validation import StaticValidationService
 
 
@@ -105,10 +107,8 @@ class PipelineOrchestrator:
             status="success" if validation.is_valid else "failed",
         )
         if not validation.is_valid:
-            try:
+            with contextlib.suppress(RefinementLimitExceededError):
                 self.refinement.record_rule_refinement(rule.id)
-            except RefinementLimitExceededError:
-                pass
             raise PipelineTransitionError("static validation gate failed")
 
         return PipelineState.AWAITING_REVIEW

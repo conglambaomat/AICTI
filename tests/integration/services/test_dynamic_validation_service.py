@@ -152,6 +152,6 @@ detection:
             attack_events=ATTACK_EVENTS,
             benign_events=BENIGN_EVENTS,
         )
-        assert False, "expected ValueError"
+        raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "Unknown selection in condition" in str(exc)

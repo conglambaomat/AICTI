@@ -1,18 +1,17 @@
 """Integration tests for agent audit integrity verification."""
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.core.hashing import snapshot_hash
 from de_forge.db.base import Base
 from de_forge.models import AgentRun as AgentRunModel
+from de_forge.models import DetectionSpec as DetectionSpecModel
+from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.models import RefinementIteration as RefinementIterationModel
 from de_forge.services.agent_audit import AgentAuditService, IntegrityError
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
-from de_forge.models import DetectionSpec as DetectionSpecModel
-from de_forge.models import AgentRun as AgentRunModel
-from de_forge.models import RefinementIteration as RefinementIterationModel
-from de_forge.models import GeneratedRule as GeneratedRuleModel
 
 
 def _build_session() -> Session:
@@ -121,6 +120,20 @@ def test_pipeline_orchestrator_persists_agent_audit_records_per_stage() -> None:
             is_validated=True,
         )
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
+    )
     db.commit()
 
     PipelineOrchestrator(db).run_pipeline(spec_id)
@@ -147,6 +160,20 @@ def test_pipeline_orchestrator_records_refinement_iteration_on_validation_failur
             detection_spec_id=spec_id,
             rule_content="not-yaml",
         )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
     )
     db.commit()
 

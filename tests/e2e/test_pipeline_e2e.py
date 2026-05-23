@@ -1,7 +1,7 @@
 """End-to-end pipeline tests for positive/adversarial and deterministic replay."""
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.models.contract import DetectionSpec as DetectionSpecModel
@@ -45,6 +45,20 @@ detection:
   condition: selection
 """,
         )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
     )
     db.commit()
 

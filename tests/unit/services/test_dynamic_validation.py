@@ -196,7 +196,7 @@ def test_dynamic_validation_raises_for_invalid_condition_reference() -> None:
             ],
             benign_events=[],
         )
-        assert False, "expected ValueError"
+        raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "Unknown selection in condition" in str(exc)
 
@@ -231,6 +231,6 @@ def test_dynamic_validation_raises_for_unsupported_condition_shape() -> None:
             ],
             benign_events=[],
         )
-        assert False, "expected ValueError"
+        raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "Unsupported condition" in str(exc)

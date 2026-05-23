@@ -94,11 +94,3 @@ def test_get_run_status_not_found() -> None:
     assert response.status_code == 404
     body = response.json()
     assert body["detail"]
-
-
-def test_get_run_status_not_found() -> None:
-    response = client.get("/v1/runs/run_nonexistent")
-
-    assert response.status_code == 404
-    body = response.json()
-    assert body["detail"]

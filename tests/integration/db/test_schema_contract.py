@@ -37,9 +37,7 @@ def test_memory_tables_exist_with_expected_columns() -> None:
 
     inspector = inspect(engine)
 
-    memory_event_columns = {
-        column["name"] for column in inspector.get_columns("memory_events")
-    }
+    memory_event_columns = {column["name"] for column in inspector.get_columns("memory_events")}
     memory_view_columns = {column["name"] for column in inspector.get_columns("memory_views")}
 
     assert {"id", "scope", "key", "value", "created_at"}.issubset(memory_event_columns)

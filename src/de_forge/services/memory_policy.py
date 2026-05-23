@@ -61,9 +61,7 @@ class MemoryPolicyEngine:
     ) -> tuple[str, ...]:
         required_namespaces = REQUIRED_STAGE_CONTRACTS.get(stage, ())
         return tuple(
-            namespace
-            for namespace in required_namespaces
-            if namespace not in available_namespaces
+            namespace for namespace in required_namespaces if namespace not in available_namespaces
         )
 
 

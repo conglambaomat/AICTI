@@ -203,11 +203,9 @@ def test_state_transition_blocked_when_gate_fails() -> None:
 
 
 def test_stub_orchestrator_service_is_not_available_in_runtime_path() -> None:
+    module = __import__("de_forge.services.orchestrator", fromlist=["OrchestratorService"])
     with pytest.raises(AttributeError):
-        getattr(
-            __import__("de_forge.services.orchestrator", fromlist=["OrchestratorService"]),
-            "OrchestratorService",
-        )
+        _ = module.OrchestratorService
 
 
 def test_pipeline_orchestrator_does_not_depend_on_stubbed_evidence_extraction() -> None:

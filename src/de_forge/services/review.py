@@ -94,9 +94,7 @@ class ReviewService:
 
     def _has_review_handoff_memory(self, rule_id: str) -> bool:
         db = self._require_db()
-        rows = db.execute(
-            text("SELECT scope FROM memory_views WHERE key = 'latest'")
-        ).fetchall()
+        rows = db.execute(text("SELECT scope FROM memory_views WHERE key = 'latest'")).fetchall()
         for row in rows:
             scope = str(row[0])
             if scope.endswith(":review.handoff") and rule_id in scope:

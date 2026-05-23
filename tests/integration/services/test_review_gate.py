@@ -22,7 +22,7 @@ def test_export_blocked_without_human_approval() -> None:
 
     rule_id = "rule-no-approval"
 
-    with pytest.raises(ExportBlockedError, match="human approval required"):
+    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
 
 

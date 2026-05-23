@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from de_forge.core.hashing import snapshot_hash
+from de_forge.core.hashing import JsonValue, snapshot_hash
 
 
 class MemoryPolicyEngine:
@@ -87,17 +88,16 @@ class MemoryService:
             raise MemoryVersionConflictError("expected_version mismatch")
 
         new_version = current_version + 1
-        event_hash = snapshot_hash(
-            {
-                "run_id": run_id,
-                "namespace": namespace,
-                "version": new_version,
-                "payload": payload,
-                "prev_hash": prev_hash,
-                "actor_role": role,
-                "stage": stage,
-            }
-        )
+        hash_payload: dict[str, JsonValue] = {
+            "run_id": run_id,
+            "namespace": namespace,
+            "version": new_version,
+            "payload": cast("JsonValue", payload),
+            "prev_hash": prev_hash,
+            "actor_role": role,
+            "stage": stage,
+        }
+        event_hash = snapshot_hash(hash_payload)
 
         timestamp = datetime.now(UTC).isoformat()
         event_payload = {
