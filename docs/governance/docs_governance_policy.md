@@ -30,6 +30,14 @@ If validation fails:
 - Startup sequence integrity check
 - Progress documentation schema check
 
+## CI Enforcement Requirement
+
+`docs-governance` CI gate is mandatory for docs-governance readiness claims.
+
+Required CI checks:
+- `python scripts/docs_preflight.py`
+- `pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py -v`
+
 ## Progress Logging Requirement
 
 A task is not complete until implementation progress is logged in:
