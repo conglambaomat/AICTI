@@ -35,6 +35,10 @@ class MemoryVersionConflictError(RuntimeError):
     """Raised when expected version does not match current version."""
 
 
+class MemoryIntegrityError(RuntimeError):
+    """Raised when replay detects tampered or inconsistent memory events."""
+
+
 class MemoryWriteResult:
     def __init__(self, *, version: int, event_hash: str) -> None:
         self.version = version
@@ -146,3 +150,57 @@ class MemoryService:
 
         self.db.commit()
         return MemoryWriteResult(version=new_version, event_hash=event_hash)
+
+    def replay(self, *, run_id: str) -> dict[str, object]:
+        rows = self.db.execute(
+            text(
+                """
+                SELECT scope, value
+                FROM memory_events
+                WHERE scope LIKE :prefix
+                ORDER BY scope ASC, CAST(key AS INTEGER) ASC
+                """
+            ),
+            {"prefix": f"{run_id}:%"},
+        ).fetchall()
+
+        latest_by_scope: dict[str, dict[str, object]] = {}
+        prev_hash_by_scope: dict[str, str | None] = {}
+
+        for scope_raw, value_raw in rows:
+            scope = str(scope_raw)
+            event_payload = json.loads(str(value_raw))
+            prev_hash = event_payload.get("prev_hash")
+            expected_prev = prev_hash_by_scope.get(scope)
+            if prev_hash != expected_prev:
+                raise MemoryIntegrityError("memory event hash chain discontinuity")
+
+            recomputed = snapshot_hash(
+                {
+                    "run_id": event_payload["run_id"],
+                    "namespace": event_payload["namespace"],
+                    "version": event_payload["version"],
+                    "payload": event_payload["payload"],
+                    "prev_hash": event_payload.get("prev_hash"),
+                    "actor_role": event_payload["actor_role"],
+                    "stage": event_payload["stage"],
+                }
+            )
+            if recomputed != event_payload.get("event_hash"):
+                raise MemoryIntegrityError("memory event hash mismatch")
+
+            prev_hash_by_scope[scope] = str(event_payload["event_hash"])
+            latest_by_scope[scope] = event_payload
+
+        for scope, event_payload in latest_by_scope.items():
+            view_row = self.db.execute(
+                text("SELECT value FROM memory_views WHERE scope = :scope AND key = 'latest'"),
+                {"scope": scope},
+            ).fetchone()
+            if view_row is None:
+                raise MemoryIntegrityError("missing latest memory view for scope")
+            view_payload = json.loads(str(view_row[0]))
+            if view_payload.get("last_event_hash") != event_payload.get("event_hash"):
+                raise MemoryIntegrityError("memory view hash mismatch")
+
+        return {"integrity_ok": True, "scopes": sorted(latest_by_scope.keys())}
