@@ -73,6 +73,21 @@ def test_get_run_status_after_failed_run_reports_failed_stage() -> None:
     assert body["stage"] == "failed_generation"
 
 
+def test_get_run_status_after_memory_gate_failure_reports_failed_memory_stage() -> None:
+    failed_run = client.post(
+        "/v1/pipeline:run",
+        json={"report_id": "rep_force_memory_contract_error", "profile": "balanced"},
+    )
+    assert failed_run.status_code == 500
+    run_id = failed_run.json()["run_id"]
+
+    status = client.get(f"/v1/runs/{run_id}")
+    assert status.status_code == 200
+    body = status.json()
+    assert body["status"] == "failed"
+    assert body["stage"] == "failed_memory_contract"
+
+
 def test_get_run_status_not_found() -> None:
     response = client.get("/v1/runs/run_nonexistent")
 

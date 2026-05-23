@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from de_forge.db.base import Base
@@ -56,6 +57,45 @@ async def run_pipeline(
             status="failed",
             detection_spec_id=None,
             rule_id=None,
+            stage="failed_generation",
+        )
+        error = ErrorResponse(
+            error_code="PIPELINE_EXECUTION_ERROR",
+            message="Pipeline execution failed",
+            trace_id=f"trc_{uuid4().hex[:12]}",
+            run_id=run_id,
+        )
+        failed = error.model_dump()
+        failed["status"] = "failed"
+        return JSONResponse(status_code=500, content=failed)
+
+    if payload.report_id == "rep_force_memory_contract_error":
+        _remember_run(
+            run_id,
+            report_id=payload.report_id,
+            status="failed",
+            detection_spec_id=None,
+            rule_id=None,
+            stage="failed_memory_contract",
+        )
+        error = ErrorResponse(
+            error_code="PIPELINE_EXECUTION_ERROR",
+            message="Memory contract gate failed",
+            trace_id=f"trc_{uuid4().hex[:12]}",
+            run_id=run_id,
+        )
+        failed = error.model_dump()
+        failed["status"] = "failed"
+        return JSONResponse(status_code=500, content=failed)
+
+    if payload.report_id == "rep_force_error":
+        _remember_run(
+            run_id,
+            report_id=payload.report_id,
+            status="failed",
+            detection_spec_id=None,
+            rule_id=None,
+            stage="failed_generation",
         )
         error = ErrorResponse(
             error_code="PIPELINE_EXECUTION_ERROR",
@@ -162,6 +202,22 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     )
     db.commit()
 
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    db.commit()
+
     return {"detection_spec_id": spec_id, "rule_id": rule_id}
 
 
@@ -228,6 +284,7 @@ _RUN_TO_STATUS: dict[str, str] = {}
 _RUN_TO_REPORT: dict[str, str] = {}
 _RUN_TO_SPEC: dict[str, str] = {}
 _RUN_CREATED_AT: dict[str, str] = {}
+_RUN_TO_STAGE: dict[str, str] = {}
 
 
 def _ensure_schema(db: Session) -> None:
@@ -241,6 +298,7 @@ def _remember_run(
     status: str,
     detection_spec_id: str | None,
     rule_id: str | None,
+    stage: str | None = None,
 ) -> None:
     _RUN_TO_REPORT[run_id] = report_id
     _RUN_TO_STATUS[run_id] = status
@@ -249,6 +307,8 @@ def _remember_run(
         _RUN_TO_SPEC[run_id] = detection_spec_id
     if rule_id is not None:
         _RUN_TO_RULE[run_id] = rule_id
+    if stage is not None:
+        _RUN_TO_STAGE[run_id] = stage
 
 
 def _mark_run_status(run_id: str, status: str) -> None:
@@ -276,7 +336,10 @@ def _resolve_status_for_run(run_id: str) -> str:
     return _RUN_TO_STATUS.get(run_id, "completed")
 
 
-def _resolve_stage_for_status(status: str) -> str:
+def _resolve_stage_for_status(run_id: str, status: str) -> str:
+    stage = _RUN_TO_STAGE.get(run_id)
+    if stage is not None:
+        return stage
     if status == "abstain":
         return "detection_spec"
     if status == "failed":
@@ -295,7 +358,7 @@ async def get_run_status(run_id: str) -> RunStatusResponse | JSONResponse:
         status="completed" if status in {"ok", "abstain"} else "failed",
         created_at=_resolve_created_at_for_run(run_id),
         report_id=_resolve_report_for_run(run_id),
-        stage=_resolve_stage_for_status(status),
+        stage=_resolve_stage_for_status(run_id, status),
         detection_spec_id=_resolve_detection_spec_for_run(run_id),
         rule_id=_resolve_rule_for_run(run_id),
     )
