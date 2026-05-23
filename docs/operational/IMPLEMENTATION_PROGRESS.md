@@ -84,7 +84,7 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
 - Blockers/risks: none
 
 ### 2026-05-23 10:50 UTC — Wave D full verification and completion closure
-- Status: done
+- Status: partial
 - Phase/Plan reference: Wave D — Final go-live proof (`cheerful-juggling-hollerith.md`)
 - Summary of implementation:
   - Executed final full verification gates across tests, lint, and type checks.
@@ -95,9 +95,9 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
   - pytest: `python -m pytest tests -q` pass (167 passed)
   - mypy: `python -m mypy src` pass
   - ruff check: `python -m ruff check src tests` pass
-  - ruff format --check: pending explicit execution
-- Commit SHA: pending
-- Next step: finalize Wave D evidence commit and branch closure
+  - ruff format --check: `python -m ruff format --check src tests` fail (24 files would be reformatted)
+- Commit SHA: `cbed667`
+- Next step: run `python -m ruff format src tests`, re-run `python -m ruff format --check src tests`, then record a completion commit SHA
 - Blockers/risks: none
 
 ### 2026-05-23 10:35 UTC — Docs Autonomy Hardening P0 (Tasks 1-5)
