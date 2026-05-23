@@ -149,3 +149,25 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
 - Commit SHA: `9969be3`
 - Next step: finalize docs-only closure commit and keep branch ready for integration decision
 - Blockers/risks: none
+
+### 2026-05-23 12:10 UTC — Operational docs restore + drift-guard hardening
+- Status: done
+- Phase/Plan reference: Docs autonomy hardening follow-up (restore missing operational runbooks)
+- Summary of implementation:
+  - Restored 5 missing operational runbooks referenced by startup entry docs.
+  - Added explicit drift-guard tests to ensure active entry docs never reference missing operational markdown files.
+  - Wired new drift guard into docs-governance CI gate.
+- Files changed:
+  - `docs/operational/SOTA_CORE_V2_EXECUTION_KIT.md`
+  - `docs/operational/SUBAGENT_EXECUTION_STRATEGY_SOTA_CORE_V2.md`
+  - `docs/operational/AUTONOMOUS_DECISION_POLICY.md`
+  - `docs/operational/QUALITY_GATES_SOTA_CORE_V2.md`
+  - `docs/operational/BLOCKERS_AND_ESCALATION.md`
+  - `tests/docs/test_operational_reference_integrity.py`
+  - `.github/workflows/docs-governance.yml`
+- Verification evidence:
+  - docs preflight: `python scripts/docs_preflight.py` pass (`DOCS_PREFLIGHT: PASS`)
+  - pytest docs suite: `python -m pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py tests/docs/test_progress_templates.py tests/docs/test_operational_reference_integrity.py -v` pass (8/8)
+- Commit SHA: `840f02b`, `e0839a2`
+- Next step: keep operational references synchronized with authoritative docs in all active entrypoints
+- Blockers/risks: none

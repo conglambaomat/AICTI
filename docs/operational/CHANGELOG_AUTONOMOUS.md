@@ -41,3 +41,8 @@ Concise operational log of autonomous progress.
   - Scope: docs preflight, docs governance tests, full-suite test/coverage, mypy, ruff lint/format verification.
   - Commit SHA: `9969be3`
 
+- 2026-05-23 12:10 UTC
+  - Change summary: Restored missing operational runbooks and added CI-backed drift guard for active entry doc operational references.
+  - Scope: 5 operational runbook restores, docs reference integrity test, docs-governance workflow test expansion.
+  - Commit SHA: `840f02b`, `e0839a2`
+
