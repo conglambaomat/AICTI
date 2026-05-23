@@ -88,24 +88,6 @@ async def run_pipeline(
         failed["status"] = "failed"
         return JSONResponse(status_code=500, content=failed)
 
-    if payload.report_id == "rep_force_error":
-        _remember_run(
-            run_id,
-            report_id=payload.report_id,
-            status="failed",
-            detection_spec_id=None,
-            rule_id=None,
-            stage="failed_generation",
-        )
-        error = ErrorResponse(
-            error_code="PIPELINE_EXECUTION_ERROR",
-            message="Pipeline execution failed",
-            trace_id=f"trc_{uuid4().hex[:12]}",
-            run_id=run_id,
-        )
-        failed = error.model_dump()
-        failed["status"] = "failed"
-        return JSONResponse(status_code=500, content=failed)
     detection_spec = (
         db.query(DetectionSpecModel)
         .filter(DetectionSpecModel.report_id == payload.report_id)
