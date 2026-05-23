@@ -226,3 +226,23 @@ class RefinementIteration(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     detection_spec_id: Mapped[str | None] = mapped_column(ForeignKey("detection_specs.id"))
     rule_id: Mapped[str | None] = mapped_column(ForeignKey("generated_rules.id"))
+
+
+class MemoryEvent(Base):
+    __tablename__ = "memory_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(120), nullable=False)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    value: Mapped[str] = mapped_column(Text(), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class MemoryView(Base):
+    __tablename__ = "memory_views"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(120), nullable=False)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    value: Mapped[str] = mapped_column(Text(), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(40), nullable=False)
