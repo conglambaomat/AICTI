@@ -397,10 +397,8 @@ async def export_sigma(
     service = ReviewService(db)
     try:
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
-    except ExportBlockedError:
-        return JSONResponse(
-            status_code=403, content={"detail": "Human review approval is required"}
-        )
+    except ExportBlockedError as exc:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     generated_rule = db.get(GeneratedRuleModel, rule_id)
     if generated_rule is None or not generated_rule.rule_content:

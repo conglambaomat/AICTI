@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from time import time_ns
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from de_forge.models import ReviewDecision as ReviewDecisionModel
@@ -53,6 +53,20 @@ class ReviewService:
                     created_at=created_at,
                 )
             )
+            db.execute(
+                text(
+                    """
+                    INSERT INTO memory_views (id, scope, key, value, updated_at)
+                    VALUES (:id, :scope, 'latest', :value, :updated_at)
+                    """
+                ),
+                {
+                    "id": f"mv-{decision_id}",
+                    "scope": f"{rule_id}:review.handoff",
+                    "value": '{"approved": true}',
+                    "updated_at": created_at,
+                },
+            )
             db.commit()
         except Exception:
             db.rollback()
@@ -68,12 +82,26 @@ class ReviewService:
 
     def assert_can_export(self, rule_id: str, rule_status: str) -> None:
         """Assert that rule can be exported, raising ExportBlockedError if not."""
+        if not self._has_review_handoff_memory(rule_id):
+            raise ExportBlockedError("review handoff memory required before export")
+
         latest_decision = self._get_latest_decision(rule_id)
         if latest_decision is None:
             raise ExportBlockedError("human approval required before export")
 
         if not self.can_export(rule_status, latest_decision.decision):
             raise ExportBlockedError("human approval required before export")
+
+    def _has_review_handoff_memory(self, rule_id: str) -> bool:
+        db = self._require_db()
+        rows = db.execute(
+            text("SELECT scope FROM memory_views WHERE key = 'latest'")
+        ).fetchall()
+        for row in rows:
+            scope = str(row[0])
+            if scope.endswith(":review.handoff") and rule_id in scope:
+                return True
+        return False
 
     def _get_latest_decision(self, rule_id: str) -> ReviewDecisionModel | None:
         db = self._require_db()
