@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -13,10 +11,9 @@ from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.telemetry_registry import (
-    field_exists,
-    is_supported_telemetry_type,
-)
+from de_forge.schemas.detection_spec import DetectionSpec
+from de_forge.services.detection_ast_service import DetectionAstService
+from de_forge.services.sigma_compiler import SigmaCompiler
 
 
 class UnvalidatedDetectionSpecError(ValueError):
@@ -48,31 +45,18 @@ class RuleGenerationService:
                 "metadata": {"profile": profile},
             }
 
-        if "logic" not in detection_spec:
-            raise ValueError("DetectionSpec missing required logic")
-
-        sigma_rule = {
-            "title": "DE-Forge Generated Suspicious Process Execution",
-            "id": "de-forge-generated-rule",
-            "status": "experimental",
-            "description": "Generated from validated DetectionSpec",
-            "logsource": {
-                "category": "process_creation",
-                "product": "windows",
-            },
-            "detection": {
-                "selection": {
-                    "Image|contains": "powershell",
-                    "CommandLine|contains": "-enc",
-                },
-                "condition": "selection",
-            },
-            "level": "high" if profile == "strict" else "medium",
-            "tags": ["attack.t1059.001"],
-        }
+        spec = DetectionSpec.model_validate(detection_spec)
+        ast = DetectionAstService().from_spec(spec)
+        compiled = SigmaCompiler().compile(
+            ast,
+            title="DE-Forge Generated Suspicious Process Execution",
+            description="Generated from validated DetectionSpec",
+            falsepositives=[],
+            level="high" if profile == "strict" else "medium",
+        )
 
         return {
-            "sigma_rule": sigma_rule,
+            "sigma_rule": compiled.model_dump(exclude={"provenance"}, exclude_none=True),
             "abstain": False,
             "metadata": {"profile": profile},
         }
@@ -125,57 +109,13 @@ class RuleGenerationService:
         if not spec.spec_payload:
             raise ValueError("DetectionSpec missing spec_payload for constrained rule generation")
 
-        spec_data = json.loads(spec.spec_payload)
-        behavior_rules = spec_data.get("behavior_rules", [])
-        if not behavior_rules:
-            raise ValueError("DetectionSpec has no behavior_rules")
-
-        first_rule = behavior_rules[0]
-        required_telemetry = first_rule["required_telemetry"]
-        detection_logic = first_rule["detection_logic"]
-
-        if not required_telemetry:
-            raise ValueError("DetectionSpec rule missing required_telemetry")
-
-        telemetry_type = required_telemetry[0]
-        if not is_supported_telemetry_type(telemetry_type):
-            raise ValueError(f"unsupported telemetry type: {telemetry_type}")
-
-        clauses = [segment.strip() for segment in detection_logic.split(" and ") if segment.strip()]
-        if not clauses:
-            raise ValueError("unsupported detection logic: empty")
-        if " or " in detection_logic.lower():
-            raise ValueError("unsupported detection logic: OR conditions not supported")
-
-        parsed_conditions: list[tuple[str, str]] = []
-        for clause in clauses:
-            match = re.fullmatch(r"([A-Za-z0-9_]+)\s+contains\s+'([^']+)'", clause)
-            if match is None:
-                raise ValueError("unsupported detection logic")
-            field_name, needle = match.group(1), match.group(2)
-            if not field_exists(telemetry_type, field_name):
-                raise ValueError(f"unsupported telemetry field: {field_name}")
-            parsed_conditions.append((field_name, needle))
-
-        title = detection_logic[:80]
-        condition_tokens = [f"selection_{idx}" for idx in range(1, len(parsed_conditions) + 1)]
-
-        rule_lines = [
-            f"title: {title}",
-            "logsource:",
-            "  product: windows",
-            f"  category: {telemetry_type}",
-            "detection:",
-        ]
-
-        for idx, (field_name, needle) in enumerate(parsed_conditions, start=1):
-            rule_lines.extend(
-                [
-                    f"  selection_{idx}:",
-                    f"    {field_name}|contains: '{needle}'",
-                ]
-            )
-
-        rule_lines.append(f"  condition: {' and '.join(condition_tokens)}")
-        rule_lines.append("")
-        return "\n".join(rule_lines)
+        detection_spec = DetectionSpec.model_validate_json(spec.spec_payload)
+        ast = DetectionAstService().from_spec(detection_spec)
+        compiled = SigmaCompiler().compile(
+            ast,
+            title="DE-Forge Generated Suspicious Process Execution",
+            description="Generated from validated DetectionSpec",
+            falsepositives=[],
+            level="medium",
+        )
+        return SigmaCompiler().to_yaml(compiled)

@@ -11,10 +11,11 @@ def test_get_run_status_returns_run_details() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
     detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -26,7 +27,7 @@ def test_get_run_status_returns_run_details() -> None:
     assert body["run_id"] == run_id
     assert body["status"] in ["pending", "running", "completed", "failed"]
     assert "created_at" in body
-    assert body["report_id"] == detection_spec_id
+    assert body["report_id"] == report_id
     assert body["detection_spec_id"] == detection_spec_id
 
 
@@ -42,10 +43,11 @@ def test_get_run_status_after_abstain_run_reports_detection_spec_stage() -> None
     seed = client.post("/v1/pipeline:seed-abstain")
     assert seed.status_code == 201
     detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -94,3 +96,19 @@ def test_get_run_status_not_found() -> None:
     assert response.status_code == 404
     body = response.json()
     assert body["detail"]
+
+
+def test_pipeline_run_rejects_detection_spec_id_as_report_id_bypass() -> None:
+    seed = client.post("/v1/pipeline:seed")
+    assert seed.status_code == 201
+    detection_spec_id = seed.json()["detection_spec_id"]
+
+    run_response = client.post(
+        "/v1/pipeline:run",
+        json={"report_id": detection_spec_id, "profile": "balanced"},
+    )
+    assert run_response.status_code == 404
+    body = run_response.json()
+    assert body["status"] == "failed"
+    assert "report_id" in body["message"].lower()
+    assert "detectionspec" not in body["message"].lower()

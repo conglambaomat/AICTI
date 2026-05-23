@@ -106,11 +106,15 @@ async def run_pipeline(
         failed = error.model_dump()
         failed["status"] = "failed"
         return JSONResponse(status_code=500, content=failed)
-    detection_spec = db.get(DetectionSpecModel, payload.report_id)
+    detection_spec = (
+        db.query(DetectionSpecModel)
+        .filter(DetectionSpecModel.report_id == payload.report_id)
+        .first()
+    )
     if detection_spec is None:
         error = ErrorResponse(
             error_code="PIPELINE_EXECUTION_ERROR",
-            message="DetectionSpec not found for report_id",
+            message="Report not found for report_id",
             trace_id=f"trc_{uuid4().hex[:12]}",
             run_id=run_id,
         )
@@ -184,11 +188,12 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     _ensure_schema(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
     rule_id = f"rule_{uuid4().hex[:12]}"
+    report_id = f"report_{uuid4().hex[:12]}"
 
     db.add(
         DetectionSpecModel(
             id=spec_id,
-            report_id=f"report_{uuid4().hex[:12]}",
+            report_id=report_id,
             spec_payload='{"report_id":"seed","behavior_rules":[{"evidence":["powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"seed"}',
             is_validated=True,
         )
@@ -218,17 +223,18 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     )
     db.commit()
 
-    return {"detection_spec_id": spec_id, "rule_id": rule_id}
+    return {"detection_spec_id": spec_id, "rule_id": rule_id, "report_id": report_id}
 
 
 @router.post("/pipeline:seed-abstain", status_code=201)
 async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str, str]:
     _ensure_schema(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
+    report_id = f"report_{uuid4().hex[:12]}"
     db.add(
         DetectionSpecModel(
             id=spec_id,
-            report_id=f"report_{uuid4().hex[:12]}",
+            report_id=report_id,
             abstain_code="NO_EVIDENCE",
             abstain_context="No quote-backed behavior found",
             abstain_human_message="Cannot generate detection",
@@ -236,7 +242,7 @@ async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str,
         )
     )
     db.commit()
-    return {"detection_spec_id": spec_id}
+    return {"detection_spec_id": spec_id, "report_id": report_id}
 
 
 @router.post("/pipeline:approve", status_code=201)

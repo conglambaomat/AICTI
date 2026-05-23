@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from de_forge.services.rule_generation import RuleGenerationService
 
 
 def _spec() -> dict[str, object]:
     return {
-        "abstain": False,
-        "behavior": [{"behavior_label": "process_execution", "evidence_ids": ["e1"]}],
-        "attack_mappings": [{"technique_id": "T1059.001"}],
-        "telemetry_requirements": [
-            {"source": "process_creation", "allowed_fields": ["Image", "CommandLine"]}
+        "report_id": "rep_rule_authoring",
+        "behavior_rules": [
+            {
+                "evidence": ["e1"],
+                "attack_ids": ["T1059.001"],
+                "required_telemetry": ["process_creation"],
+                "detection_logic": "CommandLine contains '-enc'",
+            }
         ],
-        "logic": {"selection": "process_creation", "condition": "selection"},
         "false_positive_hypotheses": ["admin scripts"],
-        "test_plan": ["malicious powershell"],
+        "test_plan": "malicious powershell",
     }
 
 
@@ -39,10 +42,10 @@ def test_generate_rule_abstains_when_spec_abstains() -> None:
     assert result["abstain_reason"] == "unsafe"
 
 
-def test_generate_rule_rejects_missing_logic() -> None:
+def test_generate_rule_rejects_missing_behavior_rules() -> None:
     service = RuleGenerationService()
     bad_spec = _spec()
-    bad_spec.pop("logic")
+    bad_spec.pop("behavior_rules")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         service.generate_rule(bad_spec, profile="balanced")

@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.services.detection_ast_service import DetectionAstService
 from de_forge.services.rule_generation import (
     RuleGenerationService,
     UnvalidatedDetectionSpecError,
 )
+from de_forge.services.sigma_compiler import SigmaCompiler
 
 
 def _build_session() -> Session:
@@ -108,7 +110,8 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
     assert "Image|contains" in persisted.rule_content
     assert "pwsh" in persisted.rule_content
     assert "powershell" not in persisted.rule_content
-    assert "condition: selection_1 and selection_2" in persisted.rule_content
+    assert "condition: selection_cond_" in persisted.rule_content
+    assert " and selection_cond_" in persisted.rule_content
 
 
 def test_rule_generation_fails_for_unsupported_telemetry() -> None:
@@ -120,13 +123,15 @@ def test_rule_generation_fails_for_unsupported_telemetry() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-telemetry",
-            spec_payload='{"report_id":"report-telemetry","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["unknown_source"],"detection_logic":"Image contains \'test\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-telemetry","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["unknown_source"],"detection_logic":"Image contains \'test\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )
     db.commit()
 
-    with pytest.raises(ValueError, match="unsupported telemetry type"):
+    with pytest.raises(
+        Exception, match="required_telemetry must be in MVP allowlist|unsupported telemetry type"
+    ):
         service.generate_sigma_rule(detection_spec_id=spec_id)
 
 
@@ -139,13 +144,13 @@ def test_rule_generation_fails_for_invalid_telemetry_field() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-field",
-            spec_payload='{"report_id":"report-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["process_creation"],"detection_logic":"BadField contains \'x\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"BadField contains \'x\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )
     db.commit()
 
-    with pytest.raises(ValueError, match="unsupported telemetry field"):
+    with pytest.raises(Exception, match="unsupported telemetry field"):
         service.generate_sigma_rule(detection_spec_id=spec_id)
 
 
@@ -158,13 +163,13 @@ def test_rule_generation_fails_for_unsupported_logic_shape() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-logic",
-            spec_payload='{"report_id":"report-logic","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["process_creation"],"detection_logic":"anything OR else"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-logic","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"anything OR else"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )
     db.commit()
 
-    with pytest.raises(ValueError, match="unsupported detection logic"):
+    with pytest.raises(Exception, match="unsupported detection logic"):
         service.generate_sigma_rule(detection_spec_id=spec_id)
 
 
@@ -228,3 +233,151 @@ def test_abstain_spec_blocks_rule_generation() -> None:
     # Verify no rule was persisted
     persisted_rules = db.execute(select(GeneratedRuleModel)).scalars().all()
     assert len(persisted_rules) == 0
+
+
+def test_rule_generation_uses_ast_compiler_path_for_persistence() -> None:
+    db = _build_session()
+    service = RuleGenerationService(db)
+
+    spec_id = "validated-spec-ast-path"
+    spec_payload = (
+        '{"report_id":"report-ast","behavior_rules":[{"evidence":["e1"],'
+        '"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],'
+        '"detection_logic":"CommandLine contains \'-enc\'"}],'
+        '"false_positive_hypotheses":["fp"],"test_plan":"tp"}'
+    )
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-ast",
+            spec_payload=spec_payload,
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    result = service.generate_sigma_rule(detection_spec_id=spec_id)
+
+    persisted = db.execute(
+        select(GeneratedRuleModel).where(GeneratedRuleModel.id == result.rule_id)
+    ).scalar_one()
+
+    parsed_spec = DetectionSpecModel(
+        id=spec_id,
+        report_id="report-ast",
+        spec_payload=spec_payload,
+        is_validated=True,
+    )
+    ast = DetectionAstService().from_detection_spec_model(parsed_spec)
+    compiled = SigmaCompiler().compile(
+        ast,
+        title="DE-Forge Generated Suspicious Process Execution",
+        description="Generated from validated DetectionSpec",
+        falsepositives=[],
+        level="medium",
+    )
+    expected_yaml = SigmaCompiler().to_yaml(compiled)
+
+    assert persisted.rule_content == expected_yaml
+    assert "selection_cond_" in persisted.rule_content
+    assert "condition: selection_cond_" in persisted.rule_content
+    assert "CommandLine|contains" in persisted.rule_content
+    assert "-enc" in persisted.rule_content
+    assert "Image|contains" not in persisted.rule_content
+    assert "pwsh" not in persisted.rule_content
+    assert "de-forge-generated-rule" not in persisted.rule_content
+    assert "id: sigma_" in persisted.rule_content
+    assert "status: experimental" in persisted.rule_content
+    assert "tags:" in persisted.rule_content
+    assert "- attack.t1059.001" in persisted.rule_content
+    assert "logsource:" in persisted.rule_content
+    assert "product: windows" in persisted.rule_content
+    assert "category: process_creation" in persisted.rule_content
+    assert "falsepositives: []" in persisted.rule_content
+    assert "level: medium" in persisted.rule_content
+    assert "description: Generated from validated DetectionSpec" in persisted.rule_content
+    assert "title: DE-Forge Generated Suspicious Process Execution" in persisted.rule_content
+    assert "condition: selection_1" not in persisted.rule_content
+    assert "selection_1:" not in persisted.rule_content
+    assert "id: de-forge-generated-rule" not in persisted.rule_content
+    assert "powershell" not in persisted.rule_content
+    assert "|contains: '-enc'" not in persisted.rule_content
+    assert "|contains:" in persisted.rule_content
+    assert "- -enc" in persisted.rule_content
+    assert "references: []" in persisted.rule_content
+    assert "provenance" not in persisted.rule_content
+    assert "detection:" in persisted.rule_content
+    assert result.detection_spec_id == spec_id
+    assert result.rule_id is not None
+    assert persisted.detection_spec_id == spec_id
+    assert persisted.id == result.rule_id
+    assert persisted.rule_content
+    assert len(persisted.rule_content.strip()) > 0
+
+    db.close()
+
+
+def test_generate_rule_uses_ast_compiler_in_memory_contract() -> None:
+    service = RuleGenerationService()
+    detection_spec = {
+        "report_id": "report-ast-inline",
+        "behavior_rules": [
+            {
+                "evidence": ["ev-inline"],
+                "attack_ids": ["T1059.001"],
+                "required_telemetry": ["process_creation"],
+                "detection_logic": "CommandLine contains '-EncodedCommand'",
+            }
+        ],
+        "false_positive_hypotheses": ["admin usage"],
+        "test_plan": "tp",
+    }
+
+    response = service.generate_rule(detection_spec=detection_spec, profile="strict")
+
+    sigma_rule = response["sigma_rule"]
+    assert response["abstain"] is False
+    assert response["metadata"]["profile"] == "strict"
+    assert sigma_rule["title"] == "DE-Forge Generated Suspicious Process Execution"
+    assert sigma_rule["id"].startswith("sigma_")
+    assert sigma_rule["status"] == "experimental"
+    assert sigma_rule["description"] == "Generated from validated DetectionSpec"
+    assert sigma_rule["tags"] == ["attack.t1059.001"]
+    assert sigma_rule["logsource"]["product"] == "windows"
+    assert sigma_rule["logsource"]["category"] == "process_creation"
+    assert sigma_rule["level"] == "high"
+    assert sigma_rule["detection"]["condition"].startswith("selection_cond_")
+    selection_keys = [key for key in sigma_rule["detection"] if key.startswith("selection_cond_")]
+    assert len(selection_keys) == 1
+    assert sigma_rule["detection"][sigma_rule["detection"]["condition"]] == {
+        "CommandLine|contains": ["-EncodedCommand"]
+    }
+    assert "selection" not in sigma_rule["detection"]
+    assert "Image|contains" not in str(sigma_rule["detection"])
+    assert "-enc" not in str(sigma_rule["detection"])
+    assert "de-forge-generated-rule" not in str(sigma_rule)
+    assert "references" in sigma_rule
+    assert sigma_rule["references"] == []
+    assert "falsepositives" in sigma_rule
+    assert sigma_rule["falsepositives"] == []
+    assert "provenance" not in sigma_rule
+    assert "metadata" in response
+    assert "profile" in response["metadata"]
+    assert response["metadata"]["profile"] == "strict"
+    assert "abstain_reason" not in response
+    assert isinstance(sigma_rule, dict)
+    assert isinstance(response, dict)
+
+
+def test_generate_rule_abstain_contract_is_preserved() -> None:
+    service = RuleGenerationService()
+
+    response = service.generate_rule(
+        detection_spec={"abstain": True, "abstain_reason": "NO_EVIDENCE"},
+        profile="balanced",
+    )
+
+    assert response["abstain"] is True
+    assert response["abstain_reason"] == "NO_EVIDENCE"
+    assert response["sigma_rule"] == {}
+    assert response["metadata"]["profile"] == "balanced"

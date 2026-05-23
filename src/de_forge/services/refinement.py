@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import func, inspect, text, select
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from de_forge.models import RefinementIteration as RefinementIterationModel

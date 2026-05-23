@@ -10,12 +10,12 @@ client = TestClient(app)
 def test_pipeline_run_abstain_response_contract() -> None:
     seed = client.post("/v1/pipeline:seed-abstain")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     response = client.post(
         "/v1/pipeline:run",
         json={
-            "report_id": detection_spec_id,
+            "report_id": report_id,
             "profile": "strict",
         },
     )

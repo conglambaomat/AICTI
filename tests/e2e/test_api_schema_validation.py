@@ -31,12 +31,12 @@ def test_pipeline_run_rejects_missing_report_id() -> None:
 def test_pipeline_run_returns_abstain_contract_shape() -> None:
     seed = client.post("/v1/pipeline:seed-abstain")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     response = client.post(
         "/v1/pipeline:run",
         json={
-            "report_id": detection_spec_id,
+            "report_id": report_id,
             "profile": "strict",
         },
     )

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from time import time_ns
-from uuid import uuid4
-
 from types import SimpleNamespace
+from uuid import uuid4
 
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError

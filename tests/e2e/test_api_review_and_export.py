@@ -10,11 +10,11 @@ client = TestClient(app)
 def test_post_review_approval() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -39,11 +39,11 @@ def test_post_review_approval() -> None:
 def test_post_review_rejection() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -66,12 +66,12 @@ def test_post_review_rejection() -> None:
 def test_export_sigma_requires_approval() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
     rule_id = seed.json()["rule_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -92,11 +92,11 @@ def test_export_sigma_requires_approval() -> None:
 def test_export_sigma_requires_review_handoff_memory() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -113,12 +113,12 @@ def test_export_sigma_requires_review_handoff_memory() -> None:
 def test_export_sigma_success() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
     rule_id = seed.json()["rule_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
@@ -141,12 +141,12 @@ def test_export_sigma_success() -> None:
 def test_export_sigma_blocked_when_latest_decision_is_rejected() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201
-    detection_spec_id = seed.json()["detection_spec_id"]
+    report_id = seed.json()["report_id"]
     rule_id = seed.json()["rule_id"]
 
     run_response = client.post(
         "/v1/pipeline:run",
-        json={"report_id": detection_spec_id, "profile": "balanced"},
+        json={"report_id": report_id, "profile": "balanced"},
     )
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
