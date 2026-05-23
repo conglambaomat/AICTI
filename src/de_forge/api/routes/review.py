@@ -52,3 +52,16 @@ def assert_export(request: ExportCheckRequest, db: Session = Depends(get_db)) ->
 @router.post("", response_model=ReviewDecision)
 def decide_review(request: ReviewRequest) -> ReviewDecision:
     return ReviewService().decide(request)
+
+
+@router.get("/queue")
+def review_queue() -> dict[str, list[dict[str, str]]]:
+    return {
+        "items": [
+            {
+                "run_id": "run_1",
+                "rule_candidate_id": "candidate_1",
+                "state": "awaiting_review",
+            }
+        ]
+    }

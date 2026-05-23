@@ -15,3 +15,12 @@ def quality_summary() -> dict[str, float]:
         static_validity_rate=1.0,
         regression_pass_rate=1.0,
     )
+
+
+@router.get("/ops")
+def ops_summary() -> dict[str, float]:
+    return {
+        "queue_depth": 1,
+        "avg_latency_ms": 240.0,
+        "run_success_rate": 1.0,
+    }
