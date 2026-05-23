@@ -18,6 +18,10 @@ This file tracks real execution progress for autonomous continuation between ses
 - Next step:
 - Blockers/risks:
 
+## Completion Gate
+
+Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGRESS.md` and `docs/operational/CHANGELOG_AUTONOMOUS.md` are updated with verification evidence and commit SHA.
+
 ## Entries
 
 - No entries yet.
