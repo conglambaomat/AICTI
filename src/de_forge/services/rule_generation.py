@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -12,6 +13,10 @@ from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.services.telemetry_registry import (
+    field_exists,
+    is_supported_telemetry_type,
+)
 
 
 class UnvalidatedDetectionSpecError(ValueError):
@@ -129,13 +134,48 @@ class RuleGenerationService:
         required_telemetry = first_rule["required_telemetry"]
         detection_logic = first_rule["detection_logic"]
 
-        return (
-            f"title: {detection_logic[:50]}\n"
-            "logsource:\n"
-            "  product: windows\n"
-            f"  category: {required_telemetry[0]}\n"
-            "detection:\n"
-            "  selection:\n"
-            "    Image|contains: 'powershell'\n"
-            "  condition: selection\n"
-        )
+        if not required_telemetry:
+            raise ValueError("DetectionSpec rule missing required_telemetry")
+
+        telemetry_type = required_telemetry[0]
+        if not is_supported_telemetry_type(telemetry_type):
+            raise ValueError(f"unsupported telemetry type: {telemetry_type}")
+
+        clauses = [segment.strip() for segment in detection_logic.split(" and ") if segment.strip()]
+        if not clauses:
+            raise ValueError("unsupported detection logic: empty")
+        if " or " in detection_logic.lower():
+            raise ValueError("unsupported detection logic: OR conditions not supported")
+
+        parsed_conditions: list[tuple[str, str]] = []
+        for clause in clauses:
+            match = re.fullmatch(r"([A-Za-z0-9_]+)\s+contains\s+'([^']+)'", clause)
+            if match is None:
+                raise ValueError("unsupported detection logic")
+            field_name, needle = match.group(1), match.group(2)
+            if not field_exists(telemetry_type, field_name):
+                raise ValueError(f"unsupported telemetry field: {field_name}")
+            parsed_conditions.append((field_name, needle))
+
+        title = detection_logic[:80]
+        condition_tokens = [f"selection_{idx}" for idx in range(1, len(parsed_conditions) + 1)]
+
+        rule_lines = [
+            f"title: {title}",
+            "logsource:",
+            "  product: windows",
+            f"  category: {telemetry_type}",
+            "detection:",
+        ]
+
+        for idx, (field_name, needle) in enumerate(parsed_conditions, start=1):
+            rule_lines.extend(
+                [
+                    f"  selection_{idx}:",
+                    f"    {field_name}|contains: '{needle}'",
+                ]
+            )
+
+        rule_lines.append(f"  condition: {' and '.join(condition_tokens)}")
+        rule_lines.append("")
+        return "\n".join(rule_lines)

@@ -1,5 +1,7 @@
 """Integration tests for evidence extraction service."""
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -21,6 +23,7 @@ def _seed_report_and_chunk(
     chunk_text: str = "powershell -enc abc",
     chunk_char_start: int = 0,
 ) -> tuple[str, str]:
+    created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     report = Report(
         id="report-1",
         source_type="txt",
@@ -30,8 +33,8 @@ def _seed_report_and_chunk(
         content_hash="hash-1",
         metadata_json="{}",
         status="ingested",
-        created_at="1970-01-01T00:00:00Z",
-        updated_at="1970-01-01T00:00:00Z",
+        created_at=created_at,
+        updated_at=created_at,
     )
     chunk = ReportChunk(
         id="chunk-1",
@@ -42,7 +45,7 @@ def _seed_report_and_chunk(
         char_start=chunk_char_start,
         char_end=chunk_char_start + len(chunk_text),
         chunk_type="paragraph",
-        created_at="1970-01-01T00:00:00Z",
+        created_at=created_at,
     )
     db.add(report)
     db.add(chunk)
@@ -97,6 +100,29 @@ def test_valid_evidence_persists_with_lineage_fields() -> None:
     assert persisted.report_id == report_id
     assert persisted.chunk_id == chunk_id
     assert persisted.run_id == "run-2"
+
+    evidence_created = datetime.fromisoformat(persisted.created_at.replace("Z", "+00:00"))
+    assert evidence_created.year >= 2025
+    assert evidence_created.tzinfo == UTC
+    assert persisted.created_at != "1970-01-01T00:00:00Z"
+
+    report = db.get(Report, report_id)
+    assert report is not None
+    report_created = datetime.fromisoformat(report.created_at.replace("Z", "+00:00"))
+    report_updated = datetime.fromisoformat(report.updated_at.replace("Z", "+00:00"))
+    assert report_created.year >= 2025
+    assert report_updated.year >= 2025
+    assert report_created.tzinfo == UTC
+    assert report_updated.tzinfo == UTC
+    assert report.created_at != "1970-01-01T00:00:00Z"
+    assert report.updated_at != "1970-01-01T00:00:00Z"
+
+    chunk = db.get(ReportChunk, chunk_id)
+    assert chunk is not None
+    chunk_created = datetime.fromisoformat(chunk.created_at.replace("Z", "+00:00"))
+    assert chunk_created.year >= 2025
+    assert chunk_created.tzinfo == UTC
+    assert chunk.created_at != "1970-01-01T00:00:00Z"
 
 
 def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:

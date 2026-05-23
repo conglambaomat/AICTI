@@ -48,7 +48,7 @@ def test_generated_rule_is_immutable_versioned() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-123",
-            spec_payload='{"report_id":"report-123","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-123","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )
@@ -81,33 +81,91 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
     db = _build_session()
     service = RuleGenerationService(db)
 
-    # Seed validated DetectionSpec
     spec_id = "validated-spec-constrained-test"
     db.add(
         DetectionSpecModel(
             id=spec_id,
             report_id="report-456",
-            spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect suspicious powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"CommandLine contains \'-enc\' and Image contains \'pwsh\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )
     db.commit()
 
-    # Generate rule
     result = service.generate_sigma_rule(detection_spec_id=spec_id)
 
-    # Verify result contains spec constraint reference
     assert result.detection_spec_id == spec_id
     assert result.rule_id is not None
 
-    # Verify persisted rule content is constrained to process_creation telemetry
     persisted = db.execute(
         select(GeneratedRuleModel).where(GeneratedRuleModel.id == result.rule_id)
     ).scalar_one()
     assert persisted.rule_content is not None
     assert "process_creation" in persisted.rule_content
     assert "logsource:" in persisted.rule_content
-    assert "detect suspicious powershell" in persisted.rule_content
+    assert "CommandLine|contains" in persisted.rule_content
+    assert "-enc" in persisted.rule_content
+    assert "Image|contains" in persisted.rule_content
+    assert "pwsh" in persisted.rule_content
+    assert "powershell" not in persisted.rule_content
+    assert "condition: selection_1 and selection_2" in persisted.rule_content
+
+
+def test_rule_generation_fails_for_unsupported_telemetry() -> None:
+    db = _build_session()
+    service = RuleGenerationService(db)
+
+    spec_id = "validated-spec-unsupported-telemetry"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-telemetry",
+            spec_payload='{"report_id":"report-telemetry","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["unknown_source"],"detection_logic":"Image contains \'test\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    with pytest.raises(ValueError, match="unsupported telemetry type"):
+        service.generate_sigma_rule(detection_spec_id=spec_id)
+
+
+def test_rule_generation_fails_for_invalid_telemetry_field() -> None:
+    db = _build_session()
+    service = RuleGenerationService(db)
+
+    spec_id = "validated-spec-invalid-field"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-field",
+            spec_payload='{"report_id":"report-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["process_creation"],"detection_logic":"BadField contains \'x\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    with pytest.raises(ValueError, match="unsupported telemetry field"):
+        service.generate_sigma_rule(detection_spec_id=spec_id)
+
+
+def test_rule_generation_fails_for_unsupported_logic_shape() -> None:
+    db = _build_session()
+    service = RuleGenerationService(db)
+
+    spec_id = "validated-spec-unsupported-logic"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-logic",
+            spec_payload='{"report_id":"report-logic","behavior_rules":[{"evidence":["e"],"attack_ids":["T1111"],"required_telemetry":["process_creation"],"detection_logic":"anything OR else"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    with pytest.raises(ValueError, match="unsupported detection logic"):
+        service.generate_sigma_rule(detection_spec_id=spec_id)
 
 
 def test_transaction_rollback_on_generation_failure() -> None:
@@ -121,7 +179,7 @@ def test_transaction_rollback_on_generation_failure() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-789",
-            spec_payload='{"report_id":"report-789","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-789","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
         )
     )

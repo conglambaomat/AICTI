@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from alembic import command
 
@@ -132,6 +132,34 @@ def test_indexes_match_core_contract(migrated_engine) -> None:
     assert ("detection_spec_id", "query_id") in query_candidates_uniques
 
 
+def test_strict_fail_closed_blocks_legacy_review_decision_rows(tmp_path: Path) -> None:
+    """Hardening migration must fail closed when legacy review rows already exist."""
+    db_path = tmp_path / "legacy_review_rows.db"
+    alembic_ini_path = Path(__file__).resolve().parents[3] / "alembic.ini"
+
+    config = Config(str(alembic_ini_path))
+    config.set_main_option("script_location", str(Path(__file__).resolve().parents[3] / "alembic"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
+
+    command.upgrade(config, "20260520_01")
+
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO generated_rules (id, detection_spec_id, query_candidate_id) VALUES ('rule_legacy', 'spec_legacy', NULL)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO review_decisions (id, rule_id) VALUES ('review_legacy', 'rule_legacy')"
+            )
+        )
+
+    with pytest.raises(RuntimeError, match="strict fail-closed migration blocked"):
+        command.upgrade(config, "head")
+
+
 def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
     """Task 3 subset should include critical checks and foreign keys."""
     inspector = inspect(migrated_engine)
@@ -190,6 +218,9 @@ def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
         fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
         for fk in test_run_fks
     )
+
+    review_columns = {column["name"] for column in inspector.get_columns("review_decisions")}
+    assert {"id", "rule_id", "decision", "reviewer", "created_at"}.issubset(review_columns)
 
     review_fks = inspector.get_foreign_keys("review_decisions")
     assert any(

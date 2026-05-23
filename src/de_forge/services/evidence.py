@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -47,6 +48,7 @@ class EvidenceService:
             self._validate_evidence_span(ev)
 
         try:
+            created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             evidence_ids = []
             for ev in evidence:
                 span = EvidenceSpan(
@@ -60,7 +62,7 @@ class EvidenceService:
                     confidence=ev.confidence,
                     created_by_agent=created_by_agent,
                     run_id=run_id,
-                    created_at="1970-01-01T00:00:00Z",
+                    created_at=created_at,
                 )
                 self.db.add(span)
                 evidence_ids.append(ev.evidence_id)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 import yaml
 
@@ -92,14 +93,43 @@ class DynamicValidationService:
         )
 
     def _matches(self, rule: SigmaRule, event: ValidationEvent) -> bool:
-        for key, selection in rule.detection.items():
-            if key == "condition":
-                continue
-            if not isinstance(selection, dict):
-                continue
-            if self._selection_matches(selection, event):
-                return True
-        return False
+        selections = {
+            key: value
+            for key, value in rule.detection.items()
+            if key != "condition" and isinstance(value, dict)
+        }
+        condition = rule.detection.get("condition")
+        eval_map = {
+            name: self._selection_matches(selection, event)
+            for name, selection in selections.items()
+        }
+
+        if not isinstance(condition, str) or not condition.strip():
+            return any(eval_map.values())
+        return self._evaluate_condition(condition, eval_map)
+
+    def _evaluate_condition(self, condition: str, eval_map: dict[str, bool]) -> bool:
+        normalized = condition.strip()
+        tokens = normalized.split()
+        if len(tokens) == 1:
+            name = tokens[0]
+            if name not in eval_map:
+                raise ValueError(f"Unknown selection in condition: {name}")
+            return eval_map[name]
+
+        if len(tokens) == 3 and tokens[1] in {"and", "or"}:
+            left, op, right = tokens
+            if left not in eval_map:
+                raise ValueError(f"Unknown selection in condition: {left}")
+            if right not in eval_map:
+                raise ValueError(f"Unknown selection in condition: {right}")
+            if op == "and":
+                return eval_map[left] and eval_map[right]
+            return eval_map[left] or eval_map[right]
+
+        if re.search(r"[()]", normalized):
+            raise ValueError(f"Unsupported condition: {condition}")
+        raise ValueError(f"Unsupported condition: {condition}")
 
     def _selection_matches(self, selection: dict[str, object], event: ValidationEvent) -> bool:
         for field_expr, expected in selection.items():

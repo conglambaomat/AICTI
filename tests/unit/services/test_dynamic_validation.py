@@ -89,3 +89,148 @@ def test_counterfactual_evaluation_reports_condition_importance() -> None:
     )
 
     assert result["selection_1"] == "important"
+
+
+def test_dynamic_validation_respects_and_condition_across_selections() -> None:
+    rule = SigmaRule(
+        title="rule and",
+        id="rule_and",
+        status="experimental",
+        description="",
+        references=[],
+        tags=[],
+        logsource=SigmaLogsource(product="windows", category="process_creation"),
+        detection={
+            "selection_1": {"CommandLine|contains": ["-enc"]},
+            "selection_2": {"Image|contains": ["powershell.exe"]},
+            "condition": "selection_1 and selection_2",
+        },
+        falsepositives=[],
+        level="medium",
+        provenance={},
+    )
+
+    result = DynamicValidationService().evaluate(
+        rule,
+        positive_events=[
+            ValidationEvent(
+                id="event_attack_1",
+                fields={"CommandLine": "powershell.exe -enc AAA", "Image": "powershell.exe"},
+                expected_match=True,
+            )
+        ],
+        benign_events=[
+            ValidationEvent(
+                id="event_benign_1",
+                fields={"CommandLine": "powershell.exe -enc AAA", "Image": "cmd.exe"},
+                expected_match=False,
+            )
+        ],
+    )
+
+    assert result.true_positives == 1
+    assert result.false_positives == 0
+
+
+def test_dynamic_validation_respects_or_condition_across_selections() -> None:
+    rule = SigmaRule(
+        title="rule or",
+        id="rule_or",
+        status="experimental",
+        description="",
+        references=[],
+        tags=[],
+        logsource=SigmaLogsource(product="windows", category="process_creation"),
+        detection={
+            "selection_1": {"CommandLine|contains": ["-enc"]},
+            "selection_2": {"Image|contains": ["pwsh.exe"]},
+            "condition": "selection_1 or selection_2",
+        },
+        falsepositives=[],
+        level="medium",
+        provenance={},
+    )
+
+    result = DynamicValidationService().evaluate(
+        rule,
+        positive_events=[
+            ValidationEvent(
+                id="event_attack_1",
+                fields={"CommandLine": "cmd.exe /c whoami", "Image": "pwsh.exe"},
+                expected_match=True,
+            )
+        ],
+        benign_events=[],
+    )
+
+    assert result.true_positives == 1
+
+
+def test_dynamic_validation_raises_for_invalid_condition_reference() -> None:
+    rule = SigmaRule(
+        title="rule invalid",
+        id="rule_invalid",
+        status="experimental",
+        description="",
+        references=[],
+        tags=[],
+        logsource=SigmaLogsource(product="windows", category="process_creation"),
+        detection={
+            "selection_1": {"CommandLine|contains": ["-enc"]},
+            "condition": "selection_1 and selection_missing",
+        },
+        falsepositives=[],
+        level="medium",
+        provenance={},
+    )
+
+    try:
+        DynamicValidationService().evaluate(
+            rule,
+            positive_events=[
+                ValidationEvent(
+                    id="event_attack_invalid_ref",
+                    fields={"CommandLine": "powershell.exe -enc AAA"},
+                    expected_match=True,
+                )
+            ],
+            benign_events=[],
+        )
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "Unknown selection in condition" in str(exc)
+
+
+def test_dynamic_validation_raises_for_unsupported_condition_shape() -> None:
+    rule = SigmaRule(
+        title="rule unsupported",
+        id="rule_unsupported",
+        status="experimental",
+        description="",
+        references=[],
+        tags=[],
+        logsource=SigmaLogsource(product="windows", category="process_creation"),
+        detection={
+            "selection_1": {"CommandLine|contains": ["-enc"]},
+            "condition": "selection_1 and (selection_2 or selection_3)",
+        },
+        falsepositives=[],
+        level="medium",
+        provenance={},
+    )
+
+    try:
+        DynamicValidationService().evaluate(
+            rule,
+            positive_events=[
+                ValidationEvent(
+                    id="event_attack_unsupported_shape",
+                    fields={"CommandLine": "powershell.exe -enc AAA"},
+                    expected_match=True,
+                )
+            ],
+            benign_events=[],
+        )
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "Unsupported condition" in str(exc)

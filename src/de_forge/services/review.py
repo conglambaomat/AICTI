@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
+from time import time_ns
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -41,7 +42,7 @@ class ReviewService:
         """Record append-only review decision for a rule."""
         db = self._require_db()
         decision_id = str(uuid4())
-        created_at = datetime.utcnow().isoformat()
+        created_at = datetime.fromtimestamp(time_ns() / 1_000_000_000, tz=UTC).isoformat()
         try:
             db.add(
                 ReviewDecisionModel(
