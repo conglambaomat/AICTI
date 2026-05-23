@@ -22,13 +22,17 @@ Concise operational log of autonomous progress.
   - Commit SHA: `698bb8f`
 
 - 2026-05-23 10:20 UTC
-  - Change summary: Synced governance evidence logs for Wave A/B completion and Wave C progression state.
-  - Scope: implementation progress log, autonomous changelog, drift warning register.
-  - Commit SHA: `a6cd505`
+  - Change summary: Synced governance evidence logs and fixed latest-decision ordering regression for export gate.
+  - Scope: implementation progress log, autonomous changelog, drift warning register, review decision recency selection.
+  - Commit SHA: `cbed667`
+
+- 2026-05-23 10:50 UTC
+  - Change summary: Completed Wave D final verification gates with full test/lint/type execution.
+  - Scope: full-suite verification evidence and operational completion logging.
+  - Commit SHA: pending
 
 - 2026-05-23 10:35 UTC
   - Change summary: Completed docs-autonomy-hardening P0 with deterministic preflight/tests/CI governance gates.
   - Scope: canonical manifest integrity, docs preflight executable gate, docs CI workflow, readiness command contract.
   - Commit SHA: `7e02ff4`, `bf13223`, `87e784b`, `0596d27`, `a6cd505`
 
-- No entries yet.

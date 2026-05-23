@@ -64,22 +64,41 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
 - Blockers/risks: none
 
 ### 2026-05-23 10:20 UTC — Wave C governance alignment docs sync
-- Status: partial
+- Status: done
 - Phase/Plan reference: Wave C — Governance alignment (`cheerful-juggling-hollerith.md`)
 - Summary of implementation:
-  - Audited canonical manifest, preflight checklist, and startup/doc precheck for source-of-truth alignment.
-  - Recording verified Wave A/B evidence into operational governance logs.
+  - Audited canonical manifest, preflight checklist, startup/doc precheck for source-of-truth alignment.
+  - Synced operational evidence logs/changelog and fixed review decision recency ordering regression.
 - Files changed:
   - `docs/operational/IMPLEMENTATION_PROGRESS.md`
   - `docs/operational/CHANGELOG_AUTONOMOUS.md`
   - `docs/governance/doc_drift_warnings.md`
+  - `src/de_forge/services/review.py`
 - Verification evidence:
-  - pytest: not applicable (documentation-only sync)
-  - mypy: not applicable
-  - ruff check: not applicable
-  - ruff format --check: not applicable
-- Commit SHA: `a6cd505`
-- Next step: complete Docs Autonomy Hardening P0 Task 1-5 verification closure
+  - pytest: `tests/integration/services/test_review_gate.py` pass; `tests/integration/api/test_api_routes_smoke.py` pass
+  - mypy: not run in Wave C targeted cycle
+  - ruff check: not run in Wave C targeted cycle
+  - ruff format --check: not run in Wave C targeted cycle
+- Commit SHA: `cbed667`
+- Next step: Wave D full verification gates and final closure
+- Blockers/risks: none
+
+### 2026-05-23 10:50 UTC — Wave D full verification and completion closure
+- Status: done
+- Phase/Plan reference: Wave D — Final go-live proof (`cheerful-juggling-hollerith.md`)
+- Summary of implementation:
+  - Executed final full verification gates across tests, lint, and type checks.
+- Files changed:
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest: `python -m pytest tests -q` pass (167 passed)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: pending explicit execution
+- Commit SHA: pending
+- Next step: finalize Wave D evidence commit and branch closure
+- Blockers/risks: none
 
 ### 2026-05-23 10:35 UTC — Docs Autonomy Hardening P0 (Tasks 1-5)
 - Status: done
@@ -109,6 +128,3 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
 - Commit SHA: `7e02ff4`, `bf13223`, `87e784b`, `0596d27`, `a6cd505`
 - Next step: maintain docs-governance gate in subsequent implementation waves
 - Blockers/risks: none
-- Blockers/risks: none
-
-- No entries yet.
