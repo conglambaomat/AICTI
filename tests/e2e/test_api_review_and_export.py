@@ -111,3 +111,32 @@ def test_export_sigma_success() -> None:
     assert body["rule_id"] == rule_id
     assert body["format"] == "sigma"
     assert body["content"]
+
+
+def test_export_sigma_blocked_when_latest_decision_is_rejected() -> None:
+    seed = client.post("/v1/pipeline:seed")
+    assert seed.status_code == 201
+    detection_spec_id = seed.json()["detection_spec_id"]
+    rule_id = seed.json()["rule_id"]
+
+    run_response = client.post(
+        "/v1/pipeline:run",
+        json={"report_id": detection_spec_id, "profile": "balanced"},
+    )
+    assert run_response.status_code == 200
+    run_id = run_response.json()["run_id"]
+
+    approve = client.post(f"/v1/pipeline:approve?rule_id={rule_id}")
+    assert approve.status_code == 201
+
+    reject = client.post(f"/v1/pipeline:reject?rule_id={rule_id}")
+    assert reject.status_code == 201
+
+    response = client.post(
+        "/v1/exports/sigma",
+        json={"run_id": run_id},
+    )
+
+    assert response.status_code == 403
+    body = response.json()
+    assert "approval" in body["detail"].lower()

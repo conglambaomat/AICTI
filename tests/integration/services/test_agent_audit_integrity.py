@@ -8,6 +8,11 @@ from de_forge.core.hashing import snapshot_hash
 from de_forge.db.base import Base
 from de_forge.models import AgentRun as AgentRunModel
 from de_forge.services.agent_audit import AgentAuditService, IntegrityError
+from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
+from de_forge.models import DetectionSpec as DetectionSpecModel
+from de_forge.models import AgentRun as AgentRunModel
+from de_forge.models import RefinementIteration as RefinementIterationModel
+from de_forge.models import GeneratedRule as GeneratedRuleModel
 
 
 def _build_session() -> Session:
@@ -100,7 +105,53 @@ def test_agent_run_persist_stores_hashes() -> None:
         status="completed",
     )
 
-    # Verify hashes were computed and stored
     persisted = db.query(AgentRunModel).filter_by(id=run_id).one()
     assert persisted.input_hash == snapshot_hash(input_snapshot)
     assert persisted.output_hash == snapshot_hash(output_snapshot)
+
+
+def test_pipeline_orchestrator_persists_agent_audit_records_per_stage() -> None:
+    db = _build_session()
+    spec_id = "spec-audit"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-audit",
+            spec_payload='{"report_id":"report-audit","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    PipelineOrchestrator(db).run_pipeline(spec_id)
+
+    runs = db.query(AgentRunModel).filter(AgentRunModel.run_id == spec_id).all()
+    assert len(runs) >= 2
+    assert {r.agent_name for r in runs} >= {"rule_generation", "static_validation"}
+
+
+def test_pipeline_orchestrator_records_refinement_iteration_on_validation_failure() -> None:
+    db = _build_session()
+    spec_id = "spec-refine"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-refine",
+            spec_payload='{"report_id":"report-refine","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.add(
+        GeneratedRuleModel(
+            id="rule-bad-refine",
+            detection_spec_id=spec_id,
+            rule_content="not-yaml",
+        )
+    )
+    db.commit()
+
+    with pytest.raises(PipelineTransitionError):
+        PipelineOrchestrator(db).run_pipeline(spec_id)
+
+    iterations = db.query(RefinementIterationModel).filter_by(rule_id="rule-bad-refine").all()
+    assert len(iterations) == 1

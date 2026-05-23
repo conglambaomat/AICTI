@@ -50,14 +50,22 @@ async def run_pipeline(
     run_id = f"run_{uuid4().hex[:12]}"
 
     if payload.report_id == "rep_force_error":
+        _remember_run(
+            run_id,
+            report_id=payload.report_id,
+            status="failed",
+            detection_spec_id=None,
+            rule_id=None,
+        )
         error = ErrorResponse(
             error_code="PIPELINE_EXECUTION_ERROR",
             message="Pipeline execution failed",
             trace_id=f"trc_{uuid4().hex[:12]}",
             run_id=run_id,
         )
-        return JSONResponse(status_code=500, content=error.model_dump())
-
+        failed = error.model_dump()
+        failed["status"] = "failed"
+        return JSONResponse(status_code=500, content=failed)
     detection_spec = db.get(DetectionSpecModel, payload.report_id)
     if detection_spec is None:
         error = ErrorResponse(
@@ -278,7 +286,7 @@ def _resolve_stage_for_status(status: str) -> str:
 
 @router.get("/runs/{run_id}", response_model=RunStatusResponse)
 async def get_run_status(run_id: str) -> RunStatusResponse | JSONResponse:
-    if run_id == "run_nonexistent":
+    if run_id not in _RUN_TO_STATUS:
         return JSONResponse(status_code=404, content={"detail": "Run not found"})
 
     status = _resolve_status_for_run(run_id)

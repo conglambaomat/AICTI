@@ -30,29 +30,114 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-ok",
-            spec_payload='{"report_id":"report-ok","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-ok","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
             is_validated=True,
-        )
-    )
-    db.add(
-        GeneratedRuleModel(
-            id="rule-ok",
-            detection_spec_id=spec_id,
-            rule_content="""title: detect powershell
-logsource:
-  product: windows
-  category: process_creation
-detection:
-  selection:
-    Image|contains: 'powershell'
-  condition: selection
-""",
         )
     )
     db.commit()
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
+
+    generated = (
+        db.query(GeneratedRuleModel).filter(GeneratedRuleModel.detection_spec_id == spec_id).first()
+    )
+    assert generated is not None
+    assert generated.rule_content
+    assert "logsource:" in generated.rule_content
+    assert "detection:" in generated.rule_content
+
+
+def test_pipeline_fails_when_detection_spec_missing_payload_for_rule_generation() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-empty-payload"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-empty",
+            spec_payload=None,
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    with pytest.raises(PipelineTransitionError, match="DetectionSpec payload required"):
+        orchestrator.run_pipeline(spec_id)
+
+
+def test_pipeline_rejects_preseeded_invalid_rule_even_if_present() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-invalid-rule"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-invalid",
+            spec_payload='{"report_id":"report-invalid","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.add(
+        GeneratedRuleModel(
+            id="rule-invalid-preseed",
+            detection_spec_id=spec_id,
+            rule_content="not-yaml",
+        )
+    )
+    db.commit()
+
+    with pytest.raises(PipelineTransitionError, match="static validation gate failed"):
+        orchestrator.run_pipeline(spec_id)
+
+    generated = (
+        db.query(GeneratedRuleModel).filter(GeneratedRuleModel.detection_spec_id == spec_id).all()
+    )
+    assert len(generated) == 1
+    assert generated[0].id == "rule-invalid-preseed"
+    assert generated[0].rule_content == "not-yaml"
+
+
+def test_pipeline_ignores_preseeded_rule_for_different_spec_id() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    db.add(
+        GeneratedRuleModel(
+            id="rule-other",
+            detection_spec_id="other-spec",
+            rule_content="""title: other
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    Image|contains: 'cmd.exe'
+  condition: selection
+""",
+        )
+    )
+    spec_id = "spec-new"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-new",
+            spec_payload='{"report_id":"report-new","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    final_state = orchestrator.run_pipeline(spec_id)
+    assert final_state == PipelineState.AWAITING_REVIEW
+
+    created = (
+        db.query(GeneratedRuleModel).filter(GeneratedRuleModel.detection_spec_id == spec_id).first()
+    )
+    assert created is not None
+    assert created.id != "rule-other"
 
 
 def test_state_transition_blocked_when_gate_fails() -> None:
@@ -72,3 +157,15 @@ def test_state_transition_blocked_when_gate_fails() -> None:
 
     with pytest.raises(PipelineTransitionError, match="validated DetectionSpec required"):
         orchestrator.run_pipeline(spec_id)
+
+
+def test_stub_orchestrator_service_is_not_available_in_runtime_path() -> None:
+    with pytest.raises(AttributeError):
+        getattr(
+            __import__("de_forge.services.orchestrator", fromlist=["OrchestratorService"]),
+            "OrchestratorService",
+        )
+
+
+def test_pipeline_orchestrator_does_not_depend_on_stubbed_evidence_extraction() -> None:
+    assert not hasattr(PipelineOrchestrator, "_extract_evidence_stub")

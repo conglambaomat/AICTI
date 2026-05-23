@@ -1,97 +1,30 @@
 from __future__ import annotations
 
-import pytest
-
-from de_forge.services.orchestrator import OrchestratorService
-
-
-def _telemetry_registry() -> dict[str, list[str]]:
-    return {"process_creation": ["Image", "CommandLine"]}
+from de_forge.schemas.run import RunMode, RunState
+from de_forge.services.orchestrator import Orchestrator
 
 
-def test_run_pipeline_returns_abstain_when_no_evidence_extracted() -> None:
-    service = OrchestratorService()
+def test_run_golden_path_auto_reaches_awaiting_review() -> None:
+    orchestrator = Orchestrator()
 
-    result = service.run_pipeline(
-        report_text="benign text",
-        profile="balanced",
-        telemetry_registry=_telemetry_registry(),
-        baseline_delta_pass=True,
-        validation_issues=[],
-        iteration=1,
-    )
-
-    assert result["abstain"] is True
-    assert result["stage"] == "evidence"
-    assert "reason" in result
-
-
-def test_run_pipeline_returns_rollout_decision_with_rule_when_all_gates_pass() -> None:
-    service = OrchestratorService()
-
-    result = service.run_pipeline(
+    result = orchestrator.run_golden_path(
+        report_id="report-auto",
         report_text="PowerShell -enc command launches",
-        profile="balanced",
-        telemetry_registry=_telemetry_registry(),
-        baseline_delta_pass=True,
-        validation_issues=[],
-        iteration=1,
+        mode=RunMode.AUTO,
     )
 
-    assert result["abstain"] is False
-    assert result["sigma_rule"]
-    assert result["canary"]["action"] == "promote"
+    assert result.report_id == "report-auto"
+    assert result.state == RunState.AWAITING_REVIEW
 
 
-def test_run_pipeline_rolls_back_when_baseline_delta_fails() -> None:
-    service = OrchestratorService()
+def test_run_golden_path_cautious_stops_at_detection_spec_ready() -> None:
+    orchestrator = Orchestrator()
 
-    result = service.run_pipeline(
+    result = orchestrator.run_golden_path(
+        report_id="report-cautious",
         report_text="PowerShell -enc command launches",
-        profile="balanced",
-        telemetry_registry=_telemetry_registry(),
-        baseline_delta_pass=False,
-        validation_issues=[],
-        iteration=1,
+        mode=RunMode.CAUTIOUS,
     )
 
-    assert result["abstain"] is False
-    assert result["canary"]["action"] == "rollback"
-    assert result["canary"]["reason_code"] == "BASELINE_DELTA_FAIL"
-
-
-def test_run_pipeline_rejects_empty_report_text() -> None:
-    service = OrchestratorService()
-
-    with pytest.raises(ValueError, match="report_text must not be empty"):
-        service.run_pipeline(
-            report_text="",
-            profile="balanced",
-            telemetry_registry=_telemetry_registry(),
-            baseline_delta_pass=True,
-            validation_issues=[],
-            iteration=1,
-        )
-
-
-def test_run_pipeline_is_deterministic_for_same_inputs() -> None:
-    service = OrchestratorService()
-
-    first = service.run_pipeline(
-        report_text="PowerShell -enc command launches",
-        profile="balanced",
-        telemetry_registry=_telemetry_registry(),
-        baseline_delta_pass=True,
-        validation_issues=[],
-        iteration=1,
-    )
-    second = service.run_pipeline(
-        report_text="PowerShell -enc command launches",
-        profile="balanced",
-        telemetry_registry=_telemetry_registry(),
-        baseline_delta_pass=True,
-        validation_issues=[],
-        iteration=1,
-    )
-
-    assert first == second
+    assert result.report_id == "report-cautious"
+    assert result.state == RunState.DETECTION_SPEC_READY
