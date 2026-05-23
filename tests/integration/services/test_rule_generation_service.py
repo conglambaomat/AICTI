@@ -2,12 +2,12 @@
 
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.schemas.detection_spec import BehaviorRule, DetectionSpec
 from de_forge.services.rule_generation import (
     RuleGenerationService,
     UnvalidatedDetectionSpecError,
@@ -27,7 +27,9 @@ def test_generation_without_validated_spec_fails_hard_gate() -> None:
     service = RuleGenerationService(db)
 
     # Attempt to generate rule with non-existent detection_spec_id
-    with pytest.raises(UnvalidatedDetectionSpecError, match="DetectionSpec .* not found or not validated"):
+    with pytest.raises(
+        UnvalidatedDetectionSpecError, match="DetectionSpec .* not found or not validated"
+    ):
         service.generate_sigma_rule(detection_spec_id="nonexistent-spec-id")
 
     # Verify no rule was persisted
@@ -129,7 +131,7 @@ def test_transaction_rollback_on_generation_failure() -> None:
     result1 = service.generate_sigma_rule(detection_spec_id=spec_id)
 
     # Attempt to create collision (simulate persistence failure)
-    with pytest.raises(Exception):
+    with pytest.raises(SQLAlchemyError):
         db.add(GeneratedRuleModel(id=result1.rule_id, detection_spec_id=spec_id))
         db.commit()
 

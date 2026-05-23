@@ -1,5 +1,6 @@
 """End-to-end pipeline tests for positive/adversarial and deterministic replay."""
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -80,11 +81,8 @@ def test_e2e_ambiguous_report_abstains() -> None:
     spec_id = "e2e-spec-ambiguous"
     _seed_ambiguous_abstain(db, spec_id=spec_id)
 
-    try:
+    with pytest.raises(PipelineTransitionError, match="abstain"):
         orchestrator.run_pipeline(spec_id)
-        assert False, "expected PipelineTransitionError"
-    except PipelineTransitionError as exc:
-        assert "abstain" in str(exc).lower()
 
 
 def test_deterministic_replay_same_input_same_transitions_and_idempotency() -> None:

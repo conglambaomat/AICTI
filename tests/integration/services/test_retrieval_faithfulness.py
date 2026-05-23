@@ -3,8 +3,6 @@
 Tests citation mismatch detection and unsupported claim rejection as hard gates.
 """
 
-import pytest
-
 from de_forge.services.static_validation import validate_retrieval_faithfulness
 
 
@@ -123,9 +121,7 @@ class TestUnsupportedClaimRejection:
         }
         claims = ["encoded PowerShell execution"]
 
-        result = validate_retrieval_faithfulness(
-            evidence, chunks, required_claims=claims
-        )
+        result = validate_retrieval_faithfulness(evidence, chunks, required_claims=claims)
 
         assert result["valid"] is True
         assert result["errors"] == []
@@ -149,9 +145,7 @@ class TestUnsupportedClaimRejection:
         }
         claims = ["encoded PowerShell execution", "lateral movement via SMB"]
 
-        result = validate_retrieval_faithfulness(
-            evidence, chunks, required_claims=claims
-        )
+        result = validate_retrieval_faithfulness(evidence, chunks, required_claims=claims)
 
         assert result["valid"] is False
         assert len(result["errors"]) == 1
@@ -164,9 +158,7 @@ class TestUnsupportedClaimRejection:
         chunks = {}
         claims = ["some behavior"]
 
-        result = validate_retrieval_faithfulness(
-            evidence, chunks, required_claims=claims
-        )
+        result = validate_retrieval_faithfulness(evidence, chunks, required_claims=claims)
 
         assert result["valid"] is False
         assert len(result["errors"]) >= 1

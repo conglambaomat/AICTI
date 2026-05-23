@@ -21,10 +21,16 @@ def test_ingest_txt_persists_report_and_chunks_in_one_transaction() -> None:
     service = IngestionService(db)
 
     content = "alpha line\n\n beta line\n\n gamma line"
-    result = service.ingest(source_type="txt", filename="sample.txt", content_bytes=content.encode("utf-8"))
+    result = service.ingest(
+        source_type="txt", filename="sample.txt", content_bytes=content.encode("utf-8")
+    )
 
     reports = db.execute(select(Report)).scalars().all()
-    chunks = db.execute(select(ReportChunk).where(ReportChunk.report_id == result.report_id)).scalars().all()
+    chunks = (
+        db.execute(select(ReportChunk).where(ReportChunk.report_id == result.report_id))
+        .scalars()
+        .all()
+    )
 
     assert len(reports) == 1
     assert len(chunks) == len(result.chunks)

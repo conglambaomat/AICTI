@@ -19,8 +19,8 @@ from de_forge.models.domain import (
 def db_session() -> Session:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    session = session_local()
     yield session
     session.close()
 
@@ -65,7 +65,13 @@ def test_run_model_with_lineage(db_session: Session) -> None:
 
 def test_evidence_model_with_chunk_lineage(db_session: Session) -> None:
     report = Report(report_id="rep_test", source_type="txt", content="test", trace_id="trc_1")
-    run = Run(run_id="run_test", report_id="rep_test", profile="balanced", status="running", trace_id="trc_2")
+    run = Run(
+        run_id="run_test",
+        report_id="rep_test",
+        profile="balanced",
+        status="running",
+        trace_id="trc_2",
+    )
     db_session.add_all([report, run])
     db_session.commit()
 
@@ -88,7 +94,13 @@ def test_evidence_model_with_chunk_lineage(db_session: Session) -> None:
 
 def test_detection_spec_immutable_lineage(db_session: Session) -> None:
     report = Report(report_id="rep_test", source_type="txt", content="test", trace_id="trc_1")
-    run = Run(run_id="run_test", report_id="rep_test", profile="balanced", status="running", trace_id="trc_2")
+    run = Run(
+        run_id="run_test",
+        report_id="rep_test",
+        profile="balanced",
+        status="running",
+        trace_id="trc_2",
+    )
     db_session.add_all([report, run])
     db_session.commit()
 
@@ -109,7 +121,13 @@ def test_detection_spec_immutable_lineage(db_session: Session) -> None:
 
 def test_rule_immutable_versioning(db_session: Session) -> None:
     report = Report(report_id="rep_test", source_type="txt", content="test", trace_id="trc_1")
-    run = Run(run_id="run_test", report_id="rep_test", profile="balanced", status="running", trace_id="trc_2")
+    run = Run(
+        run_id="run_test",
+        report_id="rep_test",
+        profile="balanced",
+        status="running",
+        trace_id="trc_2",
+    )
     spec = DetectionSpec(detection_spec_id="spec_test", run_id="run_test", version=1, content={})
     db_session.add_all([report, run, spec])
     db_session.commit()
@@ -142,7 +160,13 @@ def test_rule_immutable_versioning(db_session: Session) -> None:
 
 def test_review_approval_lineage(db_session: Session) -> None:
     report = Report(report_id="rep_test", source_type="txt", content="test", trace_id="trc_1")
-    run = Run(run_id="run_test", report_id="rep_test", profile="balanced", status="completed", trace_id="trc_2")
+    run = Run(
+        run_id="run_test",
+        report_id="rep_test",
+        profile="balanced",
+        status="completed",
+        trace_id="trc_2",
+    )
     db_session.add_all([report, run])
     db_session.commit()
 

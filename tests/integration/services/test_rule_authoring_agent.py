@@ -10,7 +10,9 @@ def _spec() -> dict[str, object]:
         "abstain": False,
         "behavior": [{"behavior_label": "process_execution", "evidence_ids": ["e1"]}],
         "attack_mappings": [{"technique_id": "T1059.001"}],
-        "telemetry_requirements": [{"source": "process_creation", "allowed_fields": ["Image", "CommandLine"]}],
+        "telemetry_requirements": [
+            {"source": "process_creation", "allowed_fields": ["Image", "CommandLine"]}
+        ],
         "logic": {"selection": "process_creation", "condition": "selection"},
         "false_positive_hypotheses": ["admin scripts"],
         "test_plan": ["malicious powershell"],
@@ -28,7 +30,9 @@ def test_generate_rule_returns_sigma_package() -> None:
 
 def test_generate_rule_abstains_when_spec_abstains() -> None:
     service = RuleGenerationService()
-    result = service.generate_rule({"abstain": True, "abstain_reason": "unsafe"}, profile="balanced")
+    result = service.generate_rule(
+        {"abstain": True, "abstain_reason": "unsafe"}, profile="balanced"
+    )
 
     assert result["abstain"] is True
     assert result["sigma_rule"] == {}

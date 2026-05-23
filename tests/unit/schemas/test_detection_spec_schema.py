@@ -7,12 +7,12 @@ Tests the strict validation contracts for detection rule generation.
 import pytest
 from pydantic import ValidationError
 
+from de_forge.schemas.abstain import AbstainDecision
+from de_forge.schemas.agent_io import RuleGenerationRequest
 from de_forge.schemas.detection_spec import (
     BehaviorRule,
     DetectionSpec,
 )
-from de_forge.schemas.abstain import AbstainDecision
-from de_forge.schemas.agent_io import RuleGenerationRequest
 
 
 def test_behavior_rule_requires_evidence_attack_telemetry():
@@ -101,11 +101,15 @@ def test_abstain_decision_enforces_required_fields():
     """AbstainDecision requires abstain_context and human_message."""
     with pytest.raises(ValidationError) as exc_info:
         AbstainDecision(abstain_code="NO_EVIDENCE", human_message="Human readable message")
-    assert any(e["loc"] == ("abstain_context",) and e["type"] == "missing" for e in exc_info.value.errors())
+    assert any(
+        e["loc"] == ("abstain_context",) and e["type"] == "missing" for e in exc_info.value.errors()
+    )
 
     with pytest.raises(ValidationError) as exc_info:
         AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="Some context")
-    assert any(e["loc"] == ("human_message",) and e["type"] == "missing" for e in exc_info.value.errors())
+    assert any(
+        e["loc"] == ("human_message",) and e["type"] == "missing" for e in exc_info.value.errors()
+    )
 
 
 def test_abstain_decision_rejects_blank_strings():
@@ -160,6 +164,7 @@ def test_abstain_decision_rejects_legacy_context_and_extra_fields():
         "abstain_context",
         "human_message",
     }
+
 
 def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_strings():
     """Test strict validation for ATT&CK IDs, telemetry normalization, and blank strings."""
@@ -318,7 +323,7 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
 
     # Request with invalid DetectionSpec (missing behavior_rules) should fail
     with pytest.raises(ValidationError) as exc_info:
-        invalid_spec = DetectionSpec(
+        DetectionSpec(
             report_id="report-002",
             behavior_rules=[],  # Empty behavior rules
             false_positive_hypotheses=["Some hypothesis"],

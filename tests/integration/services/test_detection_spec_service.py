@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
@@ -134,7 +135,7 @@ def test_transaction_rollback_on_persistence_failure() -> None:
 
     first = service.build_detection_spec(spec=valid_spec)
 
-    with pytest.raises(Exception):
+    with pytest.raises(SQLAlchemyError):
         db.add(DetectionSpecModel(id=first.detection_spec_id, report_id="report-collision"))
         db.commit()
 
@@ -156,9 +157,11 @@ def test_abstain_transaction_rollback_on_failure() -> None:
         human_message="Cannot generate detection because no evidence-backed behavior is present",
     )
 
-    first = service.build_abstain_spec(report_id="report-abstain-rollback", abstain_decision=abstain_decision)
+    first = service.build_abstain_spec(
+        report_id="report-abstain-rollback", abstain_decision=abstain_decision
+    )
 
-    with pytest.raises(Exception):
+    with pytest.raises(SQLAlchemyError):
         db.add(DetectionSpecModel(id=first.detection_spec_id, report_id="report-collision-abstain"))
         db.commit()
 

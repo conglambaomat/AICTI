@@ -11,11 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from de_forge.services.llm_client import (
     InternalServerError,
-    InvalidRequestError,
     LLMClient,
     LLMRequest,
     ParseError,
-    RateLimitError,
     SchemaValidationError,
     TimeoutError,
     TokenUsage,
@@ -76,12 +74,14 @@ def test_retry_on_transient_error_then_success() -> None:
 
 
 def test_timeout_behavior_raises_timeout_error() -> None:
-    transport = FakeTransport([
-        TimeoutError("request timed out"),
-        TimeoutError("request timed out"),
-        TimeoutError("request timed out"),
-        TimeoutError("request timed out"),
-    ])
+    transport = FakeTransport(
+        [
+            TimeoutError("request timed out"),
+            TimeoutError("request timed out"),
+            TimeoutError("request timed out"),
+            TimeoutError("request timed out"),
+        ]
+    )
     client = LLMClient(transport=transport, api_key="test-key")
 
     with pytest.raises(TimeoutError):
@@ -125,15 +125,23 @@ def test_token_accounting_and_cost_in_metadata() -> None:
 
     response = client.call(_req())
 
-    assert response.usage == TokenUsage(prompt_tokens=1000, completion_tokens=1000, total_tokens=2000)
+    assert response.usage == TokenUsage(
+        prompt_tokens=1000, completion_tokens=1000, total_tokens=2000
+    )
     assert response.metadata["cost_usd"] == pytest.approx(0.04)
 
 
 def test_parse_error_retries_once_then_fails() -> None:
     transport = FakeTransport(
         [
-            FakeHTTPResponse(content="not-json", usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}),
-            FakeHTTPResponse(content="still-not-json", usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}),
+            FakeHTTPResponse(
+                content="not-json",
+                usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            ),
+            FakeHTTPResponse(
+                content="still-not-json",
+                usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            ),
         ]
     )
     client = LLMClient(transport=transport, api_key="test-key")
@@ -148,5 +156,7 @@ def test_backoff_policy_values() -> None:
     assert calculate_backoff(attempt=1, error_type="transient", jitter=False) == 0.0
     assert calculate_backoff(attempt=2, error_type="transient", jitter=False) == 2.0
     assert calculate_backoff(attempt=3, error_type="transient", jitter=False) == 4.0
-    assert calculate_backoff(attempt=1, error_type="rate_limit", jitter=False, retry_after=120) == 60.0
+    assert (
+        calculate_backoff(attempt=1, error_type="rate_limit", jitter=False, retry_after=120) == 60.0
+    )
     assert calculate_backoff(attempt=2, error_type="rate_limit", jitter=False) == 30.0

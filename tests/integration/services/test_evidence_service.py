@@ -1,5 +1,6 @@
 """Integration tests for evidence extraction service."""
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -55,13 +56,14 @@ def test_empty_evidence_payload_transitions_to_failed_generation() -> None:
     report_id, _ = _seed_report_and_chunk(db)
     service = EvidenceService(db)
 
-    try:
-        service.persist_evidence(report_id=report_id, run_id="run-1", created_by_agent="evidence-agent", evidence=[])
-        assert False, "Expected EvidenceExtractionError for empty evidence payload"
-    except EvidenceExtractionError as exc:
-        assert "empty evidence" in str(exc).lower()
+    with pytest.raises(EvidenceExtractionError, match="evidence"):
+        service.persist_evidence(
+            report_id=report_id, run_id="run-1", created_by_agent="evidence-agent", evidence=[]
+        )
 
-    persisted = db.execute(select(EvidenceSpan).where(EvidenceSpan.report_id == report_id)).scalars().all()
+    persisted = (
+        db.execute(select(EvidenceSpan).where(EvidenceSpan.report_id == report_id)).scalars().all()
+    )
     assert persisted == []
 
 

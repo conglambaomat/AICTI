@@ -1,12 +1,17 @@
 """Integration tests for orchestrator state transitions."""
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.orchestrator import PipelineState, PipelineTransitionError, PipelineOrchestrator
+from de_forge.services.orchestrator import (
+    PipelineOrchestrator,
+    PipelineState,
+    PipelineTransitionError,
+)
 
 
 def _build_session() -> Session:
@@ -65,8 +70,5 @@ def test_state_transition_blocked_when_gate_fails() -> None:
     )
     db.commit()
 
-    try:
+    with pytest.raises(PipelineTransitionError, match="validated DetectionSpec required"):
         orchestrator.run_pipeline(spec_id)
-        assert False, "expected PipelineTransitionError"
-    except PipelineTransitionError as exc:
-        assert "validated detectionspec required" in str(exc).lower()

@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect
+
+from alembic import command
 
 
 @pytest.fixture()
@@ -90,7 +91,9 @@ def test_indexes_match_core_contract(migrated_engine) -> None:
     inspector = inspect(migrated_engine)
 
     reports_indexes = {idx["name"] for idx in inspector.get_indexes("reports")}
-    reports_uniques = {tuple(uc["column_names"]) for uc in inspector.get_unique_constraints("reports")}
+    reports_uniques = {
+        tuple(uc["column_names"]) for uc in inspector.get_unique_constraints("reports")
+    }
 
     assert ("content_hash",) in reports_uniques
     assert "ix_reports_created_at" in reports_indexes
@@ -140,11 +143,15 @@ def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
     assert "ck_evidence_spans_supports_claim_non_empty" in evidence_checks
     assert "ck_evidence_spans_confidence_between_0_and_1" in evidence_checks
 
-    extracted_iocs_checks = {check["name"] for check in inspector.get_check_constraints("extracted_iocs")}
+    extracted_iocs_checks = {
+        check["name"] for check in inspector.get_check_constraints("extracted_iocs")
+    }
     assert "ck_extracted_iocs_ioc_type_allowed" in extracted_iocs_checks
     assert "ck_extracted_iocs_confidence_between_0_and_1" in extracted_iocs_checks
 
-    query_candidates_checks = {check["name"] for check in inspector.get_check_constraints("query_candidates")}
+    query_candidates_checks = {
+        check["name"] for check in inspector.get_check_constraints("query_candidates")
+    }
     assert "ck_query_candidates_query_type_allowed" in query_candidates_checks
     assert "ck_query_candidates_query_language_allowed" in query_candidates_checks
 

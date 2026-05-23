@@ -18,7 +18,9 @@ class StubLlmClient:
         self.response = response
         self.last_payload: dict[str, object] | None = None
 
-    def generate_structured(self, *, schema_name: str, payload: dict[str, object]) -> dict[str, object]:
+    def generate_structured(
+        self, *, schema_name: str, payload: dict[str, object]
+    ) -> dict[str, object]:
         self.last_payload = {"schema_name": schema_name, "payload": payload}
         return self.response
 

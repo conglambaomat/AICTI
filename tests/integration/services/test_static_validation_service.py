@@ -1,13 +1,12 @@
 """Integration tests for static validation service."""
 
-import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.static_validation import StaticValidationService, ValidationReport
+from de_forge.services.static_validation import StaticValidationService
 
 
 def _build_session() -> Session:
@@ -53,7 +52,9 @@ detection:
 
     # Verify overbroad detection
     assert report.is_valid is False
-    assert any("overbroad" in issue.lower() or "too broad" in issue.lower() for issue in report.issues)
+    assert any(
+        "overbroad" in issue.lower() or "too broad" in issue.lower() for issue in report.issues
+    )
 
 
 def test_static_validator_blocks_unknown_telemetry_fields() -> None:
@@ -173,4 +174,7 @@ detection:
 
     # Verify syntax error detection
     assert report.is_valid is False
-    assert any("syntax" in issue.lower() or "yaml" in issue.lower() or "structure" in issue.lower() for issue in report.issues)
+    assert any(
+        "syntax" in issue.lower() or "yaml" in issue.lower() or "structure" in issue.lower()
+        for issue in report.issues
+    )
