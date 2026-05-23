@@ -50,3 +50,19 @@ def test_export_allowed_after_latest_approval() -> None:
 
     assert service.can_export(rule_status="awaiting_review", review_decision="approved") is True
     service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+
+def test_export_blocked_when_latest_decision_is_rejected() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-latest-rejected"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(rule_id=rule_id, decision="rejected", reviewer="dave")
+
+    with pytest.raises(ExportBlockedError, match="human approval required"):
+        service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+    latest = service._get_latest_decision(rule_id)
+    assert latest is not None
+    assert latest.rule_id == rule_id

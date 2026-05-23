@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -23,11 +24,15 @@ class ReviewService:
     def record_decision(self, rule_id: str, decision: str, reviewer: str) -> str:
         """Record append-only review decision for a rule."""
         decision_id = str(uuid4())
+        created_at = datetime.utcnow().isoformat()
         try:
             self.db.add(
                 ReviewDecisionModel(
                     id=decision_id,
                     rule_id=rule_id,
+                    decision=decision,
+                    reviewer=reviewer,
+                    created_at=created_at,
                 )
             )
             self.db.commit()
@@ -49,7 +54,7 @@ class ReviewService:
         if latest_decision is None:
             raise ExportBlockedError("human approval required before export")
 
-        if not self.can_export(rule_status, "approved"):
+        if not self.can_export(rule_status, latest_decision.decision):
             raise ExportBlockedError("human approval required before export")
 
     def _get_latest_decision(self, rule_id: str) -> ReviewDecisionModel | None:

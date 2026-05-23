@@ -216,6 +216,9 @@ class ReviewDecision(Base):
     __tablename__ = "review_decisions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    reviewer: Mapped[str] = mapped_column(Text(), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class RefinementIteration(Base):
