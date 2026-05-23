@@ -2,6 +2,7 @@ version: 1
 updated_at: 2026-05-23
 mode: fail-closed
 objective: canonical-sota-first-autonomous-execution
+layout: canonical/operational/governance/legacy
 
 precedence:
   - canonical
@@ -25,11 +26,6 @@ tiers:
       - docs/operational/DOCS_PRECHECK.md
       - docs/operational/IMPLEMENTATION_PROGRESS.md
       - docs/operational/CHANGELOG_AUTONOMOUS.md
-      - docs/operational/SOTA_CORE_V2_EXECUTION_KIT.md
-      - docs/operational/SUBAGENT_EXECUTION_STRATEGY_SOTA_CORE_V2.md
-      - docs/operational/AUTONOMOUS_DECISION_POLICY.md
-      - docs/operational/QUALITY_GATES_SOTA_CORE_V2.md
-      - docs/operational/BLOCKERS_AND_ESCALATION.md
   governance:
     description: Machine-readable governance policy, validation checklists, and warning logs.
     mutable_by_claude: true
