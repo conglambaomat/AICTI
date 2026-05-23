@@ -32,15 +32,20 @@ def test_post_reports_ingest_endpoint_exists() -> None:
 
 
 def test_post_pipeline_run_endpoint_exists() -> None:
+    seed = client.post("/v1/pipeline:seed")
+    assert seed.status_code == 201
+    detection_spec_id = seed.json()["detection_spec_id"]
+
     response = client.post(
         "/v1/pipeline:run",
         json={
-            "report_id": "rep_demo",
+            "report_id": detection_spec_id,
             "profile": "balanced",
         },
     )
     assert response.status_code == 200
     body = response.json()
     assert "run_id" in body
-    assert "status" in body
-    assert "abstain" in body
+    assert body["status"] == "ok"
+    assert body["abstain"] is False
+    assert body["stage"] == "awaiting_review"

@@ -28,4 +28,6 @@ def test_active_entry_docs_reference_existing_operational_docs() -> None:
                 continue
             for token in line.replace("`", " ").replace("(", " ").replace(")", " ").split():
                 if token.startswith("docs/operational/") and token.endswith(".md"):
-                    assert Path(token).exists(), f"{doc} references missing operational doc: {token}"
+                    assert Path(token).exists(), (
+                        f"{doc} references missing operational doc: {token}"
+                    )

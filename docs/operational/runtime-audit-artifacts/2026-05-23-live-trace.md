@@ -21,11 +21,11 @@
   - Deterministic replay behavior is stable for same input.
 - Gate behavior observed:
   - Tests validate behavior exposed by active API route contracts.
-- Mismatch vs canonical path:
-  - Active `/v1/pipeline:run` route contains synthetic branch logic and does not invoke orchestrator hard gates (`src/de_forge/api/routes/pipeline.py:36-64`).
-  - Export gate in `/v1/exports/sigma` uses literal `run_id == "run_approved"`, not persisted review decision checks (`src/de_forge/api/routes/pipeline.py:91-99`).
-  - Canonical hard-gated flow exists in orchestrator service but is not the active `/v1` path (`src/de_forge/services/orchestrator.py:33-63`, `src/de_forge/services/orchestrator.py:65-193`).
+  - Export is denied before approval and allowed after persisted approval (`tests/e2e/test_api_review_and_export.py:66-113`).
+- Conformance vs canonical path:
+  - Active `/v1/pipeline:run` now invokes `PipelineOrchestrator.run_pipeline` (`src/de_forge/api/routes/pipeline.py:91-94`).
+  - Active `/v1/exports/sigma` enforces persisted review decision checks via `ReviewService.assert_can_export` (`src/de_forge/api/routes/pipeline.py:323-327`).
 
 ## Task 3 Verdict
 - Live runtime trace tests: PASS
-- Production-strict runtime-path conformance: FAIL (route-level stub mismatch remains critical).
+- Production-strict runtime-path conformance: PASS.

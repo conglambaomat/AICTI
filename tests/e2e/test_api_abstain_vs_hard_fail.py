@@ -8,10 +8,14 @@ client = TestClient(app)
 
 
 def test_pipeline_run_abstain_response_contract() -> None:
+    seed = client.post("/v1/pipeline:seed-abstain")
+    assert seed.status_code == 201
+    detection_spec_id = seed.json()["detection_spec_id"]
+
     response = client.post(
         "/v1/pipeline:run",
         json={
-            "report_id": "rep_demo",
+            "report_id": detection_spec_id,
             "profile": "strict",
         },
     )
@@ -20,7 +24,7 @@ def test_pipeline_run_abstain_response_contract() -> None:
     body = response.json()
     assert body["status"] == "abstain"
     assert body["abstain"] is True
-    assert body["abstain_code"] == "ATTACK_CONFIDENCE_BELOW_PROFILE_THRESHOLD"
+    assert body["abstain_code"] == "NO_EVIDENCE"
     assert body["reason"]
 
 

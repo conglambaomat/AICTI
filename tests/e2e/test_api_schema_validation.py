@@ -29,10 +29,14 @@ def test_pipeline_run_rejects_missing_report_id() -> None:
 
 
 def test_pipeline_run_returns_abstain_contract_shape() -> None:
+    seed = client.post("/v1/pipeline:seed-abstain")
+    assert seed.status_code == 201
+    detection_spec_id = seed.json()["detection_spec_id"]
+
     response = client.post(
         "/v1/pipeline:run",
         json={
-            "report_id": "rep_demo",
+            "report_id": detection_spec_id,
             "profile": "strict",
         },
     )
@@ -40,5 +44,5 @@ def test_pipeline_run_returns_abstain_contract_shape() -> None:
     body = response.json()
     assert body["status"] == "abstain"
     assert body["abstain"] is True
-    assert body["stage"] == "attack_mapping"
-    assert body["abstain_code"] == "ATTACK_CONFIDENCE_BELOW_PROFILE_THRESHOLD"
+    assert body["stage"] == "detection_spec"
+    assert body["abstain_code"] == "NO_EVIDENCE"
