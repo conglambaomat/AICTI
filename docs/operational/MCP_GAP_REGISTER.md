@@ -1,7 +1,7 @@
 # MCP Gap Register (SOTA Core v2)
 
 Last updated: 2026-05-23
-Status: MCP-REG-001 and MCP-REG-002 closed; remaining open gaps tracked for one-gap-per-cycle closure.
+Status: MCP-REG-001, MCP-REG-002, and MCP-REG-003 closed; no open MCP gaps.
 
 ## MCP-REG-001 — DetectionSpec formal content under-specified at runtime
 - **Type:** MCP
@@ -41,24 +41,27 @@ Status: MCP-REG-001 and MCP-REG-002 closed; remaining open gaps tracked for one-
 
 ## MCP-REG-003 — API run-state persistence is process-memory only
 - **Type:** MCP
+- **Status:** Closed (2026-05-23)
 - **SOTA requirement reference:**
   - `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md:15`
   - `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md:222-237`
-- **Code vs SOTA evidence (file_path:line):**
-  - `src/de_forge/api/routes/pipeline.py:281-286` and `src/de_forge/api/routes/pipeline.py:287-293` use in-memory dicts (`_RUN_TO_RULE`, `_RUN_TO_STATUS`, `_RUN_TO_REPORT`, `_RUN_TO_SPEC`, `_RUN_CREATED_AT`, `_RUN_TO_STAGE`) as runtime source of run status.
-  - Not persisted lineage for API run status semantics.
-- **Impact:** Run-status observability and auditability can reset across process restart, contradicting production-grade traceability goals.
-- **DoD:**
-  1. Replace in-memory run-state source with persisted run timeline/artifact source of truth.
-  2. Keep API status endpoints behaviorally compatible where required.
-  3. Add integration/e2e tests proving restart-safe status semantics.
-  4. Pass changed-scope gates.
-- **Residual risk if unchanged:** Non-durable operational state undermines auditability guarantees.
+- **Closure evidence (file_path:line):**
+  - `src/de_forge/models/contract.py:249-266` adds persisted `pipeline_runs` table contract for run status semantics.
+  - `src/de_forge/api/routes/pipeline.py:291-362` replaces in-memory run maps with DB-backed `PipelineRunRecord` read/write path.
+  - `src/de_forge/api/routes/pipeline.py:276-279`, `:390-407` export/review mappings now resolve via persisted run record.
+  - `tests/integration/db/test_schema_contract.py:157-175` asserts persisted `pipeline_runs` status columns exist.
+  - `tests/e2e/test_api_run_status.py:10-99` validates run-status semantics on persisted source.
+- **Verification evidence:**
+  - `python -m pytest -q tests/e2e/test_api_run_status.py tests/integration/db/test_schema_contract.py tests/integration/api/test_api_routes.py` → 21 passed.
+  - `python -m mypy src/de_forge/api/routes/pipeline.py src/de_forge/models/contract.py src/de_forge/models/__init__.py` → success.
+  - `python -m ruff check src/de_forge/api/routes/pipeline.py src/de_forge/models/contract.py src/de_forge/models/__init__.py tests/e2e/test_api_run_status.py tests/integration/db/test_schema_contract.py` → all checks passed.
+- **Residual risk:** None for API run-state durability in this path.
+- **DoD result:** Passed.
 
 ---
 
 ## Priority order for closure
-1. MCP-REG-003 (highest remaining product correctness risk)
+1. NONE
 
 ## Single-step continuation pointer
-NEXT EXACT STEP: Implement MCP-REG-003 by replacing in-memory run maps in `src/de_forge/api/routes/pipeline.py` with persisted run timeline/artifact lookups and add restart-safe integration/e2e API status tests first.
+NEXT EXACT STEP: Run full verification suite (`pytest -q`, `mypy src`, `ruff check src tests`, `ruff format --check src tests docs`) and if green mark PRODUCTION-COMPLETE.

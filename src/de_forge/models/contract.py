@@ -246,6 +246,24 @@ class ReviewDecision(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class PipelineRunRecord(Base):
+    __tablename__ = "pipeline_runs"
+    __table_args__ = (
+        Index("ix_pipeline_runs_run_id", "run_id"),
+        Index("ix_pipeline_runs_report_id", "report_id"),
+        Index("ix_pipeline_runs_detection_spec_id", "detection_spec_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    report_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    stage: Mapped[str] = mapped_column(String(40), nullable=False)
+    detection_spec_id: Mapped[str | None] = mapped_column(String(36))
+    rule_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class ProofObligationRecord(Base):
     __tablename__ = "proof_obligations"
     __table_args__ = (

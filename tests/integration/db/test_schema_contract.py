@@ -154,6 +154,25 @@ def test_refinement_iteration_has_feedback_regression_traceability_columns() -> 
     assert "created_at" in refinement_columns
 
 
+def test_pipeline_runs_table_has_persisted_status_columns() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+
+    inspector = inspect(engine)
+    run_columns = {column["name"] for column in inspector.get_columns("pipeline_runs")}
+
+    assert {
+        "id",
+        "run_id",
+        "report_id",
+        "status",
+        "stage",
+        "detection_spec_id",
+        "rule_id",
+        "created_at",
+    }.issubset(run_columns)
+
+
 def test_review_decision_has_audit_payload_columns() -> None:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)

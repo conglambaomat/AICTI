@@ -14,6 +14,7 @@ from de_forge.db.base import Base
 from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.models import PipelineRunRecord as PipelineRunRecordModel
 from de_forge.schemas.api_errors import ErrorResponse
 from de_forge.schemas.api_pipeline import (
     ExportSigmaRequest,
@@ -52,6 +53,7 @@ async def run_pipeline(
 
     if payload.report_id == "rep_force_error":
         _remember_run(
+            db,
             run_id,
             report_id=payload.report_id,
             status="failed",
@@ -71,6 +73,7 @@ async def run_pipeline(
 
     if payload.report_id == "rep_force_memory_contract_error":
         _remember_run(
+            db,
             run_id,
             report_id=payload.report_id,
             status="failed",
@@ -106,6 +109,7 @@ async def run_pipeline(
 
     if detection_spec.abstain_code is not None:
         _remember_run(
+            db,
             run_id,
             report_id=payload.report_id,
             status="abstain",
@@ -127,6 +131,7 @@ async def run_pipeline(
         final_state = orchestrator.run_pipeline(detection_spec.id)
     except PipelineTransitionError as exc:
         _remember_run(
+            db,
             run_id,
             report_id=payload.report_id,
             status="failed",
@@ -148,6 +153,7 @@ async def run_pipeline(
         .first()
     )
     _remember_run(
+        db,
         run_id,
         report_id=payload.report_id,
         status="ok",
@@ -186,6 +192,39 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
             detection_spec_id=spec_id,
             rule_content="title: seed rule\nlogsource:\n  product: windows\n  category: process_creation\ndetection:\n  selection:\n    Image|contains: 'powershell'\n  condition: selection\n",
         )
+    )
+    db.add(
+        PipelineRunRecordModel(
+            id=f"pr-seed-{spec_id}",
+            run_id=f"seed-run-{spec_id}",
+            report_id=report_id,
+            status="ok",
+            stage="awaiting_review",
+            detection_spec_id=spec_id,
+            rule_id=rule_id,
+            created_at=datetime.now(UTC).isoformat(),
+        )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO proof_obligations (id, run_id, rule_candidate_id, claim_type, claim_text, required_artifact_types, status, justification)
+            VALUES (:id1, :run_id, :rule_id, :claim_type1, :claim_text1, :required_artifact_types1, 'proven', NULL),
+                   (:id2, :run_id, :rule_id, :claim_type2, :claim_text2, :required_artifact_types2, 'proven', NULL)
+            """
+        ),
+        {
+            "id1": f"po-seed-1-{spec_id}",
+            "id2": f"po-seed-2-{spec_id}",
+            "run_id": spec_id,
+            "rule_id": rule_id,
+            "claim_type1": "citation_faithful",
+            "claim_text1": "Citations are faithful.",
+            "required_artifact_types1": '["citation_verification"]',
+            "claim_type2": "not_overbroad",
+            "claim_text2": "Rule is not overbroad.",
+            "required_artifact_types2": '["false_positive_analysis"]',
+        },
     )
     db.commit()
 
@@ -274,19 +313,16 @@ async def get_rule_for_spec(
 
 
 @router.get("/pipeline:export-run/{run_id}", response_model=None)
-async def get_run_export_mapping(run_id: str) -> dict[str, str] | JSONResponse:
-    rule_id = _RUN_TO_RULE.get(run_id)
+async def get_run_export_mapping(
+    run_id: str, db: Session = Depends(get_db)
+) -> dict[str, str] | JSONResponse:
+    record = _resolve_run_record(db, run_id)
+    rule_id = record.rule_id if record is not None else None
     if rule_id is None:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
     return {"rule_id": rule_id}
 
 
-_RUN_TO_RULE: dict[str, str] = {}
-_RUN_TO_STATUS: dict[str, str] = {}
-_RUN_TO_REPORT: dict[str, str] = {}
-_RUN_TO_SPEC: dict[str, str] = {}
-_RUN_CREATED_AT: dict[str, str] = {}
-_RUN_TO_STAGE: dict[str, str] = {}
 
 
 def _ensure_schema(db: Session) -> None:
@@ -294,6 +330,7 @@ def _ensure_schema(db: Session) -> None:
 
 
 def _remember_run(
+    db: Session,
     run_id: str,
     *,
     report_id: str,
@@ -302,46 +339,35 @@ def _remember_run(
     rule_id: str | None,
     stage: str | None = None,
 ) -> None:
-    _RUN_TO_REPORT[run_id] = report_id
-    _RUN_TO_STATUS[run_id] = status
-    _RUN_CREATED_AT[run_id] = datetime.now(UTC).isoformat()
-    if detection_spec_id is not None:
-        _RUN_TO_SPEC[run_id] = detection_spec_id
-    if rule_id is not None:
-        _RUN_TO_RULE[run_id] = rule_id
-    if stage is not None:
-        _RUN_TO_STAGE[run_id] = stage
+    record = db.query(PipelineRunRecordModel).filter(PipelineRunRecordModel.run_id == run_id).first()
+    normalized_stage = stage or _resolve_stage_for_status(status)
+    if record is None:
+        db.add(
+            PipelineRunRecordModel(
+                id=f"pr_{uuid4().hex[:12]}",
+                run_id=run_id,
+                report_id=report_id,
+                status=status,
+                stage=normalized_stage,
+                detection_spec_id=detection_spec_id,
+                rule_id=rule_id,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+        )
+    else:
+        record.report_id = report_id
+        record.status = status
+        record.stage = normalized_stage
+        record.detection_spec_id = detection_spec_id
+        record.rule_id = rule_id
+    db.commit()
 
 
-def _mark_run_status(run_id: str, status: str) -> None:
-    _RUN_TO_STATUS[run_id] = status
-    _RUN_CREATED_AT.setdefault(run_id, datetime.now(UTC).isoformat())
+def _resolve_run_record(db: Session, run_id: str) -> PipelineRunRecordModel | None:
+    return db.query(PipelineRunRecordModel).filter(PipelineRunRecordModel.run_id == run_id).first()
 
 
-def _resolve_rule_for_run(run_id: str) -> str | None:
-    return _RUN_TO_RULE.get(run_id)
-
-
-def _resolve_detection_spec_for_run(run_id: str) -> str | None:
-    return _RUN_TO_SPEC.get(run_id)
-
-
-def _resolve_report_for_run(run_id: str) -> str | None:
-    return _RUN_TO_REPORT.get(run_id)
-
-
-def _resolve_created_at_for_run(run_id: str) -> str:
-    return _RUN_CREATED_AT.get(run_id, "2026-05-20T00:00:00Z")
-
-
-def _resolve_status_for_run(run_id: str) -> str:
-    return _RUN_TO_STATUS.get(run_id, "completed")
-
-
-def _resolve_stage_for_status(run_id: str, status: str) -> str:
-    stage = _RUN_TO_STAGE.get(run_id)
-    if stage is not None:
-        return stage
+def _resolve_stage_for_status(status: str) -> str:
     if status == "abstain":
         return "detection_spec"
     if status == "failed":
@@ -350,19 +376,22 @@ def _resolve_stage_for_status(run_id: str, status: str) -> str:
 
 
 @router.get("/runs/{run_id}", response_model=RunStatusResponse)
-async def get_run_status(run_id: str) -> RunStatusResponse | JSONResponse:
-    if run_id not in _RUN_TO_STATUS:
+async def get_run_status(
+    run_id: str, db: Session = Depends(get_db)
+) -> RunStatusResponse | JSONResponse:
+    record = _resolve_run_record(db, run_id)
+    if record is None:
         return JSONResponse(status_code=404, content={"detail": "Run not found"})
 
-    status = _resolve_status_for_run(run_id)
+    status = record.status
     return RunStatusResponse(
         run_id=run_id,
         status="completed" if status in {"ok", "abstain"} else "failed",
-        created_at=_resolve_created_at_for_run(run_id),
-        report_id=_resolve_report_for_run(run_id),
-        stage=_resolve_stage_for_status(run_id, status),
-        detection_spec_id=_resolve_detection_spec_for_run(run_id),
-        rule_id=_resolve_rule_for_run(run_id),
+        created_at=record.created_at,
+        report_id=record.report_id,
+        stage=record.stage,
+        detection_spec_id=record.detection_spec_id,
+        rule_id=record.rule_id,
     )
 
 
@@ -371,7 +400,8 @@ async def create_review(
     payload: ReviewRequest, db: Session = Depends(get_db)
 ) -> ReviewResponse | JSONResponse:
     _ensure_schema(db)
-    rule_id = _resolve_rule_for_run(payload.run_id)
+    record = _resolve_run_record(db, payload.run_id)
+    rule_id = record.rule_id if record is not None else None
     if rule_id is None:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
 
@@ -392,7 +422,8 @@ async def export_sigma(
     payload: ExportSigmaRequest, db: Session = Depends(get_db)
 ) -> ExportSigmaResponse | JSONResponse:
     _ensure_schema(db)
-    rule_id = _resolve_rule_for_run(payload.run_id)
+    record = _resolve_run_record(db, payload.run_id)
+    rule_id = record.rule_id if record is not None else None
     if rule_id is None:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
 
