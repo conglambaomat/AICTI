@@ -146,6 +146,6 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
   - mypy: `python -m uv run mypy src/` pass
   - ruff check: `python -m uv run ruff check src/ tests/` pass
   - ruff format --check: `python -m uv run ruff format --check src/ tests/` pass
-- Commit SHA: pending
+- Commit SHA: `9969be3`
 - Next step: finalize docs-only closure commit and keep branch ready for integration decision
 - Blockers/risks: none
