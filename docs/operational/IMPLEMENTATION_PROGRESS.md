@@ -96,7 +96,7 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
   - mypy: `python -m mypy src` pass
   - ruff check: `python -m ruff check src tests` pass
   - ruff format --check: `RAYON_NUM_THREADS=1 python -m ruff format --check src tests` pass
-- Commit SHA: pending
+- Commit SHA: `9d9dc2b`
 - Next step: finalize Wave D evidence commit and branch closure
 - Blockers/risks: none
 
