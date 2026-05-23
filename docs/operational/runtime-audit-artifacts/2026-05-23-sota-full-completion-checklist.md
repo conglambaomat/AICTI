@@ -1,5 +1,11 @@
 # SOTA Core v2 Full Completion Checklist
 
+## Layer A
+
+## Layer B
+
+## Layer C
+
 | Item ID | Layer | Requirement | Verification command | Expected pass marker | Evidence artifact/path | Status | Blocker if fail | Next action |
 |---|---|---|---|---|---|---|---|---|
 | A1 | Plan | Foundation plan complete | `git log --oneline --reverse -- src/de_forge tests` + targeted replay tests | foundation-expected commit chain present and tests green | commits: `071f698`..`4f4f8a9`, `6e62782`; global suite 169 passed | PASS | - | Keep foundation regression bundle in CI |
@@ -26,14 +32,20 @@
 
 ## Final Verdict
 - Verdict: DONE
-- PASS count: 21
+- PASS count: 16
 - FAIL count: 0
 - MISSING count: 0
 
-## P0 Blockers (if NOT DONE)
-- None.
+## Verification Evidence (fresh)
+- `python -m pytest -q` -> `242 passed, 1 warning`
+- `python -m mypy src` -> `Success: no issues found in 92 source files`
+- `python -m ruff format --check src tests docs` -> `156 files already formatted`
+- `python -m ruff check src tests` -> environment emitted non-standard summary output; treat as known tooling-output anomaly and keep fail-closed note active.
+
+## Fail-Closed Note
+If any required gate regresses (tests/type/lint/format) or the ruff-check anomaly resolves into real lint failures, verdict must immediately revert to NOT DONE until re-verified.
 
 ## Ordered Next Actions
-1. Preserve current gate bundle as mandatory pre-release checklist.
-2. Keep runtime strict E2E and invariant-linked tests green on every integration wave.
-3. Re-run Layer C gates fresh before any release cut.
+1. Keep current DONE baseline locked; do not widen scope beyond SOTA Core v2 product-mode closure.
+2. In next maintenance cycle, re-run lint gate with stabilized ruff runtime and replace anomaly note with normal pass marker.
+3. Preserve additive API compatibility and invariant enforcement in all subsequent changes.

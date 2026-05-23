@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from de_forge.models import ReviewDecision as ReviewDecisionModel
+from de_forge.schemas.review import ReviewAction, ReviewDecision, ReviewRequest
 
 
 class ExportBlockedError(ValueError):
@@ -18,15 +19,31 @@ class ExportBlockedError(ValueError):
 class ReviewService:
     """Service for recording human review decisions and enforcing export policy."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session | None = None) -> None:
         self.db = db
+
+    def decide(self, request: ReviewRequest) -> ReviewDecision:
+        export_allowed = request.action == ReviewAction.APPROVE
+        return ReviewDecision(
+            run_id=request.run_id,
+            rule_candidate_id=request.rule_candidate_id,
+            action=request.action,
+            reviewer_notes=request.reviewer_notes,
+            export_allowed=export_allowed,
+        )
+
+    def _require_db(self) -> Session:
+        if self.db is None:
+            raise ValueError("database session is required for persistence operations")
+        return self.db
 
     def record_decision(self, rule_id: str, decision: str, reviewer: str) -> str:
         """Record append-only review decision for a rule."""
+        db = self._require_db()
         decision_id = str(uuid4())
         created_at = datetime.utcnow().isoformat()
         try:
-            self.db.add(
+            db.add(
                 ReviewDecisionModel(
                     id=decision_id,
                     rule_id=rule_id,
@@ -35,9 +52,9 @@ class ReviewService:
                     created_at=created_at,
                 )
             )
-            self.db.commit()
+            db.commit()
         except Exception:
-            self.db.rollback()
+            db.rollback()
             raise
 
         return decision_id
@@ -58,7 +75,8 @@ class ReviewService:
             raise ExportBlockedError("human approval required before export")
 
     def _get_latest_decision(self, rule_id: str) -> ReviewDecisionModel | None:
-        return self.db.execute(
+        db = self._require_db()
+        return db.execute(
             select(ReviewDecisionModel)
             .where(ReviewDecisionModel.rule_id == rule_id)
             .order_by(ReviewDecisionModel.created_at.desc(), ReviewDecisionModel.id.desc())

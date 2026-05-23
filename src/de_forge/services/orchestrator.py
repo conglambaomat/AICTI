@@ -10,13 +10,34 @@ from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.attack_mapping import AttackMappingService
 from de_forge.services.canary_ops import CanaryOpsService
 from de_forge.services.detection_spec import DetectionSpecService
 from de_forge.services.kpi_evaluator import KPIEvaluator
 from de_forge.services.refinement import RefinementController
 from de_forge.services.rule_generation import RuleGenerationService
+from de_forge.services.state_machine import StateMachine
 from de_forge.services.static_validation import StaticValidationService
+
+
+class Orchestrator:
+    def __init__(self) -> None:
+        self.state_machine = StateMachine()
+
+    def run_golden_path(self, report_id: str, report_text: str, mode: RunMode) -> RunSummary:
+        del report_text
+        state = RunState.CREATED
+        state = self.state_machine.transition(state, RunState.INGESTED)
+        state = self.state_machine.transition(state, RunState.EVIDENCE_READY)
+        state = self.state_machine.transition(state, RunState.DETECTION_SPEC_READY)
+        if mode == RunMode.CAUTIOUS:
+            return RunSummary(id=f"run_{report_id}", mode=mode, state=state, report_id=report_id)
+        state = self.state_machine.transition(state, RunState.DETECTION_SPEC_VERIFIED)
+        state = self.state_machine.transition(state, RunState.RULE_CANDIDATES_READY)
+        state = self.state_machine.transition(state, RunState.VALIDATED)
+        state = self.state_machine.transition(state, RunState.AWAITING_REVIEW)
+        return RunSummary(id=f"run_{report_id}", mode=mode, state=state, report_id=report_id)
 
 
 class PipelineState(StrEnum):

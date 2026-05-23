@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from de_forge.core.hashing import snapshot_hash, verify_snapshot_hash
 from de_forge.models import AgentRun as AgentRunModel
+from de_forge.schemas.agent_io import AgentOutputEnvelope
 
 
 class IntegrityError(ValueError):
@@ -21,6 +22,26 @@ class AgentAuditService:
 
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    def persist(
+        self, input_payload: dict[str, Any], output_envelope: AgentOutputEnvelope
+    ) -> AgentRunModel:
+        output_payload = output_envelope.model_dump(mode="json")
+        output_hash = snapshot_hash(output_payload)
+        record = AgentRunModel(
+            id=str(uuid4()),
+            run_id=output_envelope.run_id,
+            trace_id=output_envelope.run_id,
+            agent_name=output_envelope.agent_name,
+            input_hash=snapshot_hash(input_payload),
+            output_hash=output_hash,
+            status="abstain" if output_envelope.abstain else "success",
+            retry_attempt=0,
+            started_at="2026-05-20T00:00:00Z",
+        )
+        self.db.add(record)
+        self.db.flush()
+        return record
 
     def persist_agent_run(
         self,

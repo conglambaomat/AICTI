@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.schemas.rule_candidate import RuleCandidate
+from de_forge.services.broad_rule_detector import BroadRuleDetector
+from de_forge.services.sigma_validator import SigmaValidator
 from de_forge.services.telemetry_registry import TELEMETRY_REGISTRY
 
 
@@ -25,11 +28,28 @@ class ValidationReport:
 class StaticValidationService:
     """Service for deterministic static validation of generated Sigma rules."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session | None = None) -> None:
         self.db = db
+        self.sigma_validator = SigmaValidator()
+        self.broad_rule_detector = BroadRuleDetector()
+
+    def validate(self, candidate: RuleCandidate) -> RuleCandidate:
+        structure_ok = self.sigma_validator.validate(candidate.sigma_rule)
+        overbroad = self.broad_rule_detector.is_overbroad(candidate.sigma_rule)
+        passed = structure_ok and not overbroad
+        score = candidate.score.model_copy(
+            update={
+                "static_validity": 1.0 if passed else 0.0,
+                "false_positive_risk": 1.0 if overbroad else candidate.score.false_positive_risk,
+            }
+        )
+        return candidate.model_copy(update={"passed_static_validation": passed, "score": score})
 
     def validate_rule(self, rule_id: str) -> ValidationReport:
         """Validate generated rule deterministically against DetectionSpec constraints."""
+        if self.db is None:
+            return ValidationReport(is_valid=False, issues=["database session required"])
+
         rule = self.db.execute(
             select(GeneratedRuleModel).where(GeneratedRuleModel.id == rule_id)
         ).scalar_one_or_none()

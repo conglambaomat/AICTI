@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from de_forge.api.router import api_router
 from de_forge.api.routes.ingestion import router as ingestion_router
 from de_forge.api.routes.pipeline import legacy_router as pipeline_legacy_router
 from de_forge.api.routes.pipeline import router as pipeline_router
@@ -32,6 +33,7 @@ app.include_router(pipeline_router)
 app.include_router(pipeline_legacy_router)
 app.include_router(ingestion_router)
 app.include_router(review_router)
+app.include_router(api_router)
 
 _started_at = monotonic()
 

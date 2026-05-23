@@ -1,7 +1,5 @@
 """Unified LLM client for OpenAI-compatible API calls."""
 
-from __future__ import annotations
-
 import json
 import os
 import random
@@ -10,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import jsonschema
+from pydantic import BaseModel, Field
 
 # Retry policy constants
 MAX_RETRIES = 3
@@ -215,6 +214,20 @@ def calculate_backoff(
 def calculate_cost(usage: TokenUsage) -> float:
     """Calculate USD cost from token usage."""
     return (usage.prompt_tokens / 1000) * 0.01 + (usage.completion_tokens / 1000) * 0.03
+
+
+class LlmRequest(BaseModel):
+    system_prompt: str
+    user_prompt: str
+    response_schema_name: str
+
+
+class LlmResponse(BaseModel):
+    content: dict[str, Any]
+    tokens_in: int = Field(ge=0)
+    tokens_out: int = Field(ge=0)
+    latency_ms: int = Field(ge=0)
+    cost_usd: float | None = Field(default=None, ge=0.0)
 
 
 class LLMClient:
