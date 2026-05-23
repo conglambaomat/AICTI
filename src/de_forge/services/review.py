@@ -61,6 +61,6 @@ class ReviewService:
         return self.db.execute(
             select(ReviewDecisionModel)
             .where(ReviewDecisionModel.rule_id == rule_id)
-            .order_by(ReviewDecisionModel.id.desc())
+            .order_by(ReviewDecisionModel.created_at.desc(), ReviewDecisionModel.id.desc())
             .limit(1)
         ).scalar_one_or_none()
