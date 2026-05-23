@@ -198,25 +198,14 @@ def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_stri
     errors = exc_info.value.errors()
     assert any(e["loc"] == ("evidence",) for e in errors)
 
-    with pytest.raises(ValidationError) as exc_info:
-        BehaviorRule(
-            evidence=["valid evidence"],
-            attack_ids=["T1547"],
-            required_telemetry=["process_creation"],
-            detection_logic="valid logic",
-        )
-    errors = exc_info.value.errors()
-    assert any(e["loc"] == ("attack_ids",) for e in errors)
-
-    with pytest.raises(ValidationError) as exc_info:
-        BehaviorRule(
-            evidence=["valid evidence"],
-            attack_ids=["T1105"],
-            required_telemetry=["file_creation"],
-            detection_logic="valid logic",
-        )
-    errors = exc_info.value.errors()
-    assert any(e["loc"] == ("required_telemetry",) for e in errors)
+    accepted = BehaviorRule(
+        evidence=["valid evidence"],
+        attack_ids=["T1547"],
+        required_telemetry=["file_event"],
+        detection_logic="valid logic",
+    )
+    assert accepted.attack_ids == ["T1547"]
+    assert accepted.required_telemetry == ["file_event"]
 
     normalized = BehaviorRule(
         evidence=["  valid evidence  "],

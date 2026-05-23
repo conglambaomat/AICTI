@@ -66,6 +66,26 @@ def test_unattested_field_is_rejected() -> None:
     assert "not allowed for process_creation" in str(exc_info.value)
 
 
+def test_supported_non_mvp_telemetry_type_is_accepted() -> None:
+    db = _build_session()
+    report_id, mapping_id = _seed_report_and_mapping(db)
+    service = TelemetryGroundingService(db)
+
+    selection_ids = service.persist_selections(
+        report_id=report_id,
+        selections=[
+            TelemetryGroundingInput(
+                selection_id="sel-file-1",
+                attack_mapping_id=mapping_id,
+                telemetry_type="file_event",
+                required_fields=["TargetFilename", "Image"],
+            )
+        ],
+    )
+
+    assert selection_ids == ["sel-file-1"]
+
+
 def test_no_supported_telemetry_abstains_deterministically() -> None:
     """No supported telemetry should trigger structured NO_TELEMETRY abstain."""
     db = _build_session()
@@ -74,7 +94,7 @@ def test_no_supported_telemetry_abstains_deterministically() -> None:
     decision = service.abstain_for_no_supported_telemetry(
         report_id="report-x",
         attack_mapping_id="map-x",
-        requested_telemetry_types=["network_connection", "file_event"],
+        requested_telemetry_types=["unknown_telemetry"],
     )
 
     assert decision.abstain_code == "NO_TELEMETRY"

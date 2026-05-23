@@ -60,6 +60,20 @@ detection:
             "updated_at": "2026-05-23T00:00:00Z",
         },
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
+        },
+    )
     db.commit()
 
 

@@ -134,6 +134,20 @@ def test_pipeline_orchestrator_persists_agent_audit_records_per_stage() -> None:
             "updated_at": "2026-05-23T00:00:00Z",
         },
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
+        },
+    )
     db.commit()
 
     PipelineOrchestrator(db).run_pipeline(spec_id)
@@ -173,6 +187,20 @@ def test_pipeline_orchestrator_records_refinement_iteration_on_validation_failur
             "scope": f"{spec_id}:detection_spec.draft",
             "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
             "updated_at": "2026-05-23T00:00:00Z",
+        },
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
         },
     )
     db.commit()

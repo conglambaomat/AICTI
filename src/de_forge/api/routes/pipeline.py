@@ -221,6 +221,20 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
             "updated_at": datetime.now(UTC).isoformat(),
         },
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
+    )
     db.commit()
 
     return {"detection_spec_id": spec_id, "rule_id": rule_id, "report_id": report_id}

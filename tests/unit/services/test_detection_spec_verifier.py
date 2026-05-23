@@ -1,6 +1,6 @@
 import pytest
-from pydantic import ValidationError
 
+from de_forge.core.errors import ValidationGateError
 from de_forge.schemas.detection_spec import BehaviorRule, DetectionSpec
 from de_forge.services.detection_spec_verifier import DetectionSpecVerifier
 
@@ -27,11 +27,20 @@ def test_detection_spec_verifier_accepts_valid_spec() -> None:
     assert verifier.verify(_valid_spec()) is True
 
 
-def test_behavior_rule_schema_rejects_unknown_telemetry() -> None:
-    with pytest.raises(ValidationError):
-        BehaviorRule(
-            evidence=["x"],
-            attack_ids=["T1059.001"],
-            required_telemetry=["unknown_telemetry"],
-            detection_logic="x",
-        )
+def test_detection_spec_verifier_rejects_unknown_telemetry() -> None:
+    spec = DetectionSpec(
+        report_id="report_1",
+        behavior_rules=[
+            BehaviorRule(
+                evidence=["x"],
+                attack_ids=["T1059.001"],
+                required_telemetry=["unknown_telemetry"],
+                detection_logic="x",
+            )
+        ],
+        false_positive_hypotheses=["fp"],
+        test_plan="tp",
+    )
+
+    with pytest.raises(ValidationGateError, match="unsupported telemetry type"):
+        DetectionSpecVerifier().verify(spec)

@@ -97,6 +97,8 @@ class PipelineOrchestrator:
             if rule is None:
                 raise PipelineTransitionError("generated rule required before validation")
 
+        self._require_memory_contract(run_id=detection_spec_id, stage="static_validation")
+
         validation = self.static_validator.validate_rule(rule.id)
         self.agent_audit.persist_agent_run(
             run_id=detection_spec_id,

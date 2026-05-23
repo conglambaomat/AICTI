@@ -34,6 +34,7 @@ ACL: dict[str, dict[str, set[str]]] = {
 
 REQUIRED_STAGE_CONTRACTS: dict[str, tuple[str, ...]] = {
     "rule_generation": ("detection_spec.draft",),
+    "static_validation": ("rule_generation.draft",),
 }
 
 

@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from de_forge.models import AttackMapping
 from de_forge.schemas.abstain import AbstainDecision
 
-ATTACK_ALLOWLIST = {"T1059.001", "T1059.003", "T1105"}
 ATTACK_ID_PATTERN = re.compile(r"^T\d{4}(\.\d{3})?$")
 
 
@@ -84,8 +83,6 @@ class AttackMappingService:
 
         if not ATTACK_ID_PATTERN.match(technique_id):
             raise ValueError("Invalid ATT&CK technique format")
-        if technique_id not in ATTACK_ALLOWLIST:
-            raise ValueError("Technique not in MVP allowlist")
         if confidence < 0.0 or confidence > 1.0:
             raise ValueError("Confidence must be between 0 and 1")
         if not isinstance(evidence_ids, list) or not evidence_ids:
@@ -119,10 +116,6 @@ class AttackMappingService:
         if not ATTACK_ID_PATTERN.match(mapping.technique_id):
             raise AttackMappingError(
                 f"Mapping {mapping.mapping_id}: technique_id must match format T####(.###), got {mapping.technique_id}"
-            )
-        if mapping.technique_id not in ATTACK_ALLOWLIST:
-            raise AttackMappingError(
-                f"Mapping {mapping.mapping_id}: technique_id {mapping.technique_id} not in MVP allowlist {ATTACK_ALLOWLIST}"
             )
         if not (0.0 <= mapping.confidence <= 1.0):
             raise AttackMappingError(

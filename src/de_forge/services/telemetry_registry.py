@@ -1,4 +1,4 @@
-"""Telemetry registry for MVP allowed telemetry and fields."""
+"""Telemetry registry for supported telemetry types and allowed fields."""
 
 from __future__ import annotations
 
@@ -34,11 +34,43 @@ PROCESS_CREATION_ALLOWED_FIELDS = frozenset(
     }
 )
 
+FILE_EVENT_ALLOWED_FIELDS = frozenset(
+    {
+        "TargetFilename",
+        "Image",
+        "User",
+        "ProcessGuid",
+        "ProcessId",
+        "CommandLine",
+        "Hashes",
+    }
+)
+
+NETWORK_CONNECTION_ALLOWED_FIELDS = frozenset(
+    {
+        "Image",
+        "User",
+        "Protocol",
+        "SourceIp",
+        "SourcePort",
+        "DestinationIp",
+        "DestinationPort",
+    }
+)
+
 TELEMETRY_REGISTRY: dict[str, TelemetryRegistryEntry] = {
     "process_creation": TelemetryRegistryEntry(
         telemetry_type="process_creation",
         allowed_fields=PROCESS_CREATION_ALLOWED_FIELDS,
-    )
+    ),
+    "file_event": TelemetryRegistryEntry(
+        telemetry_type="file_event",
+        allowed_fields=FILE_EVENT_ALLOWED_FIELDS,
+    ),
+    "network_connection": TelemetryRegistryEntry(
+        telemetry_type="network_connection",
+        allowed_fields=NETWORK_CONNECTION_ALLOWED_FIELDS,
+    ),
 }
 
 

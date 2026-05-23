@@ -23,7 +23,41 @@ def _build_session() -> Session:
     return maker()
 
 
-def _seed_required_rule_generation_memory_contract(db: Session, run_id: str) -> None:
+def _seed_required_memory_contracts(db: Session, run_id: str) -> None:
+    spec_payload = json.dumps({"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"})
+    rule_payload = json.dumps({"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"})
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-spec-{run_id}",
+            "scope": f"{run_id}:detection_spec.draft",
+            "value": spec_payload,
+            "updated_at": "2026-05-23T00:00:00+00:00",
+        },
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{run_id}",
+            "scope": f"{run_id}:rule_generation.draft",
+            "value": rule_payload,
+            "updated_at": "2026-05-23T00:00:01+00:00",
+        },
+    )
+    db.commit()
+
+
+def _seed_only_spec_memory_contract(db: Session, run_id: str) -> None:
     payload = json.dumps({"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"})
     db.execute(
         text(
@@ -42,6 +76,37 @@ def _seed_required_rule_generation_memory_contract(db: Session, run_id: str) -> 
     db.commit()
 
 
+def _seed_only_rule_memory_contract(db: Session, run_id: str) -> None:
+    payload = json.dumps({"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"})
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{run_id}",
+            "scope": f"{run_id}:rule_generation.draft",
+            "value": payload,
+            "updated_at": "2026-05-23T00:00:01+00:00",
+        },
+    )
+    db.commit()
+
+
+def _seed_required_rule_generation_memory_contract(db: Session, run_id: str) -> None:
+    _seed_only_spec_memory_contract(db, run_id)
+
+
+def _seed_required_static_validation_memory_contract(db: Session, run_id: str) -> None:
+    _seed_only_rule_memory_contract(db, run_id)
+
+
+def _seed_required_runtime_memory_contracts(db: Session, run_id: str) -> None:
+    _seed_required_memory_contracts(db, run_id)
+
+
 def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
     db = _build_session()
     orchestrator = PipelineOrchestrator(db)
@@ -56,7 +121,7 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
         )
     )
     db.commit()
-    _seed_required_rule_generation_memory_contract(db, spec_id)
+    _seed_required_runtime_memory_contracts(db, spec_id)
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
@@ -129,7 +194,7 @@ def test_pipeline_rejects_preseeded_invalid_rule_even_if_present() -> None:
         )
     )
     db.commit()
-    _seed_required_rule_generation_memory_contract(db, spec_id)
+    _seed_required_runtime_memory_contracts(db, spec_id)
 
     with pytest.raises(PipelineTransitionError, match="static validation gate failed"):
         orchestrator.run_pipeline(spec_id)
@@ -171,7 +236,7 @@ detection:
         )
     )
     db.commit()
-    _seed_required_rule_generation_memory_contract(db, spec_id)
+    _seed_required_runtime_memory_contracts(db, spec_id)
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
@@ -199,6 +264,46 @@ def test_state_transition_blocked_when_gate_fails() -> None:
     db.commit()
 
     with pytest.raises(PipelineTransitionError, match="validated DetectionSpec required"):
+        orchestrator.run_pipeline(spec_id)
+
+
+def test_pipeline_fails_when_static_validation_memory_contract_missing() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-missing-static-memory"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-missing-static-memory",
+            spec_payload='{"report_id":"report-missing-static-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_only_spec_memory_contract(db, spec_id)
+
+    with pytest.raises(PipelineTransitionError, match="memory contract"):
+        orchestrator.run_pipeline(spec_id)
+
+
+def test_pipeline_fails_when_rule_generation_memory_contract_missing() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-missing-rulegen-memory"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-missing-rulegen-memory",
+            spec_payload='{"report_id":"report-missing-rulegen-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_only_rule_memory_contract(db, spec_id)
+
+    with pytest.raises(PipelineTransitionError, match="memory contract"):
         orchestrator.run_pipeline(spec_id)
 
 
