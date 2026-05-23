@@ -1,22 +1,25 @@
 # MCP Gap Register (SOTA Core v2)
 
 Last updated: 2026-05-23
-Status: MCP-REG-002 closed; remaining open gaps tracked for one-gap-per-cycle closure.
+Status: MCP-REG-001 and MCP-REG-002 closed; remaining open gaps tracked for one-gap-per-cycle closure.
 
 ## MCP-REG-001 — DetectionSpec formal content under-specified at runtime
 - **Type:** MCP
+- **Status:** Closed (2026-05-23)
 - **SOTA requirement reference:**
   - `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md:242-265`
-- **Code vs SOTA evidence (file_path:line):**
-  - `src/de_forge/schemas/detection_spec.py:63-66` only enforces `report_id`, `behavior_rules`, `false_positive_hypotheses`, `test_plan`.
-  - Missing explicit fields for formal spec content named by SOTA (evidence ids / behavior ids / detection strategy / analytic / data component / allowed telemetry fields / rationale traceability).
-- **Impact:** Partial compliance with mandatory DetectionSpec contract; weaker deterministic guarantees before rule generation.
-- **DoD:**
-  1. Extend DetectionSpec contract and validators to explicitly represent and validate required formal fields from SOTA.
-  2. Update affected services/tests to use expanded contract.
-  3. Pass targeted schema/service tests + full relevant gates.
-  4. Commit with evidence links.
-- **Residual risk if unchanged:** Contract drift between canonical architecture and runtime payload semantics.
+- **Closure evidence (file_path:line):**
+  - `src/de_forge/schemas/detection_spec.py:64-74` adds explicit formal fields: `evidence_ids`, `behavior_ids`, `detection_strategy`, `analytic`, `data_component`, `allowed_telemetry_fields`, `rationale_traceability`.
+  - `src/de_forge/schemas/detection_spec.py:87-107` adds fail-closed validators for formal list/string fields (non-empty, whitespace-trimmed).
+  - `tests/unit/schemas/test_detection_spec_schema.py:251-327` validates contract acceptance/rejection with formal fields.
+  - `tests/unit/services/test_detection_spec_verifier.py:9-55` aligns verifier fixtures with expanded DetectionSpec contract.
+  - `tests/integration/services/test_detection_spec_service.py:27-173` updates persistence-path DetectionSpec fixtures to enforce runtime contract compatibility.
+- **Verification evidence:**
+  - `python -m pytest -q tests/unit/schemas/test_detection_spec_schema.py tests/unit/services/test_detection_spec_verifier.py tests/integration/services/test_detection_spec_service.py` → 16 passed.
+  - `python -m mypy src/de_forge/schemas/detection_spec.py src/de_forge/services/detection_spec.py src/de_forge/services/detection_spec_verifier.py` → success.
+  - `python -m ruff check src/de_forge/schemas/detection_spec.py src/de_forge/services/detection_spec.py tests/unit/schemas/test_detection_spec_schema.py tests/unit/services/test_detection_spec_verifier.py tests/integration/services/test_detection_spec_service.py` → all checks passed.
+- **Residual risk:** None specific to formal DetectionSpec field coverage; remaining runtime durability risk tracked in MCP-REG-003.
+- **DoD result:** Passed.
 
 ## MCP-REG-002 — Runtime orchestration missing evaluation-depth gates in authoritative path
 - **Type:** MCP
@@ -55,9 +58,7 @@ Status: MCP-REG-002 closed; remaining open gaps tracked for one-gap-per-cycle cl
 ---
 
 ## Priority order for closure
-1. MCP-REG-002 (highest product correctness risk)
-2. MCP-REG-001
-3. MCP-REG-003
+1. MCP-REG-003 (highest remaining product correctness risk)
 
 ## Single-step continuation pointer
-NEXT EXACT STEP: Implement MCP-REG-002 by wiring dynamic/adversarial/counterfactual/oracle + proof-obligation fail-closed checks into `src/de_forge/services/orchestrator.py` and add failing integration tests first.
+NEXT EXACT STEP: Implement MCP-REG-003 by replacing in-memory run maps in `src/de_forge/api/routes/pipeline.py` with persisted run timeline/artifact lookups and add restart-safe integration/e2e API status tests first.

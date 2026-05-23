@@ -260,6 +260,13 @@ def test_contract_schemas_forbid_extra_fields():
         ],
         false_positive_hypotheses=["fp"],
         test_plan="plan",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="process correlation",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image"],
+        rationale_traceability=["ev-1 -> bh-1"],
     )
 
     with pytest.raises(ValidationError) as exc_info:
@@ -294,6 +301,13 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
         ],
         false_positive_hypotheses=["Legitimate software updates may trigger this"],
         test_plan="Test with benign software installers and known malware samples",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="payload execution analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-1 -> bh-1 -> rule"],
     )
 
     valid_request = RuleGenerationRequest(

@@ -65,6 +65,13 @@ class DetectionSpec(BaseModel):
     behavior_rules: list[BehaviorRule] = Field(min_length=1)
     false_positive_hypotheses: list[str] = Field(min_length=1)
     test_plan: str = Field(min_length=1)
+    evidence_ids: list[str] = Field(min_length=1)
+    behavior_ids: list[str] = Field(min_length=1)
+    detection_strategy: str = Field(min_length=1)
+    analytic: str = Field(min_length=1)
+    data_component: str = Field(min_length=1)
+    allowed_telemetry_fields: list[str] = Field(min_length=1)
+    rationale_traceability: list[str] = Field(min_length=1)
 
     @field_validator("report_id", "test_plan")
     @classmethod
@@ -83,3 +90,19 @@ class DetectionSpec(BaseModel):
         if any(not item for item in cleaned):
             raise ValueError("false_positive_hypotheses items must not be empty or whitespace-only")
         return cleaned
+
+    @field_validator("evidence_ids", "behavior_ids", "allowed_telemetry_fields", "rationale_traceability", mode="after")
+    @classmethod
+    def validate_list_items_not_blank(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value]
+        if any(not item for item in cleaned):
+            raise ValueError("list items must not be empty or whitespace-only")
+        return cleaned
+
+    @field_validator("detection_strategy", "analytic", "data_component")
+    @classmethod
+    def validate_formal_strings_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value must not be empty or whitespace-only")
+        return stripped

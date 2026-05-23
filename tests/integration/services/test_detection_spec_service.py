@@ -36,6 +36,13 @@ def test_behavior_spec_missing_telemetry_fails_gate() -> None:
         ],
         false_positive_hypotheses=["legitimate admin scripts"],
         test_plan="verify powershell network events",
+        evidence_ids=["ev-123"],
+        behavior_ids=["bh-123"],
+        detection_strategy="behavioral",
+        analytic="powershell-network correlation",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-123 -> bh-123 -> analytic"],
     )
 
     with pytest.raises(ValueError, match="missing required telemetry"):
@@ -98,6 +105,13 @@ def test_valid_behavior_spec_persists_with_lineage() -> None:
         ],
         false_positive_hypotheses=["system maintenance scripts"],
         test_plan="test with Sysmon Event ID 1",
+        evidence_ids=["ev-789"],
+        behavior_ids=["bh-789"],
+        detection_strategy="behavioral",
+        analytic="cmd encoded-command analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-789 -> bh-789 -> analytic"],
     )
 
     result = service.build_detection_spec(spec=valid_spec)
@@ -131,6 +145,13 @@ def test_transaction_rollback_on_persistence_failure() -> None:
         ],
         false_positive_hypotheses=["admin automation"],
         test_plan="test with encoded command samples",
+        evidence_ids=["ev-rollback"],
+        behavior_ids=["bh-rollback"],
+        detection_strategy="behavioral",
+        analytic="powershell encoded analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-rollback -> bh-rollback -> analytic"],
     )
 
     first = service.build_detection_spec(spec=valid_spec)

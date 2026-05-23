@@ -18,6 +18,13 @@ def _valid_spec() -> DetectionSpec:
         ],
         false_positive_hypotheses=["admin script"],
         test_plan="positive + benign",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="process-commandline correlation",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-1 -> bh-1 -> detect"],
     )
 
 
@@ -40,6 +47,13 @@ def test_detection_spec_verifier_rejects_unknown_telemetry() -> None:
         ],
         false_positive_hypotheses=["fp"],
         test_plan="tp",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="unknown telemetry check",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image"],
+        rationale_traceability=["ev-1 -> bh-1"],
     )
 
     with pytest.raises(ValidationGateError, match="unsupported telemetry type"):
