@@ -2,7 +2,6 @@
 
 from de_forge.services.dynamic_validation import DynamicValidationService
 
-
 ATTACK_EVENTS = [
     {
         "EventID": 1,

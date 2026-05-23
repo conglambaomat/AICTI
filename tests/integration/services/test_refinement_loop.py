@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from de_forge.services.refinement import RefinementController
 
 

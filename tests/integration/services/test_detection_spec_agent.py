@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from de_forge.services.detection_spec import DetectionSpecService
 
 

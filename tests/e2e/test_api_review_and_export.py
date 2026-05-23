@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 from de_forge.main import app
 
-
 client = TestClient(app)
 
 

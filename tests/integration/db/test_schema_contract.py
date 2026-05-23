@@ -3,11 +3,6 @@
 from sqlalchemy import create_engine, inspect
 
 from de_forge.db.base import Base
-from de_forge.models.agent_run import AgentRun
-from de_forge.models.evidence_span import EvidenceSpan
-from de_forge.models.report import Report
-from de_forge.models.report_chunk import ReportChunk
-
 
 
 def test_reports_content_hash_has_unique_constraint() -> None:
@@ -20,7 +15,6 @@ def test_reports_content_hash_has_unique_constraint() -> None:
     unique_columns = {tuple(constraint["column_names"]) for constraint in unique_constraints}
 
     assert ("content_hash",) in unique_columns
-
 
 
 def test_agent_runs_has_input_output_hash_columns() -> None:

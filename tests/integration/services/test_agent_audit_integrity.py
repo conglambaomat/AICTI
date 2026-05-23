@@ -27,7 +27,6 @@ def test_agent_run_read_fails_on_hash_mismatch() -> None:
     input_snapshot = {"prompt": "test", "context": "data"}
     output_snapshot = {"result": "output"}
 
-    correct_input_hash = snapshot_hash(input_snapshot)
     tampered_input_hash = "tampered-hash-value"
 
     db.add(
