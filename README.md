@@ -13,6 +13,9 @@ Before implementing, Claude CLI sessions must start with:
 Then load governance policy:
 
 - `docs/governance/canonical_manifest.yaml`
+- `docs/governance/preflight_checklist.md`
+
+Do not start implementation until preflight checks pass.
 
 Source-of-truth documents:
 

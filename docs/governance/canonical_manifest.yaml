@@ -1,0 +1,73 @@
+version: 1
+updated_at: 2026-05-23
+mode: fail-closed
+objective: canonical-sota-first-autonomous-execution
+
+precedence:
+  - canonical
+  - operational
+  - governance
+  - legacy
+
+tiers:
+  canonical:
+    description: SOTA architecture truth and invariants; highest authority.
+    mutable_by_claude: false
+    human_approval_required: true
+    paths:
+      - docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md
+  operational:
+    description: Execution flow, runbooks, gates, and active instructions for autonomous sessions.
+    mutable_by_claude: true
+    update_gate: two-step-validate-before-apply
+    paths:
+      - docs/operational/START_HERE_FOR_CLAUDE.md
+      - docs/operational/DOCS_PRECHECK.md
+      - docs/operational/IMPLEMENTATION_PROGRESS.md
+      - docs/operational/CHANGELOG_AUTONOMOUS.md
+      - docs/operational/SOTA_CORE_V2_EXECUTION_KIT.md
+      - docs/operational/SUBAGENT_EXECUTION_STRATEGY_SOTA_CORE_V2.md
+      - docs/operational/AUTONOMOUS_DECISION_POLICY.md
+      - docs/operational/QUALITY_GATES_SOTA_CORE_V2.md
+      - docs/operational/BLOCKERS_AND_ESCALATION.md
+  governance:
+    description: Machine-readable governance policy, validation checklists, and warning logs.
+    mutable_by_claude: true
+    update_gate: two-step-validate-before-apply
+    paths:
+      - docs/governance/canonical_manifest.yaml
+      - docs/governance/docs_governance_policy.md
+      - docs/governance/preflight_checklist.md
+      - docs/governance/doc_drift_warnings.md
+  legacy:
+    description: Historical/superseded docs; never authoritative for execution.
+    mutable_by_claude: false
+    executable_source: false
+    paths:
+      - docs/legacy/
+
+fail_closed_rules:
+  - missing_authoritative_doc
+  - conflicting_authoritative_statements
+  - canonical_path_changed_without_approval
+  - stale_active_reference_to_legacy
+  - unresolved_required_preflight_item
+
+two_step_doc_update_gate:
+  step_1_propose_patch: required
+  step_2_validate_patch: required
+  pass_condition: all_required_checks_pass
+  fail_action: rollback_patch_and_log_warning_continue_code
+
+required_checks:
+  - canonical_conflict_check
+  - stale_phrase_check
+  - active_reference_check
+  - startup_sequence_integrity_check
+  - progress_template_integrity_check
+
+escalation:
+  only_when:
+    - canonical_change_requested
+    - sota_invariant_weakening_risk
+  otherwise: autonomous_continue_with_gate

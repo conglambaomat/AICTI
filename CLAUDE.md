@@ -15,6 +15,8 @@ The active architecture and implementation track is **DE-Forge SOTA Core v2**.
 Claude CLI sessions must start here:
 
 - `docs/operational/START_HERE_FOR_CLAUDE.md`
+- `docs/governance/canonical_manifest.yaml`
+- `docs/governance/preflight_checklist.md`
 
 Then follow, in order:
 
@@ -26,7 +28,7 @@ Then follow, in order:
 6. `docs/canonical/2026-05-21-de-forge-sota-core-v2-design.md`
 7. The active SOTA Core v2 implementation plan.
 
-Before execution, load `docs/governance/canonical_manifest.yaml` and perform manifest preflight.
+Before execution, load `docs/governance/canonical_manifest.yaml`, run `docs/governance/preflight_checklist.md`, and fail-closed on any startup conflict or missing authoritative doc.
 
 ## Current Project Reality
 
