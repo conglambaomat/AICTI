@@ -15,4 +15,4 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install pytest pyyaml
       - run: python scripts/docs_preflight.py
-      - run: pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py -v
+      - run: pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py tests/docs/test_progress_templates.py tests/docs/test_operational_reference_integrity.py -v
