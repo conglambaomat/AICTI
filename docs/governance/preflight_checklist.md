@@ -21,6 +21,20 @@ Stop immediately when any of the following is true:
 - Conflicting architecture instructions in authoritative docs
 - Required quality-gate/decision-policy docs missing
 
+## Final Readiness Verification
+
+Required command sequence:
+
+```bash
+python scripts/docs_preflight.py
+pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py tests/docs/test_progress_templates.py -v
+```
+
+Expected markers:
+
+- `DOCS_PREFLIGHT: PASS`
+- all tests pass
+
 ## Proceed Condition
 
 Proceed only when all checks pass.
