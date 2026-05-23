@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
@@ -13,6 +13,7 @@ from de_forge.services.agent_audit import AgentAuditService
 from de_forge.services.refinement import RefinementLimitExceededError, RefinementService
 from de_forge.services.rule_generation import RuleGenerationService
 from de_forge.services.state_machine import StateMachine
+from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
 from de_forge.services.static_validation import StaticValidationService
 
 
@@ -56,6 +57,7 @@ class PipelineOrchestrator:
         self.rule_generation = RuleGenerationService(db)
         self.agent_audit = AgentAuditService(db)
         self.refinement = RefinementService(db)
+        self.memory_policy = MemoryPolicyEngine()
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(
@@ -69,6 +71,8 @@ class PipelineOrchestrator:
 
         if not spec.spec_payload:
             raise PipelineTransitionError("DetectionSpec payload required")
+
+        self._require_memory_contract(run_id=detection_spec_id, stage="rule_generation")
 
         rule = self.db.execute(
             select(GeneratedRuleModel).where(
@@ -108,3 +112,26 @@ class PipelineOrchestrator:
             raise PipelineTransitionError("static validation gate failed")
 
         return PipelineState.AWAITING_REVIEW
+
+    def _require_memory_contract(self, *, run_id: str, stage: str) -> None:
+        rows = self.db.execute(
+            text(
+                """
+                SELECT scope, value
+                FROM memory_views
+                WHERE scope LIKE :prefix AND key = 'latest'
+                """
+            ),
+            {"prefix": f"{run_id}:%"},
+        ).fetchall()
+        available_namespaces = latest_payload_namespaces(
+            [(str(row[0]), str(row[1])) for row in rows]
+        )
+        missing = self.memory_policy.stage_contract_missing(
+            stage=stage,
+            available_namespaces=available_namespaces,
+        )
+        if missing:
+            raise PipelineTransitionError(
+                f"memory contract missing for stage {stage}: {', '.join(missing)}"
+            )

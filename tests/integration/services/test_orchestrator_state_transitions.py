@@ -1,7 +1,9 @@
 """Integration tests for orchestrator state transitions."""
 
+import json
+
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
@@ -21,6 +23,25 @@ def _build_session() -> Session:
     return maker()
 
 
+def _seed_required_rule_generation_memory_contract(db: Session, run_id: str) -> None:
+    payload = json.dumps({"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"})
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{run_id}",
+            "scope": f"{run_id}:detection_spec.draft",
+            "value": payload,
+            "updated_at": "2026-05-23T00:00:00+00:00",
+        },
+    )
+    db.commit()
+
+
 def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
     db = _build_session()
     orchestrator = PipelineOrchestrator(db)
@@ -35,6 +56,7 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
         )
     )
     db.commit()
+    _seed_required_rule_generation_memory_contract(db, spec_id)
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
@@ -46,6 +68,25 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
     assert generated.rule_content
     assert "logsource:" in generated.rule_content
     assert "detection:" in generated.rule_content
+
+
+def test_pipeline_fails_when_required_memory_contract_missing() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-no-memory"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-no-memory",
+            spec_payload='{"report_id":"report-no-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    with pytest.raises(PipelineTransitionError, match="memory contract"):
+        orchestrator.run_pipeline(spec_id)
 
 
 def test_pipeline_fails_when_detection_spec_missing_payload_for_rule_generation() -> None:
@@ -88,6 +129,7 @@ def test_pipeline_rejects_preseeded_invalid_rule_even_if_present() -> None:
         )
     )
     db.commit()
+    _seed_required_rule_generation_memory_contract(db, spec_id)
 
     with pytest.raises(PipelineTransitionError, match="static validation gate failed"):
         orchestrator.run_pipeline(spec_id)
@@ -129,6 +171,7 @@ detection:
         )
     )
     db.commit()
+    _seed_required_rule_generation_memory_contract(db, spec_id)
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW
