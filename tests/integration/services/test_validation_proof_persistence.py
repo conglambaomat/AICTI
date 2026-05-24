@@ -9,7 +9,17 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
-from de_forge.models import DetectionSpec, GeneratedRule, Report, ValidationResult
+from de_forge.models import (
+    DetectionSpec,
+    GeneratedRule,
+    OracleEvaluationResult,
+    RegressionRun,
+    Report,
+    TestRun,
+    ValidationResult,
+)
+from de_forge.schemas.oracle import OracleEvaluationResult as OracleEvaluationSchema
+from de_forge.services.dynamic_validation import SyntheticValidationResult
 from de_forge.services.static_validation import ValidationReport
 from de_forge.services.validation_proof_persistence import ValidationProofPersistenceService
 
@@ -72,3 +82,85 @@ def test_record_static_validation_persists_validation_result() -> None:
         "validation_type": "static",
         "issues": ["missing logsource structure"],
     }
+
+
+def test_record_dynamic_validation_persists_test_run() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+
+    result_id = service.record_dynamic_validation(
+        run_id="run-dynamic",
+        rule_id=rule_id,
+        result=SyntheticValidationResult(
+            true_positives=2,
+            false_positives=0,
+            attack_total=2,
+            benign_total=3,
+        ),
+    )
+
+    assert len(result_id) == 36
+    test_run = db.execute(select(TestRun)).scalar_one()
+    assert test_run.id == result_id
+    assert test_run.rule_id == rule_id
+    assert test_run.run_id == "run-dynamic"
+    assert test_run.status == "passed"
+    assert json.loads(test_run.result_json) == {
+        "validation_type": "dynamic_synthetic",
+        "attack_total": 2,
+        "benign_total": 3,
+        "false_positives": 0,
+        "true_positives": 2,
+    }
+
+
+def test_record_oracle_evaluation_persists_score() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+
+    result_id = service.record_oracle_evaluation(
+        run_id="run-oracle",
+        rule_id=rule_id,
+        oracle_case_id="oracle-case-1",
+        result=OracleEvaluationSchema(
+            technique_score=1.0,
+            telemetry_score=1.0,
+            event_score=0.5,
+            benign_avoidance_score=1.0,
+            logic_family_score=1.0,
+            overall_score=0.9,
+        ),
+    )
+
+    assert len(result_id) == 36
+    oracle_result = db.execute(select(OracleEvaluationResult)).scalar_one()
+    assert oracle_result.id == result_id
+    assert oracle_result.rule_id == rule_id
+    assert oracle_result.run_id == "run-oracle"
+    assert oracle_result.oracle_case_id == "oracle-case-1"
+    assert oracle_result.score == 0.9
+    assert json.loads(oracle_result.details_json)["event_score"] == 0.5
+
+
+def test_record_regression_persists_status() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+    details = {"repeated_pattern": "bad-pattern"}
+
+    result_id = service.record_regression(
+        run_id="run-regression",
+        rule_id=rule_id,
+        passed=False,
+        details=details,
+    )
+
+    assert len(result_id) == 36
+    regression_run = db.execute(select(RegressionRun)).scalar_one()
+    assert regression_run.id == result_id
+    assert regression_run.rule_id == rule_id
+    assert regression_run.run_id == "run-regression"
+    assert regression_run.status == "failed"
+    assert json.loads(regression_run.result_json) == details
