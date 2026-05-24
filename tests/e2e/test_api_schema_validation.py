@@ -166,4 +166,3 @@ def test_legacy_assert_export_forwards_db_to_export_sigma(monkeypatch) -> None:
 
     assert captured["payload"] is payload
     assert captured["db"] is fake_db
-
