@@ -284,6 +284,54 @@ class PipelineRunRecord(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class RetrievalAuditRun(Base):
+    __tablename__ = "retrieval_audit_runs"
+    __table_args__ = (
+        CheckConstraint("length(query_hash) > 0", name="ck_retrieval_audit_runs_query_hash_non_empty"),
+        CheckConstraint("top_k > 0", name="ck_retrieval_audit_runs_top_k_positive"),
+        Index("ix_retrieval_audit_runs_run_id", "run_id"),
+        Index("ix_retrieval_audit_runs_report_id", "report_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), nullable=False)
+    query_text: Mapped[str] = mapped_column(Text(), nullable=False)
+    query_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    retrieval_mode: Mapped[str] = mapped_column(String(40), nullable=False)
+    top_k: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class RetrievalCandidate(Base):
+    __tablename__ = "retrieval_candidates"
+    __table_args__ = (
+        CheckConstraint("rank > 0", name="ck_retrieval_candidates_rank_positive"),
+        CheckConstraint("score_sparse >= 0", name="ck_retrieval_candidates_score_sparse_non_negative"),
+        CheckConstraint("score_dense >= 0", name="ck_retrieval_candidates_score_dense_non_negative"),
+        CheckConstraint("score_fused >= 0", name="ck_retrieval_candidates_score_fused_non_negative"),
+        UniqueConstraint("retrieval_run_id", "chunk_id", name="uq_retrieval_candidates_run_chunk"),
+        Index("ix_retrieval_candidates_retrieval_run_id", "retrieval_run_id"),
+        Index("ix_retrieval_candidates_run_id", "run_id"),
+        Index("ix_retrieval_candidates_report_id", "report_id"),
+        Index("ix_retrieval_candidates_chunk_id", "chunk_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    retrieval_run_id: Mapped[str] = mapped_column(
+        ForeignKey("retrieval_audit_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    report_id: Mapped[str] = mapped_column(ForeignKey("reports.id"), nullable=False)
+    chunk_id: Mapped[str] = mapped_column(ForeignKey("report_chunks.id"), nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    score_sparse: Mapped[float] = mapped_column(Float, nullable=False)
+    score_dense: Mapped[float] = mapped_column(Float, nullable=False)
+    score_fused: Mapped[float] = mapped_column(Float, nullable=False)
+    selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class ProofObligationRecord(Base):
     __tablename__ = "proof_obligations"
     __table_args__ = (

@@ -242,6 +242,40 @@ def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
     )
 
 
+def test_retrieval_audit_tables_exist_after_migration(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    assert "retrieval_audit_runs" in inspector.get_table_names()
+    assert "retrieval_candidates" in inspector.get_table_names()
+
+    run_columns = {column["name"] for column in inspector.get_columns("retrieval_audit_runs")}
+    assert {
+        "id",
+        "run_id",
+        "report_id",
+        "query_text",
+        "query_hash",
+        "retrieval_mode",
+        "top_k",
+        "created_at",
+    }.issubset(run_columns)
+
+    candidate_columns = {column["name"] for column in inspector.get_columns("retrieval_candidates")}
+    assert {
+        "id",
+        "retrieval_run_id",
+        "run_id",
+        "report_id",
+        "chunk_id",
+        "rank",
+        "score_sparse",
+        "score_dense",
+        "score_fused",
+        "selected",
+        "created_at",
+    }.issubset(candidate_columns)
+
+
 def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine) -> None:
     inspector = inspect(migrated_engine)
 
