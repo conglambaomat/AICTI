@@ -534,11 +534,11 @@ async def legacy_ingest(
     db: Session = Depends(get_db),
 ) -> ReportIngestResponse:
     assert_schema_contract_current(db)
-    content_bytes = await file.read()
     filename = file.filename or "unknown"
     if filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
 
+    content_bytes = await file.read()
     try:
         result = IngestionService(db).ingest(
             source_type="txt",
