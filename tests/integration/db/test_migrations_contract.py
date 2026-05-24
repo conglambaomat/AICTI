@@ -238,3 +238,149 @@ def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
         fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
         for fk in refinement_fks
     )
+
+
+def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    detection_columns = {column["name"] for column in inspector.get_columns("detection_specs")}
+    generated_rule_columns = {column["name"] for column in inspector.get_columns("generated_rules")}
+
+    assert {
+        "id",
+        "report_id",
+        "abstain_code",
+        "abstain_context",
+        "abstain_human_message",
+        "spec_payload",
+        "is_validated",
+    }.issubset(detection_columns)
+    assert {"id", "detection_spec_id", "query_candidate_id", "rule_content"}.issubset(
+        generated_rule_columns
+    )
+
+
+def test_migrated_breadth_tables_match_current_models(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+    tables = set(inspector.get_table_names())
+
+    assert {
+        "pipeline_runs",
+        "proof_obligations",
+        "candidate_scores",
+        "oracle_evaluation_results",
+        "regression_runs",
+        "quality_snapshots",
+    }.issubset(tables)
+
+    pipeline_columns = {column["name"] for column in inspector.get_columns("pipeline_runs")}
+    proof_columns = {column["name"] for column in inspector.get_columns("proof_obligations")}
+    candidate_columns = {column["name"] for column in inspector.get_columns("candidate_scores")}
+    oracle_columns = {column["name"] for column in inspector.get_columns("oracle_evaluation_results")}
+    regression_columns = {column["name"] for column in inspector.get_columns("regression_runs")}
+    quality_columns = {column["name"] for column in inspector.get_columns("quality_snapshots")}
+
+    assert {
+        "id",
+        "run_id",
+        "report_id",
+        "status",
+        "stage",
+        "detection_spec_id",
+        "rule_id",
+        "created_at",
+    }.issubset(pipeline_columns)
+    assert {
+        "id",
+        "run_id",
+        "rule_candidate_id",
+        "claim_type",
+        "claim_text",
+        "required_artifact_types",
+        "status",
+        "justification",
+    }.issubset(proof_columns)
+    assert {
+        "id",
+        "rule_id",
+        "run_id",
+        "score_type",
+        "score_value",
+        "score_breakdown_json",
+        "created_at",
+    }.issubset(candidate_columns)
+    assert {
+        "id",
+        "rule_id",
+        "run_id",
+        "oracle_case_id",
+        "score",
+        "details_json",
+        "created_at",
+    }.issubset(oracle_columns)
+    assert {"id", "rule_id", "run_id", "status", "result_json", "created_at"}.issubset(
+        regression_columns
+    )
+    assert {"id", "run_id", "snapshot_type", "metrics_json", "created_at"}.issubset(
+        quality_columns
+    )
+
+
+def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    pipeline_indexes = {idx["name"] for idx in inspector.get_indexes("pipeline_runs")}
+    proof_indexes = {idx["name"] for idx in inspector.get_indexes("proof_obligations")}
+    candidate_indexes = {idx["name"] for idx in inspector.get_indexes("candidate_scores")}
+    oracle_indexes = {idx["name"] for idx in inspector.get_indexes("oracle_evaluation_results")}
+    regression_indexes = {idx["name"] for idx in inspector.get_indexes("regression_runs")}
+    quality_indexes = {idx["name"] for idx in inspector.get_indexes("quality_snapshots")}
+
+    assert "ix_pipeline_runs_run_id" in pipeline_indexes
+    assert "ix_pipeline_runs_report_id" in pipeline_indexes
+    assert "ix_pipeline_runs_detection_spec_id" in pipeline_indexes
+    assert "ix_proof_obligations_rule_candidate_id" in proof_indexes
+    assert "ix_proof_obligations_run_id" in proof_indexes
+    assert "ix_candidate_scores_rule_id" in candidate_indexes
+    assert "ix_candidate_scores_run_id" in candidate_indexes
+    assert "ix_oracle_evaluation_results_rule_id" in oracle_indexes
+    assert "ix_oracle_evaluation_results_run_id" in oracle_indexes
+    assert "ix_regression_runs_rule_id" in regression_indexes
+    assert "ix_regression_runs_run_id" in regression_indexes
+    assert "ix_quality_snapshots_run_id" in quality_indexes
+
+    candidate_fks = inspector.get_foreign_keys("candidate_scores")
+    oracle_fks = inspector.get_foreign_keys("oracle_evaluation_results")
+    regression_fks = inspector.get_foreign_keys("regression_runs")
+    quality_fks = inspector.get_foreign_keys("quality_snapshots")
+
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in candidate_fks
+    )
+    assert any(fk["referred_table"] == "pipeline_runs" for fk in candidate_fks)
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in oracle_fks
+    )
+    assert any(fk["referred_table"] == "pipeline_runs" for fk in oracle_fks)
+    assert any(
+        fk["referred_table"] == "generated_rules" and fk["constrained_columns"] == ["rule_id"]
+        for fk in regression_fks
+    )
+    assert any(fk["referred_table"] == "pipeline_runs" for fk in regression_fks)
+    assert any(fk["referred_table"] == "pipeline_runs" for fk in quality_fks)
+
+    candidate_checks = {check["name"] for check in inspector.get_check_constraints("candidate_scores")}
+    oracle_checks = {
+        check["name"] for check in inspector.get_check_constraints("oracle_evaluation_results")
+    }
+    regression_checks = {check["name"] for check in inspector.get_check_constraints("regression_runs")}
+    quality_checks = {check["name"] for check in inspector.get_check_constraints("quality_snapshots")}
+
+    assert "ck_candidate_scores_score_value_between_0_and_1" in candidate_checks
+    assert "ck_candidate_scores_score_type_non_empty" in candidate_checks
+    assert "ck_oracle_evaluation_results_score_between_0_and_1" in oracle_checks
+    assert "ck_oracle_evaluation_results_oracle_case_id_non_empty" in oracle_checks
+    assert "ck_regression_runs_status_allowed" in regression_checks
+    assert "ck_quality_snapshots_snapshot_type_non_empty" in quality_checks
