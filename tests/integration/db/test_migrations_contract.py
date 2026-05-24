@@ -7,8 +7,10 @@ from pathlib import Path
 import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
+from de_forge.services.review import ReviewService
 
 
 @pytest.fixture()
@@ -384,3 +386,133 @@ def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_e
     assert "ck_oracle_evaluation_results_oracle_case_id_non_empty" in oracle_checks
     assert "ck_regression_runs_status_allowed" in regression_checks
     assert "ck_quality_snapshots_snapshot_type_non_empty" in quality_checks
+
+
+def test_review_export_gate_works_on_alembic_created_schema(migrated_engine) -> None:
+    """ReviewService must approve export against the real migrated schema."""
+    maker = sessionmaker(bind=migrated_engine, autoflush=False, autocommit=False, class_=Session)
+    db = maker()
+    try:
+        now = "2026-05-24T00:00:00+00:00"
+        db.execute(
+            text(
+                """
+                INSERT INTO reports (
+                    id,
+                    source_type,
+                    title,
+                    raw_text,
+                    content_hash,
+                    metadata_json,
+                    status,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    'report-review-gate',
+                    'txt',
+                    'Review gate report',
+                    'Report body for review gate integration test.',
+                    'hash-review-gate',
+                    '{}',
+                    'ingested',
+                    :now,
+                    :now
+                )
+                """
+            ),
+            {"now": now},
+        )
+        db.execute(
+            text(
+                """
+                INSERT INTO detection_specs (id, report_id, spec_payload, is_validated)
+                VALUES ('spec-review-gate', 'report-review-gate', '{}', 1)
+                """
+            )
+        )
+        db.execute(
+            text(
+                """
+                INSERT INTO query_candidates (
+                    id,
+                    detection_spec_id,
+                    query_id,
+                    query_type,
+                    query_language,
+                    query_text,
+                    expected_signal,
+                    selected,
+                    run_id,
+                    created_at
+                ) VALUES (
+                    'query-review-gate',
+                    'spec-review-gate',
+                    'query-review-gate',
+                    'high_precision',
+                    'kql',
+                    'DeviceProcessEvents',
+                    'process execution',
+                    1,
+                    'run-review-gate',
+                    :now
+                )
+                """
+            ),
+            {"now": now},
+        )
+        db.execute(
+            text(
+                """
+                INSERT INTO generated_rules (
+                    id,
+                    detection_spec_id,
+                    query_candidate_id,
+                    rule_content
+                ) VALUES (
+                    'rule-review-gate',
+                    'spec-review-gate',
+                    'query-review-gate',
+                    'title: Review Gate Rule'
+                )
+                """
+            )
+        )
+        db.execute(
+            text(
+                """
+                INSERT INTO proof_obligations (
+                    id,
+                    run_id,
+                    rule_candidate_id,
+                    claim_type,
+                    claim_text,
+                    required_artifact_types,
+                    status,
+                    justification
+                ) VALUES (
+                    'proof-review-gate',
+                    'run-review-gate',
+                    'rule-review-gate',
+                    'detects_report_behavior',
+                    'Rule detects report behavior.',
+                    '["evidence_quote"]',
+                    'proven',
+                    'Verified by integration seed.'
+                )
+                """
+            )
+        )
+        db.commit()
+
+        service = ReviewService(db)
+        service.record_decision(
+            rule_id="rule-review-gate",
+            decision="approved",
+            reviewer="analyst@example.com",
+            run_id="run-review-gate",
+            comments="Approved against Alembic-created schema.",
+        )
+
+        service.assert_can_export(rule_id="rule-review-gate", rule_status="awaiting_review")
+    finally:
+        db.close()
