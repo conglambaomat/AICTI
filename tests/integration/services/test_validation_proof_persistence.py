@@ -13,6 +13,7 @@ from de_forge.models import (
     DetectionSpec,
     GeneratedRule,
     OracleEvaluationResult,
+    PipelineRunRecord,
     RegressionRun,
     Report,
     TestRun,
@@ -59,6 +60,23 @@ def _seed_rule(db: Session, rule_id: str = "rule-1") -> str:
     db.add_all([report, detection_spec, rule])
     db.commit()
     return rule.id
+
+
+def _seed_pipeline_run(db: Session, *, run_id: str, rule_id: str) -> None:
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    db.add(
+        PipelineRunRecord(
+            id=f"pipeline-{run_id}",
+            run_id=run_id,
+            report_id="report-1",
+            status="ok",
+            stage="validation",
+            detection_spec_id="spec-1",
+            rule_id=rule_id,
+            created_at=now,
+        )
+    )
+    db.commit()
 
 
 def test_record_static_validation_persists_validation_result() -> None:
@@ -118,6 +136,7 @@ def test_record_dynamic_validation_persists_test_run() -> None:
 def test_record_oracle_evaluation_persists_score() -> None:
     db = _build_session()
     rule_id = _seed_rule(db)
+    _seed_pipeline_run(db, run_id="run-oracle", rule_id=rule_id)
     service = ValidationProofPersistenceService(db)
 
     result_id = service.record_oracle_evaluation(
@@ -147,6 +166,7 @@ def test_record_oracle_evaluation_persists_score() -> None:
 def test_record_regression_persists_status() -> None:
     db = _build_session()
     rule_id = _seed_rule(db)
+    _seed_pipeline_run(db, run_id="run-regression", rule_id=rule_id)
     service = ValidationProofPersistenceService(db)
     details = {"repeated_pattern": "bad-pattern"}
 

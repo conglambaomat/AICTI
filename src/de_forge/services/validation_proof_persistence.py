@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from de_forge.models import (
     GeneratedRule,
     OracleEvaluationResult,
+    PipelineRunRecord,
     RegressionRun,
     TestRun,
     ValidationResult,
@@ -29,6 +30,10 @@ class ValidationProofPersistenceService:
     def _require_rule(self, rule_id: str) -> None:
         if self.db.get(GeneratedRule, rule_id) is None:
             raise ValueError(f"rule_id {rule_id} not found")
+
+    def _require_pipeline_run(self, run_id: str) -> None:
+        if self.db.query(PipelineRunRecord).filter(PipelineRunRecord.run_id == run_id).first() is None:
+            raise ValueError(f"run_id {run_id} not found")
 
     def record_static_validation(
         self, *, run_id: str, rule_id: str, report: ValidationReport
@@ -93,6 +98,7 @@ class ValidationProofPersistenceService:
         result: OracleEvaluationSchema,
     ) -> str:
         self._require_rule(rule_id)
+        self._require_pipeline_run(run_id)
 
         created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         result_id = str(uuid4())
@@ -113,6 +119,7 @@ class ValidationProofPersistenceService:
         self, *, run_id: str, rule_id: str, passed: bool, details: dict[str, object]
     ) -> str:
         self._require_rule(rule_id)
+        self._require_pipeline_run(run_id)
 
         created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         result_id = str(uuid4())
