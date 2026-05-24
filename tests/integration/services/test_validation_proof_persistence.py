@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from de_forge.core.errors import ProofObligationError
 from de_forge.db.base import Base
 from de_forge.models import (
     DetectionSpec,
@@ -266,3 +268,55 @@ def test_generate_proof_obligations_keeps_static_only_artifacts_unknown() -> Non
         select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
     ).scalars().all()
     assert {obligation.status for obligation in obligations} == {"unknown"}
+
+
+def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    _seed_pipeline_run(db, run_id="run-selectable", rule_id=rule_id)
+    service = ValidationProofPersistenceService(db)
+    service.record_static_validation(
+        run_id="run-selectable",
+        rule_id=rule_id,
+        report=ValidationReport(is_valid=True, issues=[]),
+    )
+    service.record_dynamic_validation(
+        run_id="run-selectable",
+        rule_id=rule_id,
+        result=SyntheticValidationResult(
+            true_positives=2,
+            false_positives=0,
+            attack_total=2,
+            benign_total=3,
+        ),
+    )
+    service.record_regression(
+        run_id="run-selectable",
+        rule_id=rule_id,
+        passed=True,
+        details={"regressions": []},
+    )
+    service.generate_proof_obligations_from_artifacts(
+        run_id="run-selectable", rule_id=rule_id
+    )
+
+    assert (
+        service.verify_persisted_proofs_selectable(
+            run_id="run-selectable", rule_id=rule_id
+        )
+        is True
+    )
+
+
+def test_verify_persisted_proofs_fails_closed_on_unknown_or_missing_obligations() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+
+    with pytest.raises(ProofObligationError, match="proof obligations missing"):
+        service.verify_persisted_proofs_selectable(run_id="run-missing", rule_id=rule_id)
+
+    service.generate_proof_obligations_from_artifacts(run_id="run-unknown", rule_id=rule_id)
+
+    with pytest.raises(ProofObligationError, match="proof obligation"):
+        service.verify_persisted_proofs_selectable(run_id="run-unknown", rule_id=rule_id)

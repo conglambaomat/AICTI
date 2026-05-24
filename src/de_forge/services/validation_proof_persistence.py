@@ -9,6 +9,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from de_forge.core.errors import ProofObligationError
 from de_forge.models import (
     GeneratedRule,
     OracleEvaluationResult,
@@ -193,6 +194,29 @@ class ValidationProofPersistenceService:
             )
         self.db.commit()
         return obligation_ids
+
+    def verify_persisted_proofs_selectable(self, *, run_id: str, rule_id: str) -> bool:
+        obligations = (
+            self.db.execute(
+                select(ProofObligationRecord).where(
+                    ProofObligationRecord.run_id == run_id,
+                    ProofObligationRecord.rule_candidate_id == rule_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not obligations:
+            raise ProofObligationError("proof obligations missing")
+        for obligation in obligations:
+            if obligation.status == "proven":
+                continue
+            if obligation.status == "not_applicable" and obligation.justification:
+                continue
+            raise ProofObligationError(
+                f"proof obligation {obligation.claim_type} is {obligation.status}"
+            )
+        return True
 
     def _has_passed_static_validation(self, run_id: str, rule_id: str) -> bool:
         return (
