@@ -130,7 +130,9 @@ def test_valid_evidence_persists_with_lineage_fields() -> None:
 def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
     """Evidence offsets are absolute and must stay within non-zero chunk bounds."""
     db = _build_session()
-    report_id, chunk_id = _seed_report_and_chunk(db, chunk_char_start=100)
+    report_id, chunk_id = _seed_report_and_chunk(
+        db, chunk_text="prefix powershell -enc abc suffix", chunk_char_start=100
+    )
     service = EvidenceService(db)
 
     result = service.persist_evidence(
@@ -142,8 +144,8 @@ def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
                 evidence_id="evidence-2",
                 chunk_id=chunk_id,
                 quote="powershell -enc",
-                char_start=100,
-                char_end=115,
+                char_start=107,
+                char_end=122,
                 supports_claim="PowerShell execution detected",
                 confidence=0.88,
             )
@@ -153,8 +155,9 @@ def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
     assert result == ["evidence-2"]
 
     persisted = db.execute(select(EvidenceSpan).where(EvidenceSpan.id == "evidence-2")).scalar_one()
-    assert persisted.char_start == 100
-    assert persisted.char_end == 115
+    assert persisted.quote == "powershell -enc"
+    assert persisted.char_start == 107
+    assert persisted.char_end == 122
     assert persisted.chunk_id == chunk_id
 
 
@@ -179,6 +182,35 @@ def test_evidence_quote_must_match_persisted_chunk_text_at_absolute_offsets() ->
                     char_end=73,
                     supports_claim="Encoded PowerShell execution observed",
                     confidence=0.91,
+                )
+            ],
+        )
+
+    persisted = (
+        db.execute(select(EvidenceSpan).where(EvidenceSpan.report_id == report_id)).scalars().all()
+    )
+    assert persisted == []
+
+
+def test_evidence_rejects_zero_length_span_even_when_quote_is_non_empty() -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report_and_chunk(db)
+    service = EvidenceService(db)
+
+    with pytest.raises(EvidenceExtractionError, match="quote does not match chunk text"):
+        service.persist_evidence(
+            report_id=report_id,
+            run_id="run-zero-length",
+            created_by_agent="evidence-agent",
+            evidence=[
+                EvidenceInput(
+                    evidence_id="evidence-zero-length",
+                    chunk_id=chunk_id,
+                    quote="powershell",
+                    char_start=0,
+                    char_end=0,
+                    supports_claim="PowerShell execution detected",
+                    confidence=0.8,
                 )
             ],
         )
