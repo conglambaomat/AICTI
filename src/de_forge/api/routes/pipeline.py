@@ -474,14 +474,16 @@ async def legacy_run_pipeline(payload: PipelineRunRequest) -> PipelineRunRespons
 
 @legacy_router.post("/review/decision", response_model=None, status_code=201)
 async def legacy_review_decision(
-    payload: ReviewRequest,
+    payload: ReviewRequest, db: Session = Depends(get_db)
 ) -> ReviewResponse | JSONResponse:
-    return await create_review(payload)
+    return await create_review(payload, db=db)
 
 
 @legacy_router.post("/review/assert-export", response_model=None)
-async def legacy_assert_export(payload: ExportSigmaRequest) -> ExportSigmaResponse | JSONResponse:
-    return await export_sigma(payload)
+async def legacy_assert_export(
+    payload: ExportSigmaRequest, db: Session = Depends(get_db)
+) -> ExportSigmaResponse | JSONResponse:
+    return await export_sigma(payload, db=db)
 
 
 @legacy_router.post("/ingest", response_model=ReportIngestResponse, status_code=201)
