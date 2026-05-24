@@ -75,18 +75,29 @@ class ReviewService:
         if "comments" in columns:
             payload["comments"] = comments
 
+        handoff_scope = f"{rule_id}:review.handoff"
         try:
             db.execute(text(self._build_review_insert_sql(columns)), payload)
             db.execute(
                 text(
                     """
+                    DELETE FROM memory_views
+                    WHERE scope = :scope AND key = :key
+                    """
+                ),
+                {"scope": handoff_scope, "key": "latest"},
+            )
+            db.execute(
+                text(
+                    """
                     INSERT INTO memory_views (id, scope, key, value, updated_at)
-                    VALUES (:id, :scope, 'latest', :value, :updated_at)
+                    VALUES (:id, :scope, :key, :value, :updated_at)
                     """
                 ),
                 {
                     "id": f"mv-{decision_id}",
-                    "scope": f"{rule_id}:review.handoff",
+                    "scope": handoff_scope,
+                    "key": "latest",
                     "value": json.dumps(
                         {
                             "approved": decision == "approved",

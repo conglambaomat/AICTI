@@ -103,12 +103,45 @@ def test_export_blocked_when_latest_decision_is_rejected() -> None:
     service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
     service.record_decision(rule_id=rule_id, decision="rejected", reviewer="dave")
 
-    with pytest.raises(ExportBlockedError, match="human approval required"):
+    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
 
     latest = service._get_latest_decision(rule_id)
     assert latest is not None
     assert latest.rule_id == rule_id
+
+
+def test_rejected_then_approved_replaces_latest_review_handoff_memory() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-rejected-then-approved"
+    service.record_decision(rule_id=rule_id, decision="rejected", reviewer="alice")
+    approved_decision_id = service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="bob",
+    )
+
+    service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+    rows = (
+        db.execute(
+            text(
+                """
+                SELECT value
+                FROM memory_views
+                WHERE scope = :scope AND key = 'latest'
+                """
+            ),
+            {"scope": f"{rule_id}:review.handoff"},
+        )
+        .mappings()
+        .all()
+    )
+    assert len(rows) == 1
+    assert '"approved": true' in rows[0]["value"]
+    assert f'"decision_id": "{approved_decision_id}"' in rows[0]["value"]
 
 
 def _required_obligations(rule_id: str) -> list[ProofObligation]:
