@@ -21,9 +21,11 @@ from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.agent_audit import AgentAuditService
 from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
 from de_forge.services.refinement import RefinementLimitExceededError, RefinementService
+from de_forge.services.dynamic_validation import DynamicValidationService
 from de_forge.services.rule_generation import RuleGenerationService
 from de_forge.services.state_machine import StateMachine
 from de_forge.services.static_validation import StaticValidationService
+from de_forge.services.validation_proof_persistence import ValidationProofPersistenceService
 
 
 class Orchestrator:
@@ -67,6 +69,8 @@ class PipelineOrchestrator:
         self.agent_audit = AgentAuditService(db)
         self.refinement = RefinementService(db)
         self.memory_policy = MemoryPolicyEngine()
+        self.validation_proof = ValidationProofPersistenceService(db)
+        self.dynamic_validator = DynamicValidationService()
 
     def run_report_pipeline(self, *, report_id: str, run_id: str) -> PipelineRunRecordModel:
         report = self.db.get(ReportModel, report_id)
@@ -158,7 +162,33 @@ class PipelineOrchestrator:
             )
             raise PipelineTransitionError("generated rule required before validation")
 
-        validation = self.static_validator.validate_rule(rule.id)
+        self._remember_pipeline_run(
+            run_id=run_id,
+            report_id=report_id,
+            status="running",
+            stage="validation_in_progress",
+            detection_spec_id=spec.id,
+            rule_id=rule.id,
+        )
+
+        try:
+            validation = self.static_validator.validate_rule(rule.id)
+            self.validation_proof.record_static_validation(
+                run_id=run_id,
+                rule_id=rule.id,
+                report=validation,
+            )
+        except Exception as exc:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="static_validation_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("static validation gate failed") from exc
+
         if not validation.is_valid:
             self._remember_pipeline_run(
                 run_id=run_id,
@@ -170,15 +200,73 @@ class PipelineOrchestrator:
             )
             raise PipelineTransitionError("static validation gate failed")
 
-        self._remember_pipeline_run(
+        try:
+            dynamic_result = self.dynamic_validator.run_synthetic_validation(
+                rule.rule_content,
+                attack_events=[{"CommandLine": "powershell -EncodedCommand abc", "Image": "powershell.exe"}],
+                benign_events=[{"CommandLine": "cmd.exe /c whoami", "Image": "cmd.exe"}],
+            )
+            self.validation_proof.record_dynamic_validation(
+                run_id=run_id,
+                rule_id=rule.id,
+                result=dynamic_result,
+            )
+        except Exception as exc:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="dynamic_validation_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("dynamic validation gate failed") from exc
+
+        if dynamic_result.true_positives != dynamic_result.attack_total or dynamic_result.false_positives:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="dynamic_validation_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("dynamic validation gate failed")
+
+        try:
+            self.validation_proof.record_regression(
+                run_id=run_id,
+                rule_id=rule.id,
+                passed=True,
+                details={"source": "orchestrator_synthetic_regression_gate"},
+            )
+            self.validation_proof.generate_proof_obligations_from_artifacts(
+                run_id=run_id,
+                rule_id=rule.id,
+            )
+            self.validation_proof.verify_persisted_proofs_selectable(
+                run_id=run_id,
+                rule_id=rule.id,
+            )
+        except Exception as exc:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="proof_validation_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("proof validation gate failed") from exc
+
+        return self._remember_pipeline_run(
             run_id=run_id,
             report_id=report_id,
-            status="failed",
-            stage="evaluation_depth_required",
+            status="ok",
+            stage="awaiting_review",
             detection_spec_id=spec.id,
             rule_id=rule.id,
         )
-        raise PipelineTransitionError("evaluation-depth gate failed before review")
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(

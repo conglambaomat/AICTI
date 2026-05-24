@@ -12,11 +12,17 @@ from de_forge.models import (
     DetectionSpec,
     GeneratedRule,
     PipelineRunRecord,
+    ProofObligationRecord,
+    RegressionRun,
+    TestRun,
     Report,
     ReportChunk,
+    ValidationResult,
 )
 from de_forge.services.evidence import EvidenceInput, EvidenceService
+from de_forge.services.dynamic_validation import SyntheticValidationResult
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
+from de_forge.services.validation_proof_persistence import ValidationProofPersistenceService
 
 
 def _build_session() -> Session:
@@ -149,8 +155,7 @@ def test_run_report_pipeline_generates_rule_from_validated_detection_spec() -> N
     _persist_evidence(db, report_id, chunk_id, run_id="run-rule")
     spec_id = _persist_validated_spec(db, report_id)
 
-    with pytest.raises(PipelineTransitionError, match="evaluation-depth gate failed"):
-        PipelineOrchestrator(db).run_report_pipeline(report_id=report_id, run_id="run-rule")
+    record = PipelineOrchestrator(db).run_report_pipeline(report_id=report_id, run_id="run-rule")
 
     rule = db.execute(
         select(GeneratedRule).where(GeneratedRule.detection_spec_id == spec_id)
@@ -158,10 +163,8 @@ def test_run_report_pipeline_generates_rule_from_validated_detection_spec() -> N
     assert rule.rule_content is not None
     assert "CommandLine|contains" in rule.rule_content
     assert "powershell" in rule.rule_content
-    record = db.execute(
-        select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-rule")
-    ).scalar_one()
-    assert record.stage == "evaluation_depth_required"
+    assert record.status == "ok"
+    assert record.stage == "awaiting_review"
     assert record.detection_spec_id == spec_id
     assert record.rule_id == rule.id
 
@@ -201,17 +204,164 @@ def test_run_report_pipeline_regenerates_when_existing_rule_has_empty_content() 
     )
     db.commit()
 
-    with pytest.raises(PipelineTransitionError, match="evaluation-depth gate failed"):
-        PipelineOrchestrator(db).run_report_pipeline(
-            report_id=report_id, run_id="run-empty-rule"
-        )
+    record = PipelineOrchestrator(db).run_report_pipeline(
+        report_id=report_id, run_id="run-empty-rule"
+    )
 
     rules = db.execute(
         select(GeneratedRule).where(GeneratedRule.detection_spec_id == spec_id)
     ).scalars().all()
     assert any(rule.rule_content and "CommandLine|contains" in rule.rule_content for rule in rules)
-    record = db.execute(
-        select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-empty-rule")
-    ).scalar_one()
-    assert record.stage == "evaluation_depth_required"
+    assert record.status == "ok"
+    assert record.stage == "awaiting_review"
     assert record.rule_id != "empty-rule"
+
+
+def test_run_report_pipeline_persists_validation_proof_and_awaits_review() -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report(db)
+    _persist_evidence(db, report_id, chunk_id, run_id="run-success")
+    spec_id = _persist_validated_spec(db, report_id)
+
+    record = PipelineOrchestrator(db).run_report_pipeline(
+        report_id=report_id,
+        run_id="run-success",
+    )
+
+    assert record.status == "ok"
+    assert record.stage == "awaiting_review"
+    assert record.detection_spec_id == spec_id
+    assert record.rule_id is not None
+
+    validations = db.execute(
+        select(ValidationResult).where(ValidationResult.run_id == "run-success")
+    ).scalars().all()
+    assert [validation.status for validation in validations] == ["passed"]
+
+    dynamic_runs = db.execute(
+        select(TestRun).where(TestRun.run_id == "run-success")
+    ).scalars().all()
+    assert [dynamic_run.status for dynamic_run in dynamic_runs] == ["passed"]
+    assert json.loads(dynamic_runs[0].result_json)["validation_type"] == "dynamic_synthetic"
+
+    regression_runs = db.execute(
+        select(RegressionRun).where(RegressionRun.run_id == "run-success")
+    ).scalars().all()
+    assert [regression_run.status for regression_run in regression_runs] == ["passed"]
+
+    obligations = db.execute(
+        select(ProofObligationRecord).where(ProofObligationRecord.run_id == "run-success")
+    ).scalars().all()
+    assert obligations
+    assert {obligation.status for obligation in obligations} == {"proven"}
+
+
+def test_run_report_pipeline_preserves_static_validation_exception_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report(db)
+    _persist_evidence(db, report_id, chunk_id, run_id="run-static-exception")
+    spec_id = _persist_validated_spec(db, report_id)
+
+    orchestrator = PipelineOrchestrator(db)
+
+    def fail_static_validation(rule_id: str) -> object:
+        del rule_id
+        raise RuntimeError("static validator unavailable")
+
+    monkeypatch.setattr(
+        orchestrator.static_validator,
+        "validate_rule",
+        fail_static_validation,
+    )
+
+    with pytest.raises(PipelineTransitionError, match="static validation gate failed"):
+        orchestrator.run_report_pipeline(
+            report_id=report_id,
+            run_id="run-static-exception",
+        )
+
+    record = db.execute(
+        select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-static-exception")
+    ).scalar_one()
+    assert record.status == "failed"
+    assert record.stage == "static_validation_failed"
+    assert record.detection_spec_id == spec_id
+    assert record.rule_id is not None
+
+
+def test_run_report_pipeline_preserves_dynamic_validation_failure_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report(db)
+    _persist_evidence(db, report_id, chunk_id, run_id="run-dynamic-fail")
+    spec_id = _persist_validated_spec(db, report_id)
+
+    def fail_dynamic_validation(
+        rule: str,
+        attack_events: list[dict[str, object]],
+        benign_events: list[dict[str, object]],
+    ) -> SyntheticValidationResult:
+        del rule, attack_events, benign_events
+        return SyntheticValidationResult(
+            true_positives=0,
+            false_positives=1,
+            attack_total=1,
+            benign_total=1,
+        )
+
+    orchestrator = PipelineOrchestrator(db)
+    monkeypatch.setattr(
+        orchestrator.dynamic_validator,
+        "run_synthetic_validation",
+        fail_dynamic_validation,
+    )
+
+    with pytest.raises(PipelineTransitionError, match="dynamic validation gate failed"):
+        orchestrator.run_report_pipeline(
+            report_id=report_id,
+            run_id="run-dynamic-fail",
+        )
+
+    record = db.execute(
+        select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-dynamic-fail")
+    ).scalar_one()
+    assert record.status == "failed"
+    assert record.stage == "dynamic_validation_failed"
+    assert record.detection_spec_id == spec_id
+    assert record.rule_id is not None
+
+
+def test_run_report_pipeline_fails_closed_when_proof_verification_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report(db)
+    _persist_evidence(db, report_id, chunk_id, run_id="run-proof-fail")
+    spec_id = _persist_validated_spec(db, report_id)
+
+    def fail_verification(
+        self: ValidationProofPersistenceService, *, run_id: str, rule_id: str
+    ) -> bool:
+        del self, run_id, rule_id
+        raise RuntimeError("proof verifier unavailable")
+
+    monkeypatch.setattr(
+        ValidationProofPersistenceService,
+        "verify_persisted_proofs_selectable",
+        fail_verification,
+    )
+
+    with pytest.raises(PipelineTransitionError, match="proof validation gate failed"):
+        PipelineOrchestrator(db).run_report_pipeline(
+            report_id=report_id,
+            run_id="run-proof-fail",
+        )
+
+    record = db.execute(
+        select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-proof-fail")
+    ).scalar_one()
+    assert record.status == "failed"
+    assert record.stage == "proof_validation_failed"
+    assert record.detection_spec_id == spec_id
+    assert record.rule_id is not None
