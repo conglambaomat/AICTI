@@ -57,3 +57,13 @@ def test_review_assert_export_route_rejects_missing_payload() -> None:
 def test_ingestion_route_rejects_missing_file() -> None:
     response = client.post("/ingest")
     assert response.status_code == 422
+
+
+def test_ingestion_route_rejects_pdf_with_stable_unsupported_error() -> None:
+    response = client.post(
+        "/ingest",
+        files={"file": ("report.pdf", b"%PDF-1.7 fake content", "application/pdf")},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["detail"] == "PDF ingestion is not supported"

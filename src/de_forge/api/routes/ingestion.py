@@ -33,10 +33,9 @@ async def ingest_report(
         raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
     filename = file.filename or "unknown"
 
-    # Determine source type from filename extension
-    source_type = "txt"
     if filename.lower().endswith(".pdf"):
-        source_type = "pdf"
+        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
+    source_type = "txt"
 
     service = IngestionService(db)
     try:

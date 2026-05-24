@@ -529,11 +529,28 @@ async def legacy_assert_export(
 
 
 @legacy_router.post("/ingest", response_model=ReportIngestResponse, status_code=201)
-async def legacy_ingest(file: UploadFile = File(...)) -> ReportIngestResponse:
-    _ = await file.read()
+async def legacy_ingest(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> ReportIngestResponse:
+    assert_schema_contract_current(db)
+    content_bytes = await file.read()
+    filename = file.filename or "unknown"
+    if filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
+
+    try:
+        result = IngestionService(db).ingest(
+            source_type="txt",
+            filename=filename,
+            content_bytes=content_bytes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return ReportIngestResponse(
-        report_id=f"rep_{uuid4().hex[:12]}",
+        report_id=result.report_id,
         status="ingested",
         trace_id=f"trc_{uuid4().hex[:12]}",
-        chunk_count=0,
+        chunk_count=len(result.chunks),
     )

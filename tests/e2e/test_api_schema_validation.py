@@ -90,6 +90,21 @@ def test_reports_ingest_is_idempotent_by_content_hash() -> None:
     assert first.json()["chunk_count"] == second.json()["chunk_count"] == 2
 
 
+def test_reports_ingest_rejects_pdf_with_stable_unsupported_error() -> None:
+    response = client.post(
+        "/v1/reports:ingest",
+        json={
+            "source_type": "pdf",
+            "content": "%PDF-1.7 fake content",
+            "external_ref": "report.pdf",
+            "metadata": {},
+        },
+    )
+
+    assert response.status_code == 415
+    assert response.json()["detail"] == "PDF ingestion is not supported"
+
+
 def test_review_rejects_invalid_decision_before_persistence() -> None:
     response = client.post(
         "/v1/reviews",
