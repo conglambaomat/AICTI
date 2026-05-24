@@ -63,6 +63,32 @@ def test_post_review_rejection() -> None:
     assert body["decision"] == "rejected"
 
 
+
+def test_post_review_rejects_invalid_decision() -> None:
+    seed = client.post("/v1/pipeline:seed")
+    assert seed.status_code == 201
+    report_id = seed.json()["report_id"]
+
+    run_response = client.post(
+        "/v1/pipeline:run",
+        json={"report_id": report_id, "profile": "balanced"},
+    )
+    assert run_response.status_code == 200
+    run_id = run_response.json()["run_id"]
+
+    response = client.post(
+        "/v1/reviews",
+        json={
+            "run_id": run_id,
+            "reviewer": "analyst@example.com",
+            "decision": "maybe",
+            "comments": "Invalid review decision.",
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_export_sigma_requires_approval() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201

@@ -426,7 +426,11 @@ async def create_review(
 
     service = ReviewService(db)
     decision_id = service.record_decision(
-        rule_id=rule_id, decision=payload.decision, reviewer=payload.reviewer
+        rule_id=rule_id,
+        decision=payload.decision,
+        reviewer=payload.reviewer,
+        run_id=payload.run_id,
+        comments=payload.comments,
     )
     return ReviewResponse(
         review_id=decision_id,
