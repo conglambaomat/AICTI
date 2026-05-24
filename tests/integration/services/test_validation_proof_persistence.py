@@ -246,3 +246,23 @@ def test_generate_proof_obligations_marks_missing_artifacts_unknown() -> None:
         select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
     ).scalars().all()
     assert {obligation.status for obligation in obligations} == {"unknown"}
+
+
+def test_generate_proof_obligations_keeps_static_only_artifacts_unknown() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+    service.record_static_validation(
+        run_id="run-static-only-proof",
+        rule_id=rule_id,
+        report=ValidationReport(is_valid=True, issues=[]),
+    )
+
+    obligation_ids = service.generate_proof_obligations_from_artifacts(
+        run_id="run-static-only-proof", rule_id=rule_id
+    )
+
+    obligations = db.execute(
+        select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
+    ).scalars().all()
+    assert {obligation.status for obligation in obligations} == {"unknown"}

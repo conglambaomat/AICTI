@@ -145,30 +145,31 @@ class ValidationProofPersistenceService:
         static_passed = self._has_passed_static_validation(run_id, rule_id)
         dynamic_passed = self._has_passed_dynamic_validation(run_id, rule_id)
         regression_passed = self._has_passed_regression(run_id, rule_id)
+        all_required_artifacts_passed = static_passed and dynamic_passed and regression_passed
         obligation_definitions = [
             (
                 "detects_report_behavior",
                 "Rule detects the behavior described by the report.",
                 ["static_validation", "dynamic_validation"],
-                static_passed and dynamic_passed,
+                all_required_artifacts_passed,
             ),
             (
                 "not_overbroad",
                 "Rule is not overbroad against regression coverage.",
                 ["static_validation", "regression"],
-                static_passed and regression_passed,
+                all_required_artifacts_passed,
             ),
             (
                 "telemetry_fields_exist",
                 "Rule telemetry fields exist in validated schema.",
                 ["static_validation"],
-                static_passed,
+                all_required_artifacts_passed,
             ),
             (
                 "citation_faithful",
                 "Rule citations are faithful to validated evidence.",
                 ["static_validation"],
-                static_passed,
+                all_required_artifacts_passed,
             ),
         ]
 
