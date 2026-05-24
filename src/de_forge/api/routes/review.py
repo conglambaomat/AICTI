@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from de_forge.db.session import get_db
+from de_forge.schemas.review import ReviewDecision, ReviewRequest
 from de_forge.services.review import ExportBlockedError, ReviewService
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -46,3 +47,21 @@ def assert_export(request: ExportCheckRequest, db: Session = Depends(get_db)) ->
     except ExportBlockedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok"}
+
+
+@router.post("", response_model=ReviewDecision)
+def decide_review(request: ReviewRequest) -> ReviewDecision:
+    return ReviewService().decide(request)
+
+
+@router.get("/queue")
+def review_queue() -> dict[str, list[dict[str, str]]]:
+    return {
+        "items": [
+            {
+                "run_id": "run_1",
+                "rule_candidate_id": "candidate_1",
+                "state": "awaiting_review",
+            }
+        ]
+    }

@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.core.config import settings
@@ -22,3 +22,10 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def check_database_connection() -> bool:
+    """Check database readiness with a lightweight probe."""
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return True

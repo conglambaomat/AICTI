@@ -77,13 +77,33 @@ def test_invalid_technique_id_fails_contract_gate() -> None:
                 AttackMappingInput(
                     mapping_id="map-1",
                     evidence_id=evidence_id,
-                    technique_id="T9999",
+                    technique_id="NOT_ATTACK",
                     confidence=0.8,
                 )
             ],
         )
 
-    assert "not in MVP allowlist" in str(exc_info.value)
+    assert "must match format" in str(exc_info.value)
+
+
+def test_non_mvp_but_valid_attack_technique_is_accepted() -> None:
+    db = _build_session()
+    report_id, evidence_id = _seed_report_chunk_evidence(db)
+    service = AttackMappingService(db)
+
+    mapping_ids = service.persist_mappings(
+        report_id=report_id,
+        mappings=[
+            AttackMappingInput(
+                mapping_id="map-non-mvp",
+                evidence_id=evidence_id,
+                technique_id="T1547",
+                confidence=0.8,
+            )
+        ],
+    )
+
+    assert mapping_ids == ["map-non-mvp"]
 
 
 def test_valid_mapping_persists_attack_mapping_row() -> None:

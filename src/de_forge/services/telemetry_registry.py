@@ -1,4 +1,4 @@
-"""Telemetry registry for MVP allowed telemetry and fields."""
+"""Telemetry registry for supported telemetry types and allowed fields."""
 
 from __future__ import annotations
 
@@ -34,11 +34,43 @@ PROCESS_CREATION_ALLOWED_FIELDS = frozenset(
     }
 )
 
+FILE_EVENT_ALLOWED_FIELDS = frozenset(
+    {
+        "TargetFilename",
+        "Image",
+        "User",
+        "ProcessGuid",
+        "ProcessId",
+        "CommandLine",
+        "Hashes",
+    }
+)
+
+NETWORK_CONNECTION_ALLOWED_FIELDS = frozenset(
+    {
+        "Image",
+        "User",
+        "Protocol",
+        "SourceIp",
+        "SourcePort",
+        "DestinationIp",
+        "DestinationPort",
+    }
+)
+
 TELEMETRY_REGISTRY: dict[str, TelemetryRegistryEntry] = {
     "process_creation": TelemetryRegistryEntry(
         telemetry_type="process_creation",
         allowed_fields=PROCESS_CREATION_ALLOWED_FIELDS,
-    )
+    ),
+    "file_event": TelemetryRegistryEntry(
+        telemetry_type="file_event",
+        allowed_fields=FILE_EVENT_ALLOWED_FIELDS,
+    ),
+    "network_connection": TelemetryRegistryEntry(
+        telemetry_type="network_connection",
+        allowed_fields=NETWORK_CONNECTION_ALLOWED_FIELDS,
+    ),
 }
 
 
@@ -54,3 +86,19 @@ def validate_required_fields(telemetry_type: str, required_fields: list[str]) ->
         return required_fields
 
     return [field for field in required_fields if field not in entry.allowed_fields]
+
+
+def fields_for_source(source_id: str) -> list[str]:
+    """Return allowed fields for a known telemetry source, or raise KeyError."""
+    entry = TELEMETRY_REGISTRY.get(source_id)
+    if entry is None:
+        raise KeyError(source_id)
+    return sorted(entry.allowed_fields)
+
+
+def field_exists(source_id: str, field_name: str) -> bool:
+    """Return whether a field exists for a telemetry source."""
+    entry = TELEMETRY_REGISTRY.get(source_id)
+    if entry is None:
+        return False
+    return field_name in entry.allowed_fields

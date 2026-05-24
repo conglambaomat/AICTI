@@ -30,7 +30,7 @@ def test_query_refinement_stops_at_three_iterations() -> None:
     detection_spec_id = "spec-query-limit"
 
     # First 3 iterations succeed
-    for i in range(MAX_QUERY_REFINEMENT):
+    for _ in range(MAX_QUERY_REFINEMENT):
         service.record_query_refinement(detection_spec_id=detection_spec_id)
 
     # Fourth iteration must fail
@@ -46,7 +46,7 @@ def test_rule_refinement_stops_at_two_iterations() -> None:
     rule_id = "rule-limit"
 
     # First 2 iterations succeed
-    for i in range(MAX_RULE_REFINEMENT):
+    for _ in range(MAX_RULE_REFINEMENT):
         service.record_rule_refinement(rule_id=rule_id)
 
     # Third iteration must fail
@@ -62,7 +62,7 @@ def test_dynamic_refinement_stops_at_two_iterations() -> None:
     rule_id = "rule-dynamic-limit"
 
     # First 2 iterations succeed
-    for i in range(MAX_DYNAMIC_REFINEMENT):
+    for _ in range(MAX_DYNAMIC_REFINEMENT):
         service.record_dynamic_refinement(rule_id=rule_id)
 
     # Third iteration must fail

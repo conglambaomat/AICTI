@@ -1,17 +1,24 @@
 """End-to-end pipeline tests for positive/adversarial and deterministic replay."""
 
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from de_forge.db.base import Base
-from de_forge.models import DetectionSpec as DetectionSpecModel
-from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.orchestrator import PipelineOrchestrator, PipelineState, PipelineTransitionError
+from de_forge.models.contract import DetectionSpec as DetectionSpecModel
+from de_forge.models.contract import GeneratedRule as GeneratedRuleModel
+from de_forge.models.contract import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models.contract import ValidationResult as ValidationResultModel
+from de_forge.services.orchestrator import (
+    PipelineOrchestrator,
+    PipelineState,
+    PipelineTransitionError,
+)
 
 
 def _build_session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(bind=engine)
+    DetectionSpecModel.metadata.create_all(bind=engine)
+    GeneratedRuleModel.metadata.create_all(bind=engine)
     maker = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
     return maker()
 
@@ -21,7 +28,7 @@ def _seed_positive(db: Session, spec_id: str, rule_id: str) -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-positive",
-            spec_payload='{"report_id":"report-positive","behavior_rules":[{"evidence":["attacker used powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"validate against synthetic corpus"}',
+            spec_payload='{"report_id":"report-positive","behavior_rules":[{"evidence":["attacker used powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"validate against synthetic corpus","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -41,6 +48,69 @@ detection:
 """,
         )
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
+        },
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-1",
+            run_id=spec_id,
+            rule_candidate_id=rule_id,
+            claim_type="citation_faithful",
+            claim_text="Citations are faithful.",
+            required_artifact_types='["citation_verification"]',
+            status="proven",
+            justification=None,
+        )
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-2",
+            run_id=spec_id,
+            rule_candidate_id=rule_id,
+            claim_type="not_overbroad",
+            claim_text="Rule is not overbroad.",
+            required_artifact_types='["false_positive_analysis"]',
+            status="proven",
+            justification=None,
+        )
+    )
+    for idx in range(1, 5):
+        db.add(
+            ValidationResultModel(
+                id=f"vr-{spec_id}-{idx}",
+                rule_id=rule_id,
+                run_id=spec_id,
+                status="passed",
+                details_json="{}",
+                created_at=f"2026-05-23T00:00:0{idx}Z",
+            )
+        )
     db.commit()
 
 
@@ -76,11 +146,8 @@ def test_e2e_ambiguous_report_abstains() -> None:
     spec_id = "e2e-spec-ambiguous"
     _seed_ambiguous_abstain(db, spec_id=spec_id)
 
-    try:
+    with pytest.raises(PipelineTransitionError, match="abstain"):
         orchestrator.run_pipeline(spec_id)
-        assert False, "expected PipelineTransitionError"
-    except PipelineTransitionError as exc:
-        assert "abstain" in str(exc).lower()
 
 
 def test_deterministic_replay_same_input_same_transitions_and_idempotency() -> None:

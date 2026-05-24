@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/retrieval_result.schema.json",
+  "title": "RetrievalResult",
+  "type": "object",
+  "required": ["query", "results", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "query": {"type": "string", "minLength": 1},
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "chunk_id",
+          "text",
+          "score_sparse",
+          "score_dense",
+          "score_fused",
+          "rank"
+        ],
+        "properties": {
+          "chunk_id": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "score_sparse": {"type": "number"},
+          "score_dense": {"type": "number"},
+          "score_fused": {"type": "number"},
+          "rerank_score": {"type": "number"},
+          "rank": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retrieval_k", "latency_ms"],
+      "properties": {
+        "retrieval_k": {"type": "integer", "minimum": 1},
+        "latency_ms": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

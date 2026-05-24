@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from hashlib import sha256
 
 from sqlalchemy import select
@@ -73,6 +74,7 @@ class IngestionService:
                 ],
             )
 
+        created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         report = Report(
             id=make_idempotency_key(
                 "report",
@@ -85,8 +87,8 @@ class IngestionService:
             content_hash=content_hash,
             metadata_json="{}",
             status="ingested",
-            created_at="1970-01-01T00:00:00Z",
-            updated_at="1970-01-01T00:00:00Z",
+            created_at=created_at,
+            updated_at=created_at,
         )
 
         chunks = self._build_chunks(report_id=report.id, text=raw_text)
@@ -104,7 +106,7 @@ class IngestionService:
                         char_start=chunk.char_start,
                         char_end=chunk.char_end,
                         chunk_type="paragraph",
-                        created_at="1970-01-01T00:00:00Z",
+                        created_at=created_at,
                     )
                 )
             self.db.commit()

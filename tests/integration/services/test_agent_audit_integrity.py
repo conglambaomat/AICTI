@@ -1,13 +1,19 @@
 """Integration tests for agent audit integrity verification."""
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.core.hashing import snapshot_hash
 from de_forge.db.base import Base
 from de_forge.models import AgentRun as AgentRunModel
+from de_forge.models import DetectionSpec as DetectionSpecModel
+from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.models import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models import RefinementIteration as RefinementIterationModel
+from de_forge.models import ValidationResult as ValidationResultModel
 from de_forge.services.agent_audit import AgentAuditService, IntegrityError
+from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
 
 
 def _build_session() -> Session:
@@ -27,7 +33,6 @@ def test_agent_run_read_fails_on_hash_mismatch() -> None:
     input_snapshot = {"prompt": "test", "context": "data"}
     output_snapshot = {"result": "output"}
 
-    correct_input_hash = snapshot_hash(input_snapshot)
     tampered_input_hash = "tampered-hash-value"
 
     db.add(
@@ -101,7 +106,159 @@ def test_agent_run_persist_stores_hashes() -> None:
         status="completed",
     )
 
-    # Verify hashes were computed and stored
     persisted = db.query(AgentRunModel).filter_by(id=run_id).one()
     assert persisted.input_hash == snapshot_hash(input_snapshot)
     assert persisted.output_hash == snapshot_hash(output_snapshot)
+
+
+def test_pipeline_orchestrator_persists_agent_audit_records_per_stage() -> None:
+    db = _build_session()
+    spec_id = "spec-audit"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-audit",
+            spec_payload='{"report_id":"report-audit","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
+            is_validated=True,
+        )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
+        },
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-1",
+            run_id=spec_id,
+            rule_candidate_id=f"rule-{spec_id}-1",
+            claim_type="citation_faithful",
+            claim_text="Citations are faithful.",
+            required_artifact_types='["citation_verification"]',
+            status="proven",
+            justification=None,
+        )
+    )
+    db.add(
+        ProofObligationRecordModel(
+            id=f"po-{spec_id}-2",
+            run_id=spec_id,
+            rule_candidate_id=f"rule-{spec_id}-1",
+            claim_type="not_overbroad",
+            claim_text="Rule is not overbroad.",
+            required_artifact_types='["false_positive_analysis"]',
+            status="proven",
+            justification=None,
+        )
+    )
+    db.add(
+        GeneratedRuleModel(
+            id=f"rule-{spec_id}-1",
+            detection_spec_id=spec_id,
+            rule_content="""title: detect powershell
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    Image|contains: 'powershell'
+  condition: selection
+""",
+        )
+    )
+    for idx in range(1, 5):
+        db.add(
+            ValidationResultModel(
+                id=f"vr-{spec_id}-{idx}",
+                rule_id=f"rule-{spec_id}-1",
+                run_id=spec_id,
+                status="passed",
+                details_json="{}",
+                created_at=f"2026-05-23T00:00:0{idx}Z",
+            )
+        )
+    db.commit()
+
+    PipelineOrchestrator(db).run_pipeline(spec_id)
+
+    runs = db.query(AgentRunModel).filter(AgentRunModel.run_id == spec_id).all()
+    assert len(runs) >= 1
+    assert "static_validation" in {r.agent_name for r in runs}
+
+
+def test_pipeline_orchestrator_records_refinement_iteration_on_validation_failure() -> None:
+    db = _build_session()
+    spec_id = "spec-refine"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-refine",
+            spec_payload='{"report_id":"report-refine","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
+            is_validated=True,
+        )
+    )
+    db.add(
+        GeneratedRuleModel(
+            id="rule-bad-refine",
+            detection_spec_id=spec_id,
+            rule_content="not-yaml",
+        )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-{spec_id}",
+            "scope": f"{spec_id}:detection_spec.draft",
+            "value": '{"version": 1, "payload": {"spec": "ready"}, "last_event_hash": "h1"}',
+            "updated_at": "2026-05-23T00:00:00Z",
+        },
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO memory_views (id, scope, key, value, updated_at)
+            VALUES (:id, :scope, 'latest', :value, :updated_at)
+            """
+        ),
+        {
+            "id": f"mv-rule-{spec_id}",
+            "scope": f"{spec_id}:rule_generation.draft",
+            "value": '{"version": 1, "payload": {"rule": "ready"}, "last_event_hash": "h2"}',
+            "updated_at": "2026-05-23T00:00:01Z",
+        },
+    )
+    db.commit()
+
+    with pytest.raises(PipelineTransitionError):
+        PipelineOrchestrator(db).run_pipeline(spec_id)
+
+    iterations = db.query(RefinementIterationModel).filter_by(rule_id="rule-bad-refine").all()
+    assert len(iterations) == 1

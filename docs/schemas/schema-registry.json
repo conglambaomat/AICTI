@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "de-forge/schemas/schema-registry.json",
+  "title": "SchemaRegistry",
+  "type": "object",
+  "required": ["version", "agents", "outputs"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "provider_model": {"type": "string", "const": "cx/gpt-5.5"},
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence", "attack_mapping", "detection_spec", "rule_authoring", "retrieval"],
+      "properties": {
+        "evidence": {"type": "string", "const": "evidence_output"},
+        "attack_mapping": {"type": "string", "const": "attack_mapping_output"},
+        "detection_spec": {"type": "string", "const": "detection_spec_output"},
+        "rule_authoring": {"type": "string", "const": "rule_output"},
+        "retrieval": {"type": "string", "const": "retrieval_result"}
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_output", "attack_mapping_output", "detection_spec_output", "rule_output", "retrieval_result", "abstain"],
+      "properties": {
+        "evidence_output": {"type": "string", "const": "docs/schemas/evidence_output.schema.json"},
+        "attack_mapping_output": {"type": "string", "const": "docs/schemas/attack_mapping_output.schema.json"},
+        "detection_spec_output": {"type": "string", "const": "docs/schemas/detection_spec_output.schema.json"},
+        "rule_output": {"type": "string", "const": "docs/schemas/rule_output.schema.json"},
+        "retrieval_result": {"type": "string", "const": "docs/schemas/retrieval_result.schema.json"},
+        "abstain": {"type": "string", "const": "docs/schemas/abstain.schema.json"}
+      }
+    }
+  }
+}

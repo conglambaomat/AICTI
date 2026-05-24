@@ -31,7 +31,7 @@ class TelemetryGroundingInput:
 
 
 class TelemetryGroundingService:
-    """Service for telemetry grounding with strict allowlist enforcement."""
+    """Service for telemetry grounding with strict registry enforcement."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -66,7 +66,7 @@ class TelemetryGroundingService:
         """Validate telemetry type and required fields against registry."""
         if not is_supported_telemetry_type(selection.telemetry_type):
             raise TelemetryFieldValidationError(
-                f"Selection {selection.selection_id}: telemetry_type {selection.telemetry_type} is not supported in MVP"
+                f"Selection {selection.selection_id}: telemetry_type {selection.telemetry_type} is not supported"
             )
 
         disallowed_fields = validate_required_fields(
@@ -93,7 +93,7 @@ class TelemetryGroundingService:
                 f"requested_telemetry_types={requested}"
             ),
             human_message=(
-                "No supported telemetry available for detection grounding in MVP "
+                "No supported telemetry available for detection grounding "
                 f"for attack mapping {attack_mapping_id}."
             ),
         )

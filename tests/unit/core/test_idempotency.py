@@ -1,7 +1,7 @@
 import pytest
 
-from de_forge.core.idempotency import make_idempotency_key
 from de_forge.core.hashing import snapshot_hash, verify_snapshot_hash
+from de_forge.core.idempotency import make_idempotency_key
 
 
 def test_idempotency_key_is_deterministic_for_same_payload() -> None:

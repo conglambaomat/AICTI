@@ -7,12 +7,12 @@ Tests the strict validation contracts for detection rule generation.
 import pytest
 from pydantic import ValidationError
 
+from de_forge.schemas.abstain import AbstainDecision
+from de_forge.schemas.agent_io import RuleGenerationRequest
 from de_forge.schemas.detection_spec import (
     BehaviorRule,
     DetectionSpec,
 )
-from de_forge.schemas.abstain import AbstainDecision
-from de_forge.schemas.agent_io import RuleGenerationRequest
 
 
 def test_behavior_rule_requires_evidence_attack_telemetry():
@@ -101,11 +101,15 @@ def test_abstain_decision_enforces_required_fields():
     """AbstainDecision requires abstain_context and human_message."""
     with pytest.raises(ValidationError) as exc_info:
         AbstainDecision(abstain_code="NO_EVIDENCE", human_message="Human readable message")
-    assert any(e["loc"] == ("abstain_context",) and e["type"] == "missing" for e in exc_info.value.errors())
+    assert any(
+        e["loc"] == ("abstain_context",) and e["type"] == "missing" for e in exc_info.value.errors()
+    )
 
     with pytest.raises(ValidationError) as exc_info:
         AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="Some context")
-    assert any(e["loc"] == ("human_message",) and e["type"] == "missing" for e in exc_info.value.errors())
+    assert any(
+        e["loc"] == ("human_message",) and e["type"] == "missing" for e in exc_info.value.errors()
+    )
 
 
 def test_abstain_decision_rejects_blank_strings():
@@ -161,6 +165,7 @@ def test_abstain_decision_rejects_legacy_context_and_extra_fields():
         "human_message",
     }
 
+
 def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_strings():
     """Test strict validation for ATT&CK IDs, telemetry normalization, and blank strings."""
     with pytest.raises(ValidationError) as exc_info:
@@ -193,25 +198,14 @@ def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_stri
     errors = exc_info.value.errors()
     assert any(e["loc"] == ("evidence",) for e in errors)
 
-    with pytest.raises(ValidationError) as exc_info:
-        BehaviorRule(
-            evidence=["valid evidence"],
-            attack_ids=["T1547"],
-            required_telemetry=["process_creation"],
-            detection_logic="valid logic",
-        )
-    errors = exc_info.value.errors()
-    assert any(e["loc"] == ("attack_ids",) for e in errors)
-
-    with pytest.raises(ValidationError) as exc_info:
-        BehaviorRule(
-            evidence=["valid evidence"],
-            attack_ids=["T1105"],
-            required_telemetry=["file_creation"],
-            detection_logic="valid logic",
-        )
-    errors = exc_info.value.errors()
-    assert any(e["loc"] == ("required_telemetry",) for e in errors)
+    accepted = BehaviorRule(
+        evidence=["valid evidence"],
+        attack_ids=["T1547"],
+        required_telemetry=["file_event"],
+        detection_logic="valid logic",
+    )
+    assert accepted.attack_ids == ["T1547"]
+    assert accepted.required_telemetry == ["file_event"]
 
     normalized = BehaviorRule(
         evidence=["  valid evidence  "],
@@ -266,6 +260,13 @@ def test_contract_schemas_forbid_extra_fields():
         ],
         false_positive_hypotheses=["fp"],
         test_plan="plan",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="process correlation",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image"],
+        rationale_traceability=["ev-1 -> bh-1"],
     )
 
     with pytest.raises(ValidationError) as exc_info:
@@ -300,6 +301,13 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
         ],
         false_positive_hypotheses=["Legitimate software updates may trigger this"],
         test_plan="Test with benign software installers and known malware samples",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="payload execution analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["ev-1 -> bh-1 -> rule"],
     )
 
     valid_request = RuleGenerationRequest(
@@ -318,7 +326,7 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
 
     # Request with invalid DetectionSpec (missing behavior_rules) should fail
     with pytest.raises(ValidationError) as exc_info:
-        invalid_spec = DetectionSpec(
+        DetectionSpec(
             report_id="report-002",
             behavior_rules=[],  # Empty behavior rules
             false_positive_hypotheses=["Some hypothesis"],

@@ -1,0 +1,20 @@
+{
+  "report_id": "report_041",
+  "complexity": "hard",
+  "ground_truth": {
+    "evidence": [
+      {
+        "quote": "The campaign used custom malware and unknown tooling.",
+        "start_offset": 0,
+        "end_offset": 53,
+        "category": "insufficient_behavior_detail"
+      }
+    ],
+    "attack_mapping": [],
+    "required_telemetry": [],
+    "allowed_fields": [],
+    "detection_logic": {},
+    "expected_decision": "abstain",
+    "abstain_reason": "ONLY_TOOL_OR_MALWARE_NAME_NO_BEHAVIOR"
+  }
+}

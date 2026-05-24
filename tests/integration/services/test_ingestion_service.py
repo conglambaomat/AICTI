@@ -1,5 +1,7 @@
 """Integration tests for ingestion service."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -21,14 +23,37 @@ def test_ingest_txt_persists_report_and_chunks_in_one_transaction() -> None:
     service = IngestionService(db)
 
     content = "alpha line\n\n beta line\n\n gamma line"
-    result = service.ingest(source_type="txt", filename="sample.txt", content_bytes=content.encode("utf-8"))
+    result = service.ingest(
+        source_type="txt", filename="sample.txt", content_bytes=content.encode("utf-8")
+    )
 
     reports = db.execute(select(Report)).scalars().all()
-    chunks = db.execute(select(ReportChunk).where(ReportChunk.report_id == result.report_id)).scalars().all()
+    chunks = (
+        db.execute(select(ReportChunk).where(ReportChunk.report_id == result.report_id))
+        .scalars()
+        .all()
+    )
 
     assert len(reports) == 1
     assert len(chunks) == len(result.chunks)
     assert len(chunks) > 0
+
+    report = reports[0]
+    report_created = datetime.fromisoformat(report.created_at.replace("Z", "+00:00"))
+    report_updated = datetime.fromisoformat(report.updated_at.replace("Z", "+00:00"))
+    assert report_created.year >= 2025
+    assert report_updated.year >= 2025
+    assert report_created.tzinfo == UTC
+    assert report_updated.tzinfo == UTC
+
+    for chunk in chunks:
+        chunk_created = datetime.fromisoformat(chunk.created_at.replace("Z", "+00:00"))
+        assert chunk_created.year >= 2025
+        assert chunk_created.tzinfo == UTC
+        assert chunk.created_at != "1970-01-01T00:00:00Z"
+
+    assert report.created_at != "1970-01-01T00:00:00Z"
+    assert report.updated_at != "1970-01-01T00:00:00Z"
 
 
 def test_chunking_is_deterministic_for_same_input() -> None:

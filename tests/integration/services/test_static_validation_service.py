@@ -1,13 +1,12 @@
 """Integration tests for static validation service."""
 
-import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
-from de_forge.services.static_validation import StaticValidationService, ValidationReport
+from de_forge.services.static_validation import StaticValidationService
 
 
 def _build_session() -> Session:
@@ -28,7 +27,7 @@ def test_static_validator_detects_overbroad_rule() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-overbroad",
-            spec_payload='{"report_id":"report-overbroad","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-overbroad","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -53,7 +52,9 @@ detection:
 
     # Verify overbroad detection
     assert report.is_valid is False
-    assert any("overbroad" in issue.lower() or "too broad" in issue.lower() for issue in report.issues)
+    assert any(
+        "overbroad" in issue.lower() or "too broad" in issue.lower() for issue in report.issues
+    )
 
 
 def test_static_validator_blocks_unknown_telemetry_fields() -> None:
@@ -67,7 +68,7 @@ def test_static_validator_blocks_unknown_telemetry_fields() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-unknown-field",
-            spec_payload='{"report_id":"report-unknown-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-unknown-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -111,7 +112,7 @@ def test_static_validator_accepts_valid_constrained_rule() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-valid",
-            spec_payload='{"report_id":"report-valid","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-valid","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -151,7 +152,7 @@ def test_static_validator_detects_invalid_sigma_syntax() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-syntax",
-            spec_payload='{"report_id":"report-syntax","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-syntax","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"test"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -173,4 +174,7 @@ detection:
 
     # Verify syntax error detection
     assert report.is_valid is False
-    assert any("syntax" in issue.lower() or "yaml" in issue.lower() or "structure" in issue.lower() for issue in report.issues)
+    assert any(
+        "syntax" in issue.lower() or "yaml" in issue.lower() or "structure" in issue.lower()
+        for issue in report.issues
+    )

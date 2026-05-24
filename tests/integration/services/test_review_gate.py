@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import ReviewDecision as ReviewDecisionModel
+from de_forge.schemas.proof_obligation import (
+    ProofObligation,
+    ProofObligationStatus,
+    ProofObligationType,
+)
 from de_forge.services.review import ExportBlockedError, ReviewService
 
 
@@ -22,7 +27,7 @@ def test_export_blocked_without_human_approval() -> None:
 
     rule_id = "rule-no-approval"
 
-    with pytest.raises(ExportBlockedError, match="human approval required"):
+    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
 
 
@@ -50,3 +55,134 @@ def test_export_allowed_after_latest_approval() -> None:
 
     assert service.can_export(rule_status="awaiting_review", review_decision="approved") is True
     service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+
+def test_export_blocked_when_latest_decision_is_rejected() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-latest-rejected"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(rule_id=rule_id, decision="rejected", reviewer="dave")
+
+    with pytest.raises(ExportBlockedError, match="human approval required"):
+        service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+    latest = service._get_latest_decision(rule_id)
+    assert latest is not None
+    assert latest.rule_id == rule_id
+
+
+def _required_obligations(rule_id: str) -> list[ProofObligation]:
+    return [
+        ProofObligation(
+            run_id="run-proof",
+            rule_candidate_id=rule_id,
+            claim_type=ProofObligationType.DETECTS_REPORT_BEHAVIOR,
+            claim_text="Rule detects report behavior.",
+            required_artifact_types=["evidence_quote"],
+            status=ProofObligationStatus.PROVEN,
+        ),
+        ProofObligation(
+            run_id="run-proof",
+            rule_candidate_id=rule_id,
+            claim_type=ProofObligationType.NOT_OVERBROAD,
+            claim_text="Rule is not overbroad.",
+            required_artifact_types=["false_positive_analysis"],
+            status=ProofObligationStatus.PROVEN,
+        ),
+    ]
+
+
+def test_export_blocked_when_proof_obligations_failed() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-proof-failed"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+
+    obligations = _required_obligations(rule_id)
+    obligations[0] = obligations[0].model_copy(update={"status": ProofObligationStatus.FAILED})
+
+    with pytest.raises(ExportBlockedError, match="proof obligation"):
+        service.assert_can_export(
+            rule_id=rule_id,
+            rule_status="awaiting_review",
+            proof_obligations=obligations,
+        )
+
+
+def test_export_blocked_when_proof_obligations_unknown() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-proof-unknown"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+
+    obligations = _required_obligations(rule_id)
+    obligations[0] = obligations[0].model_copy(update={"status": ProofObligationStatus.UNKNOWN})
+
+    with pytest.raises(ExportBlockedError, match="proof obligation"):
+        service.assert_can_export(
+            rule_id=rule_id,
+            rule_status="awaiting_review",
+            proof_obligations=obligations,
+        )
+
+
+def test_export_blocked_when_not_applicable_missing_justification() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-proof-no-justification"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+
+    obligations = _required_obligations(rule_id)
+    obligations[0] = obligations[0].model_copy(
+        update={"status": ProofObligationStatus.NOT_APPLICABLE, "justification": None}
+    )
+
+    with pytest.raises(ExportBlockedError, match="proof obligation"):
+        service.assert_can_export(
+            rule_id=rule_id,
+            rule_status="awaiting_review",
+            proof_obligations=obligations,
+        )
+
+
+def test_export_allowed_when_not_applicable_has_justification() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-proof-justified"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+
+    obligations = _required_obligations(rule_id)
+    obligations[0] = obligations[0].model_copy(
+        update={
+            "status": ProofObligationStatus.NOT_APPLICABLE,
+            "justification": "No telemetry in scope",
+        }
+    )
+
+    service.assert_can_export(
+        rule_id=rule_id,
+        rule_status="awaiting_review",
+        proof_obligations=obligations,
+    )
+
+
+def test_export_allowed_when_all_proof_obligations_proven() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-proof-proven"
+    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+
+    obligations = _required_obligations(rule_id)
+
+    service.assert_can_export(
+        rule_id=rule_id,
+        rule_status="awaiting_review",
+        proof_obligations=obligations,
+    )

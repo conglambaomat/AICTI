@@ -2,7 +2,6 @@
 
 from de_forge.services.dynamic_validation import DynamicValidationService
 
-
 ATTACK_EVENTS = [
     {
         "EventID": 1,
@@ -107,3 +106,52 @@ detection:
 
     assert result.true_positives == 0
     assert result.false_positives == 0
+
+
+def test_dynamic_validation_supports_and_condition_for_multiple_selections() -> None:
+    service = DynamicValidationService()
+
+    rule = """title: and condition
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_1:
+    Image|contains: 'powershell'
+  selection_2:
+    CommandLine|contains: '-enc'
+  condition: selection_1 and selection_2
+"""
+
+    result = service.run_synthetic_validation(
+        rule=rule,
+        attack_events=ATTACK_EVENTS,
+        benign_events=BENIGN_EVENTS,
+    )
+
+    assert result.true_positives == 1
+    assert result.false_positives == 0
+
+
+def test_dynamic_validation_fails_closed_on_unknown_selection_in_condition() -> None:
+    service = DynamicValidationService()
+
+    rule = """title: invalid condition
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_1:
+    Image|contains: 'powershell'
+  condition: selection_1 and selection_missing
+"""
+
+    try:
+        service.run_synthetic_validation(
+            rule=rule,
+            attack_events=ATTACK_EVENTS,
+            benign_events=BENIGN_EVENTS,
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "Unknown selection in condition" in str(exc)

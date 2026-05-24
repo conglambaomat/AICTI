@@ -1,7 +1,12 @@
 """Application configuration using Pydantic settings."""
 
-from pydantic import Field
+from collections.abc import Mapping
+from typing import Literal
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from de_forge.core.constants import PROFILE_THRESHOLDS
 
 
 class Settings(BaseSettings):
@@ -47,6 +52,10 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", description="Log level")
 
     # Agent configuration
+    profile: Literal["strict", "balanced", "exploratory"] = Field(
+        default="balanced",
+        description="Profile for KPI thresholds and budgets",
+    )
     max_static_refinement_iterations: int = Field(
         default=3,
         description="Maximum static refinement iterations",
@@ -55,6 +64,18 @@ class Settings(BaseSettings):
         default=2,
         description="Maximum dynamic refinement iterations",
     )
+
+    @property
+    def profile_thresholds(self) -> Mapping[str, float | int]:
+        """Return KPI thresholds and budgets for the active profile."""
+        return PROFILE_THRESHOLDS[self.profile]
+
+    @model_validator(mode="after")
+    def validate_profile_threshold_mapping(self) -> "Settings":
+        """Ensure configured profile exists in the threshold registry."""
+        if self.profile not in PROFILE_THRESHOLDS:
+            raise ValueError(f"Unsupported profile: {self.profile}")
+        return self
 
     # Security
     secret_key: str = Field(
