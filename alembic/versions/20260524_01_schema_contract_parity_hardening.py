@@ -33,6 +33,11 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
+    if not _has_table(inspector, "detection_specs"):
+        raise RuntimeError("Required base table detection_specs is missing for schema contract parity migration")
+    if not _has_table(inspector, "generated_rules"):
+        raise RuntimeError("Required base table generated_rules is missing for schema contract parity migration")
+
     with op.batch_alter_table("detection_specs") as batch_op:
         if not _has_column(inspector, "detection_specs", "abstain_code"):
             batch_op.add_column(sa.Column("abstain_code", sa.String(length=80), nullable=True))
@@ -51,82 +56,77 @@ def upgrade() -> None:
 
     inspector = sa.inspect(bind)
 
-    if not _has_table(inspector, "pipeline_runs"):
-        op.create_table(
-            "pipeline_runs",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("run_id", sa.String(length=36), nullable=False, unique=True),
-            sa.Column("report_id", sa.String(length=36), nullable=False),
-            sa.Column("status", sa.String(length=20), nullable=False),
-            sa.Column("stage", sa.String(length=40), nullable=False),
-            sa.Column("detection_spec_id", sa.String(length=36), nullable=True),
-            sa.Column("rule_id", sa.String(length=36), nullable=True),
-            sa.Column("created_at", sa.String(length=40), nullable=False),
-        )
+    op.create_table(
+        "pipeline_runs",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("run_id", sa.String(length=36), nullable=False),
+        sa.Column("report_id", sa.String(length=36), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("stage", sa.String(length=40), nullable=False),
+        sa.Column("detection_spec_id", sa.String(length=36), nullable=True),
+        sa.Column("rule_id", sa.String(length=36), nullable=True),
+        sa.Column("created_at", sa.String(length=40), nullable=False),
+        sa.UniqueConstraint("run_id", name="uq_pipeline_runs_run_id"),
+    )
 
-    if not _has_table(inspector, "proof_obligations"):
-        op.create_table(
-            "proof_obligations",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("run_id", sa.String(length=36), nullable=False),
-            sa.Column("rule_candidate_id", sa.String(length=36), nullable=False),
-            sa.Column("claim_type", sa.String(length=64), nullable=False),
-            sa.Column("claim_text", sa.Text(), nullable=False),
-            sa.Column("required_artifact_types", sa.Text(), nullable=False),
-            sa.Column("status", sa.String(length=32), nullable=False),
-            sa.Column("justification", sa.Text(), nullable=True),
-        )
+    op.create_table(
+        "proof_obligations",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("run_id", sa.String(length=36), nullable=False),
+        sa.Column("rule_candidate_id", sa.String(length=36), nullable=False),
+        sa.Column("claim_type", sa.String(length=64), nullable=False),
+        sa.Column("claim_text", sa.Text(), nullable=False),
+        sa.Column("required_artifact_types", sa.Text(), nullable=False),
+        sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("justification", sa.Text(), nullable=True),
+    )
 
-    if not _has_table(inspector, "candidate_scores"):
-        op.create_table(
-            "candidate_scores",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
-            sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
-            sa.Column("score_type", sa.String(length=64), nullable=False),
-            sa.Column("score_value", sa.Float(), nullable=False),
-            sa.Column("score_breakdown_json", sa.Text(), nullable=False, server_default="{}"),
-            sa.Column("created_at", sa.String(length=40), nullable=False),
-            sa.CheckConstraint("score_value >= 0 and score_value <= 1", name="ck_candidate_scores_score_value_between_0_and_1"),
-            sa.CheckConstraint("length(score_type) > 0", name="ck_candidate_scores_score_type_non_empty"),
-        )
+    op.create_table(
+        "candidate_scores",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
+        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
+        sa.Column("score_type", sa.String(length=64), nullable=False),
+        sa.Column("score_value", sa.Float(), nullable=False),
+        sa.Column("score_breakdown_json", sa.Text(), nullable=False, server_default="{}"),
+        sa.Column("created_at", sa.String(length=40), nullable=False),
+        sa.CheckConstraint("score_value >= 0 and score_value <= 1", name="ck_candidate_scores_score_value_between_0_and_1"),
+        sa.CheckConstraint("length(score_type) > 0", name="ck_candidate_scores_score_type_non_empty"),
+    )
 
-    if not _has_table(inspector, "oracle_evaluation_results"):
-        op.create_table(
-            "oracle_evaluation_results",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
-            sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
-            sa.Column("oracle_case_id", sa.String(length=80), nullable=False),
-            sa.Column("score", sa.Float(), nullable=False),
-            sa.Column("details_json", sa.Text(), nullable=False, server_default="{}"),
-            sa.Column("created_at", sa.String(length=40), nullable=False),
-            sa.CheckConstraint("score >= 0 and score <= 1", name="ck_oracle_evaluation_results_score_between_0_and_1"),
-            sa.CheckConstraint("length(oracle_case_id) > 0", name="ck_oracle_evaluation_results_oracle_case_id_non_empty"),
-        )
+    op.create_table(
+        "oracle_evaluation_results",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
+        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
+        sa.Column("oracle_case_id", sa.String(length=80), nullable=False),
+        sa.Column("score", sa.Float(), nullable=False),
+        sa.Column("details_json", sa.Text(), nullable=False, server_default="{}"),
+        sa.Column("created_at", sa.String(length=40), nullable=False),
+        sa.CheckConstraint("score >= 0 and score <= 1", name="ck_oracle_evaluation_results_score_between_0_and_1"),
+        sa.CheckConstraint("length(oracle_case_id) > 0", name="ck_oracle_evaluation_results_oracle_case_id_non_empty"),
+    )
 
-    if not _has_table(inspector, "regression_runs"):
-        op.create_table(
-            "regression_runs",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
-            sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
-            sa.Column("status", sa.String(length=20), nullable=False, server_default="unknown"),
-            sa.Column("result_json", sa.Text(), nullable=False, server_default="{}"),
-            sa.Column("created_at", sa.String(length=40), nullable=False),
-            sa.CheckConstraint("status in ('passed', 'failed', 'unknown')", name="ck_regression_runs_status_allowed"),
-        )
+    op.create_table(
+        "regression_runs",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False),
+        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False, server_default="unknown"),
+        sa.Column("result_json", sa.Text(), nullable=False, server_default="{}"),
+        sa.Column("created_at", sa.String(length=40), nullable=False),
+        sa.CheckConstraint("status in ('passed', 'failed', 'unknown')", name="ck_regression_runs_status_allowed"),
+    )
 
-    if not _has_table(inspector, "quality_snapshots"):
-        op.create_table(
-            "quality_snapshots",
-            sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
-            sa.Column("snapshot_type", sa.String(length=64), nullable=False),
-            sa.Column("metrics_json", sa.Text(), nullable=False, server_default="{}"),
-            sa.Column("created_at", sa.String(length=40), nullable=False),
-            sa.CheckConstraint("length(snapshot_type) > 0", name="ck_quality_snapshots_snapshot_type_non_empty"),
-        )
+    op.create_table(
+        "quality_snapshots",
+        sa.Column("id", sa.String(length=36), primary_key=True),
+        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("pipeline_runs.run_id"), nullable=False),
+        sa.Column("snapshot_type", sa.String(length=64), nullable=False),
+        sa.Column("metrics_json", sa.Text(), nullable=False, server_default="{}"),
+        sa.Column("created_at", sa.String(length=40), nullable=False),
+        sa.CheckConstraint("length(snapshot_type) > 0", name="ck_quality_snapshots_snapshot_type_non_empty"),
+    )
 
     inspector = sa.inspect(bind)
     indexes = {
@@ -194,6 +194,11 @@ def downgrade() -> None:
             op.drop_table(table_name)
 
     inspector = sa.inspect(bind)
+    if not _has_table(inspector, "generated_rules"):
+        raise RuntimeError("Required base table generated_rules is missing for schema contract parity migration downgrade")
+    if not _has_table(inspector, "detection_specs"):
+        raise RuntimeError("Required base table detection_specs is missing for schema contract parity migration downgrade")
+
     with op.batch_alter_table("generated_rules") as batch_op:
         if _has_column(inspector, "generated_rules", "rule_content"):
             batch_op.drop_column("rule_content")
