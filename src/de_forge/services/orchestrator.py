@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime
 from enum import StrEnum
+from uuid import uuid4
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec as DetectionSpecModel
+from de_forge.models import EvidenceSpan as EvidenceSpanModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.models import PipelineRunRecord as PipelineRunRecordModel
 from de_forge.models import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models import Report as ReportModel
 from de_forge.models import ValidationResult as ValidationResultModel
 from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.agent_audit import AgentAuditService
@@ -62,6 +67,47 @@ class PipelineOrchestrator:
         self.agent_audit = AgentAuditService(db)
         self.refinement = RefinementService(db)
         self.memory_policy = MemoryPolicyEngine()
+
+    def run_report_pipeline(self, *, report_id: str, run_id: str) -> PipelineRunRecordModel:
+        report = self.db.get(ReportModel, report_id)
+        if report is None:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="report_not_found",
+                detection_spec_id=None,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("persisted Report required")
+
+        evidence_rows = (
+            self.db.execute(
+                select(EvidenceSpanModel).where(EvidenceSpanModel.report_id == report_id)
+            )
+            .scalars()
+            .all()
+        )
+        if not evidence_rows:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="evidence_required",
+                detection_spec_id=None,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("evidence required before DetectionSpec generation")
+
+        self._remember_pipeline_run(
+            run_id=run_id,
+            report_id=report_id,
+            status="failed",
+            stage="detection_spec_required",
+            detection_spec_id=None,
+            rule_id=None,
+        )
+        raise PipelineTransitionError("validated DetectionSpec required")
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(
@@ -119,6 +165,40 @@ class PipelineOrchestrator:
         self._require_proof_obligations_proven(run_id=detection_spec_id, rule_id=rule.id)
 
         return PipelineState.AWAITING_REVIEW
+
+    def _remember_pipeline_run(
+        self,
+        *,
+        run_id: str,
+        report_id: str,
+        status: str,
+        stage: str,
+        detection_spec_id: str | None,
+        rule_id: str | None,
+    ) -> PipelineRunRecordModel:
+        record = self.db.execute(
+            select(PipelineRunRecordModel).where(PipelineRunRecordModel.run_id == run_id)
+        ).scalar_one_or_none()
+        if record is None:
+            record = PipelineRunRecordModel(
+                id=str(uuid4()),
+                run_id=run_id,
+                report_id=report_id,
+                status=status,
+                stage=stage,
+                detection_spec_id=detection_spec_id,
+                rule_id=rule_id,
+                created_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            )
+            self.db.add(record)
+        else:
+            record.report_id = report_id
+            record.status = status
+            record.stage = stage
+            record.detection_spec_id = detection_spec_id
+            record.rule_id = rule_id
+        self.db.commit()
+        return record
 
     def _require_evaluation_depth_passed(self, *, run_id: str, rule_id: str) -> None:
         rows = (
