@@ -56,13 +56,15 @@ def test_record_static_validation_persists_validation_result() -> None:
     rule_id = _seed_rule(db)
     service = ValidationProofPersistenceService(db)
 
-    service.record_static_validation(
+    result_id = service.record_static_validation(
         run_id="run-static",
         rule_id=rule_id,
         report=ValidationReport(is_valid=False, issues=["missing logsource structure"]),
     )
 
+    assert len(result_id) == 36
     validation_result = db.execute(select(ValidationResult)).scalar_one()
+    assert validation_result.id == result_id
     assert validation_result.rule_id == rule_id
     assert validation_result.run_id == "run-static"
     assert validation_result.status == "failed"

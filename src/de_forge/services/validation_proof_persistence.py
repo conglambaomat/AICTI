@@ -29,7 +29,7 @@ class ValidationProofPersistenceService:
             raise ValueError(f"rule_id {rule_id} not found")
 
         created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        result_id = f"validation-{uuid4().hex}"
+        result_id = str(uuid4())
         validation_result = ValidationResult(
             id=result_id,
             rule_id=rule_id,
