@@ -37,14 +37,38 @@ def test_append_only_review_decisions() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-append-only"
-    first = service.record_decision(rule_id=rule_id, decision="rejected", reviewer="alice")
-    second = service.record_decision(rule_id=rule_id, decision="approved", reviewer="bob")
+    first = service.record_decision(
+        rule_id=rule_id,
+        decision="rejected",
+        reviewer="alice",
+        run_id=f"run-{rule_id}",
+        comments="Rejected before approval.",
+    )
+    second = service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="bob",
+        run_id="run-append-only",
+        comments="Approved in append-only test.",
+    )
 
     assert first != second
 
     rows = db.query(ReviewDecisionModel).filter_by(rule_id=rule_id).all()
     assert len(rows) == 2
     assert {row.id for row in rows} == {first, second}
+
+
+def test_review_decision_requires_run_id() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    with pytest.raises(TypeError):
+        service.record_decision(
+            rule_id="rule-missing-run",
+            decision="approved",
+            reviewer="analyst@example.com",
+        )
 
 
 def test_review_decision_persists_run_id_and_comments() -> None:
@@ -89,7 +113,13 @@ def test_export_allowed_after_latest_approval() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-approved"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     assert service.can_export(rule_status="awaiting_review", review_decision="approved") is True
     service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
@@ -100,8 +130,20 @@ def test_export_blocked_when_latest_decision_is_rejected() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-latest-rejected"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
-    service.record_decision(rule_id=rule_id, decision="rejected", reviewer="dave")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
+    service.record_decision(
+        rule_id=rule_id,
+        decision="rejected",
+        reviewer="dave",
+        run_id=f"run-{rule_id}",
+        comments="Rejected after approval.",
+    )
 
     with pytest.raises(ExportBlockedError, match="review handoff memory required"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
@@ -116,11 +158,19 @@ def test_rejected_then_approved_replaces_latest_review_handoff_memory() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-rejected-then-approved"
-    service.record_decision(rule_id=rule_id, decision="rejected", reviewer="alice")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="rejected",
+        reviewer="alice",
+        run_id=f"run-{rule_id}",
+        comments="Rejected before approval.",
+    )
     approved_decision_id = service.record_decision(
         rule_id=rule_id,
         decision="approved",
         reviewer="bob",
+        run_id=f"run-{rule_id}",
+        comments="Approved after rejection.",
     )
 
     service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
@@ -170,7 +220,13 @@ def test_export_blocked_when_proof_obligations_failed() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-proof-failed"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     obligations = _required_obligations(rule_id)
     obligations[0] = obligations[0].model_copy(update={"status": ProofObligationStatus.FAILED})
@@ -188,7 +244,13 @@ def test_export_blocked_when_proof_obligations_unknown() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-proof-unknown"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     obligations = _required_obligations(rule_id)
     obligations[0] = obligations[0].model_copy(update={"status": ProofObligationStatus.UNKNOWN})
@@ -206,7 +268,13 @@ def test_export_blocked_when_not_applicable_missing_justification() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-proof-no-justification"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     obligations = _required_obligations(rule_id)
     obligations[0] = obligations[0].model_copy(
@@ -226,7 +294,13 @@ def test_export_allowed_when_not_applicable_has_justification() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-proof-justified"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     obligations = _required_obligations(rule_id)
     obligations[0] = obligations[0].model_copy(
@@ -248,7 +322,13 @@ def test_export_allowed_when_all_proof_obligations_proven() -> None:
     service = ReviewService(db)
 
     rule_id = "rule-proof-proven"
-    service.record_decision(rule_id=rule_id, decision="approved", reviewer="carol")
+    service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer="carol",
+        run_id=f"run-{rule_id}",
+        comments="Approved for export test.",
+    )
 
     obligations = _required_obligations(rule_id)
 
@@ -269,6 +349,7 @@ def test_rejected_decision_writes_non_approved_handoff_and_export_requires_appro
         run_id="run-rejected-handoff",
         decision="rejected",
         reviewer="analyst@example.com",
+        comments="Rejected handoff should not export.",
     )
 
     handoff = (
@@ -304,6 +385,8 @@ def test_substring_scope_spoofing_does_not_satisfy_target_rule_handoff() -> None
         rule_id=spoof_rule_id,
         decision="approved",
         reviewer="analyst@example.com",
+        run_id="run-spoof-rule",
+        comments="Spoof attempt approval.",
     )
 
     with pytest.raises(ExportBlockedError, match="review handoff memory required"):
@@ -329,6 +412,8 @@ def test_proof_obligation_lookup_error_blocks_export_fail_closed() -> None:
         rule_id="rule-proof-lookup-error",
         decision="approved",
         reviewer="analyst@example.com",
+        run_id="run-proof-lookup-error",
+        comments="Approved before proof lookup failure.",
     )
     service = ReviewService(_ProofLookupFailingSession(db))
 

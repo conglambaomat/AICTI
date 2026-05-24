@@ -13,8 +13,10 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 class ReviewDecisionRequest(BaseModel):
     rule_id: str
+    run_id: str
     decision: str
     reviewer: str
+    comments: str
 
 
 class ReviewDecisionResponse(BaseModel):
@@ -30,6 +32,8 @@ def record_decision(
         rule_id=request.rule_id,
         decision=request.decision,
         reviewer=request.reviewer,
+        run_id=request.run_id,
+        comments=request.comments,
     )
     return ReviewDecisionResponse(decision_id=decision_id)
 

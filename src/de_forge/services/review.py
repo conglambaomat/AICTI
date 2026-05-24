@@ -51,8 +51,8 @@ class ReviewService:
         rule_id: str,
         decision: str,
         reviewer: str,
-        run_id: str = "run_unknown",
-        comments: str = "",
+        run_id: str,
+        comments: str,
     ) -> str:
         """Record append-only review decision for a rule."""
         if decision not in ALLOWED_REVIEW_DECISIONS:
