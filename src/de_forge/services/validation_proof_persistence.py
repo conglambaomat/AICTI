@@ -6,12 +6,14 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from de_forge.models import (
     GeneratedRule,
     OracleEvaluationResult,
     PipelineRunRecord,
+    ProofObligationRecord,
     RegressionRun,
     TestRun,
     ValidationResult,
@@ -134,3 +136,95 @@ class ValidationProofPersistenceService:
         self.db.add(regression_run)
         self.db.commit()
         return result_id
+
+    def generate_proof_obligations_from_artifacts(
+        self, *, run_id: str, rule_id: str
+    ) -> list[str]:
+        self._require_rule(rule_id)
+
+        static_passed = self._has_passed_static_validation(run_id, rule_id)
+        dynamic_passed = self._has_passed_dynamic_validation(run_id, rule_id)
+        regression_passed = self._has_passed_regression(run_id, rule_id)
+        obligation_definitions = [
+            (
+                "detects_report_behavior",
+                "Rule detects the behavior described by the report.",
+                ["static_validation", "dynamic_validation"],
+                static_passed and dynamic_passed,
+            ),
+            (
+                "not_overbroad",
+                "Rule is not overbroad against regression coverage.",
+                ["static_validation", "regression"],
+                static_passed and regression_passed,
+            ),
+            (
+                "telemetry_fields_exist",
+                "Rule telemetry fields exist in validated schema.",
+                ["static_validation"],
+                static_passed,
+            ),
+            (
+                "citation_faithful",
+                "Rule citations are faithful to validated evidence.",
+                ["static_validation"],
+                static_passed,
+            ),
+        ]
+
+        obligation_ids: list[str] = []
+        for claim_type, claim_text, required_artifacts, is_proven in obligation_definitions:
+            obligation_id = str(uuid4())
+            obligation_ids.append(obligation_id)
+            self.db.add(
+                ProofObligationRecord(
+                    id=obligation_id,
+                    run_id=run_id,
+                    rule_candidate_id=rule_id,
+                    claim_type=claim_type,
+                    claim_text=claim_text,
+                    required_artifact_types=json.dumps(required_artifacts, sort_keys=True),
+                    status="proven" if is_proven else "unknown",
+                    justification=(
+                        "derived from persisted validation artifacts" if is_proven else None
+                    ),
+                )
+            )
+        self.db.commit()
+        return obligation_ids
+
+    def _has_passed_static_validation(self, run_id: str, rule_id: str) -> bool:
+        return (
+            self.db.execute(
+                select(ValidationResult.id).where(
+                    ValidationResult.run_id == run_id,
+                    ValidationResult.rule_id == rule_id,
+                    ValidationResult.status == "passed",
+                )
+            ).first()
+            is not None
+        )
+
+    def _has_passed_dynamic_validation(self, run_id: str, rule_id: str) -> bool:
+        return (
+            self.db.execute(
+                select(TestRun.id).where(
+                    TestRun.run_id == run_id,
+                    TestRun.rule_id == rule_id,
+                    TestRun.status == "passed",
+                )
+            ).first()
+            is not None
+        )
+
+    def _has_passed_regression(self, run_id: str, rule_id: str) -> bool:
+        return (
+            self.db.execute(
+                select(RegressionRun.id).where(
+                    RegressionRun.run_id == run_id,
+                    RegressionRun.rule_id == rule_id,
+                    RegressionRun.status == "passed",
+                )
+            ).first()
+            is not None
+        )

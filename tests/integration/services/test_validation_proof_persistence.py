@@ -14,6 +14,7 @@ from de_forge.models import (
     GeneratedRule,
     OracleEvaluationResult,
     PipelineRunRecord,
+    ProofObligationRecord,
     RegressionRun,
     Report,
     TestRun,
@@ -184,3 +185,64 @@ def test_record_regression_persists_status() -> None:
     assert regression_run.run_id == "run-regression"
     assert regression_run.status == "failed"
     assert json.loads(regression_run.result_json) == details
+
+
+def test_generate_proof_obligations_marks_proven_when_required_artifacts_pass() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    _seed_pipeline_run(db, run_id="run-proof", rule_id=rule_id)
+    service = ValidationProofPersistenceService(db)
+
+    service.record_static_validation(
+        run_id="run-proof",
+        rule_id=rule_id,
+        report=ValidationReport(is_valid=True, issues=[]),
+    )
+    service.record_dynamic_validation(
+        run_id="run-proof",
+        rule_id=rule_id,
+        result=SyntheticValidationResult(
+            true_positives=2,
+            false_positives=0,
+            attack_total=2,
+            benign_total=3,
+        ),
+    )
+    service.record_regression(
+        run_id="run-proof",
+        rule_id=rule_id,
+        passed=True,
+        details={"regressions": []},
+    )
+
+    obligation_ids = service.generate_proof_obligations_from_artifacts(
+        run_id="run-proof", rule_id=rule_id
+    )
+
+    obligations = db.execute(
+        select(ProofObligationRecord)
+        .where(ProofObligationRecord.id.in_(obligation_ids))
+        .order_by(ProofObligationRecord.claim_type)
+    ).scalars().all()
+    assert {obligation.status for obligation in obligations} == {"proven"}
+    assert {obligation.claim_type for obligation in obligations} == {
+        "citation_faithful",
+        "detects_report_behavior",
+        "not_overbroad",
+        "telemetry_fields_exist",
+    }
+
+
+def test_generate_proof_obligations_marks_missing_artifacts_unknown() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+
+    obligation_ids = service.generate_proof_obligations_from_artifacts(
+        run_id="run-missing-proof", rule_id=rule_id
+    )
+
+    obligations = db.execute(
+        select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
+    ).scalars().all()
+    assert {obligation.status for obligation in obligations} == {"unknown"}
