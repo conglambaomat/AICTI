@@ -13,7 +13,8 @@ from de_forge.api.routes.pipeline import legacy_router as pipeline_legacy_router
 from de_forge.api.routes.pipeline import router as pipeline_router
 from de_forge.api.routes.review import router as review_router
 from de_forge.core.config import settings
-from de_forge.db.session import check_database_connection
+from de_forge.db.session import check_database_connection, engine
+from de_forge.services.schema_guard import SchemaContractError, SchemaGuard
 
 app = FastAPI(
     title="DE-Forge",
@@ -51,6 +52,7 @@ async def health() -> dict[str, object]:
     trace_id = str(uuid4())
     errors: list[str] = []
 
+    schema_check = "ok"
     try:
         check_database_connection()
         database_status = "connected"
@@ -60,7 +62,14 @@ async def health() -> dict[str, object]:
         database_check = "failed"
         errors.append("database_probe_failed")
 
-    readiness = "ready" if database_check == "ok" else "not_ready"
+    if database_check == "ok":
+        try:
+            SchemaGuard(engine).assert_contract_current()
+        except SchemaContractError:
+            schema_check = "failed"
+            errors.append("schema_contract_drift")
+
+    readiness = "ready" if database_check == "ok" and schema_check == "ok" else "not_ready"
     ready = readiness == "ready"
 
     return {
@@ -77,6 +86,7 @@ async def health() -> dict[str, object]:
         "checks": {
             "api": "ok",
             "database": database_check,
+            "schema": schema_check,
             "orchestrator": "ok",
         },
         "errors": errors,

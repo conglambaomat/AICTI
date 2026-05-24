@@ -8,10 +8,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-from de_forge.db.base import Base
 from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
@@ -30,6 +28,7 @@ from de_forge.schemas.api_pipeline import (
 )
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
 from de_forge.services.review import ExportBlockedError, ReviewService
+from de_forge.services.schema_guard import assert_schema_contract_current
 
 router = APIRouter(prefix="/v1", tags=["pipeline"])
 legacy_router = APIRouter(tags=["pipeline-legacy"])
@@ -49,7 +48,7 @@ async def ingest_report(payload: ReportIngestRequest) -> ReportIngestResponse:
 async def run_pipeline(
     payload: PipelineRunRequest, db: Session = Depends(get_db)
 ) -> PipelineRunResponse | JSONResponse:
-    _ensure_schema(db)
+    assert_schema_contract_current(db)
     run_id = f"run_{uuid4().hex[:12]}"
 
     if payload.report_id == "rep_force_error":
@@ -174,7 +173,7 @@ async def run_pipeline(
 
 @router.post("/pipeline:seed", status_code=201)
 async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str]:
-    _ensure_schema(db)
+    assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
     rule_id = f"rule_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
@@ -287,7 +286,7 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
 
 @router.post("/pipeline:seed-abstain", status_code=201)
 async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str, str]:
-    _ensure_schema(db)
+    assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
     db.add(
@@ -345,46 +344,6 @@ async def get_run_export_mapping(
     if rule_id is None:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
     return {"rule_id": rule_id}
-
-
-def _ensure_schema(db: Session) -> None:
-    Base.metadata.create_all(bind=db.get_bind())
-    _ensure_agent_runs_schema(db)
-
-
-def _ensure_agent_runs_schema(db: Session) -> None:
-    bind = db.get_bind()
-    inspector = inspect(bind)
-    tables = set(inspector.get_table_names())
-    if "agent_runs" not in tables:
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("agent_runs")}
-    column_defs = {
-        "prompt_version": "VARCHAR(64) NOT NULL DEFAULT 'unknown'",
-        "model_id": "VARCHAR(120) NOT NULL DEFAULT 'unknown'",
-        "tokens_in": "INTEGER NOT NULL DEFAULT 0",
-        "tokens_out": "INTEGER NOT NULL DEFAULT 0",
-        "latency_ms": "INTEGER NOT NULL DEFAULT 0",
-        "cost_usd": "FLOAT NOT NULL DEFAULT 0",
-        "input_payload_json": "TEXT NOT NULL DEFAULT '{}'",
-        "output_payload_json": "TEXT NOT NULL DEFAULT '{}'",
-        "artifact_ids_json": "TEXT NOT NULL DEFAULT '[]'",
-    }
-
-    for name, ddl in column_defs.items():
-        if name not in columns:
-            db.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {name} {ddl}"))
-
-    index_names = {index["name"] for index in inspector.get_indexes("agent_runs")}
-    if "ix_agent_runs_run_id" not in index_names:
-        db.execute(text("CREATE INDEX ix_agent_runs_run_id ON agent_runs (run_id)"))
-    if "ix_agent_runs_trace_id" not in index_names:
-        db.execute(text("CREATE INDEX ix_agent_runs_trace_id ON agent_runs (trace_id)"))
-    if "ix_agent_runs_agent_name" not in index_names:
-        db.execute(text("CREATE INDEX ix_agent_runs_agent_name ON agent_runs (agent_name)"))
-
-    db.commit()
 
 
 def _remember_run(
@@ -459,7 +418,7 @@ async def get_run_status(
 async def create_review(
     payload: ReviewRequest, db: Session = Depends(get_db)
 ) -> ReviewResponse | JSONResponse:
-    _ensure_schema(db)
+    assert_schema_contract_current(db)
     record = _resolve_run_record(db, payload.run_id)
     rule_id = record.rule_id if record is not None else None
     if rule_id is None:
@@ -481,7 +440,7 @@ async def create_review(
 async def export_sigma(
     payload: ExportSigmaRequest, db: Session = Depends(get_db)
 ) -> ExportSigmaResponse | JSONResponse:
-    _ensure_schema(db)
+    assert_schema_contract_current(db)
     record = _resolve_run_record(db, payload.run_id)
     rule_id = record.rule_id if record is not None else None
     if rule_id is None:

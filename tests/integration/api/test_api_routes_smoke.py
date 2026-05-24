@@ -26,6 +26,7 @@ def test_health_endpoint() -> None:
     assert body["ok"] is body["ready"]
     assert body["checks"]["api"] == "ok"
     assert body["checks"]["database"] in {"ok", "failed"}
+    assert body["checks"]["schema"] in {"ok", "failed"}
     assert body["checks"]["orchestrator"] == "ok"
     assert isinstance(body["errors"], list)
     assert body["run_id"]
