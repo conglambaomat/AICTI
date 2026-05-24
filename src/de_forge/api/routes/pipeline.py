@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -26,6 +26,7 @@ from de_forge.schemas.api_pipeline import (
     ReviewResponse,
     RunStatusResponse,
 )
+from de_forge.services.ingestion import IngestionService
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
 from de_forge.services.review import ExportBlockedError, ReviewService
 from de_forge.services.schema_guard import assert_schema_contract_current
@@ -35,12 +36,27 @@ legacy_router = APIRouter(tags=["pipeline-legacy"])
 
 
 @router.post("/reports:ingest", response_model=ReportIngestResponse, status_code=201)
-async def ingest_report(payload: ReportIngestRequest) -> ReportIngestResponse:
-    _ = payload
+async def ingest_report(
+    payload: ReportIngestRequest, db: Session = Depends(get_db)
+) -> ReportIngestResponse:
+    assert_schema_contract_current(db)
+    if payload.source_type == "pdf":
+        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
+
+    try:
+        result = IngestionService(db).ingest(
+            source_type=payload.source_type,
+            filename=payload.external_ref or "inline-report.txt",
+            content_bytes=payload.content.encode("utf-8"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return ReportIngestResponse(
-        report_id=f"rep_{uuid4().hex[:12]}",
+        report_id=result.report_id,
         status="ingested",
         trace_id=f"trc_{uuid4().hex[:12]}",
+        chunk_count=len(result.chunks),
     )
 
 
@@ -519,4 +535,5 @@ async def legacy_ingest(file: UploadFile = File(...)) -> ReportIngestResponse:
         report_id=f"rep_{uuid4().hex[:12]}",
         status="ingested",
         trace_id=f"trc_{uuid4().hex[:12]}",
+        chunk_count=0,
     )

@@ -14,20 +14,23 @@ def test_root_health_still_available() -> None:
     assert body["status"] == "ok"
 
 
-def test_post_reports_ingest_endpoint_exists() -> None:
+def test_post_reports_ingest_persists_txt_report_and_chunks() -> None:
+    content = "PowerShell launch behavior observed\n\nEncoded command spawned child process"
     response = client.post(
         "/v1/reports:ingest",
         json={
             "source_type": "txt",
-            "content": "PowerShell launch behavior observed",
+            "content": content,
             "external_ref": "r-001",
             "metadata": {"title": "sample"},
         },
     )
+
     assert response.status_code == 201
     body = response.json()
-    assert "report_id" in body
+    assert body["report_id"].startswith("idem_")
     assert body["status"] == "ingested"
+    assert body["chunk_count"] == 2
     assert "trace_id" in body
 
 

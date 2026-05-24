@@ -22,6 +22,7 @@ class ReportIngestResponse(BaseModel):
     report_id: str = Field(description="Generated report ID")
     status: Literal["ingested"] = Field(description="Ingestion status")
     trace_id: str = Field(description="Trace ID for observability")
+    chunk_count: int = Field(description="Number of persisted report chunks")
 
 
 class PipelineRunRequest(BaseModel):
