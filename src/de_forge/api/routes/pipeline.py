@@ -14,6 +14,7 @@ from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.models import PipelineRunRecord as PipelineRunRecordModel
+from de_forge.models import Report as ReportModel
 from de_forge.schemas.api_errors import ErrorResponse
 from de_forge.schemas.api_pipeline import (
     ExportSigmaRequest,
@@ -107,6 +108,18 @@ async def run_pipeline(
         failed["status"] = "failed"
         return JSONResponse(status_code=500, content=failed)
 
+    report = db.query(ReportModel).filter(ReportModel.id == payload.report_id).first()
+    if report is None:
+        error = ErrorResponse(
+            error_code="PIPELINE_EXECUTION_ERROR",
+            message="Report not found for report_id",
+            trace_id=f"trc_{uuid4().hex[:12]}",
+            run_id=run_id,
+        )
+        failed = error.model_dump()
+        failed["status"] = "failed"
+        return JSONResponse(status_code=404, content=failed)
+
     detection_spec = (
         db.query(DetectionSpecModel)
         .filter(DetectionSpecModel.report_id == payload.report_id)
@@ -193,7 +206,22 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     spec_id = f"spec_{uuid4().hex[:12]}"
     rule_id = f"rule_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
+    now = datetime.now(UTC).isoformat()
 
+    db.add(
+        ReportModel(
+            id=report_id,
+            source_type="txt",
+            source_uri="seed://pipeline",
+            title="Seed pipeline report",
+            raw_text="PowerShell launch behavior observed",
+            content_hash=f"seed-{report_id}",
+            metadata_json="{}",
+            status="ingested",
+            created_at=now,
+            updated_at=now,
+        )
+    )
     db.add(
         DetectionSpecModel(
             id=spec_id,
@@ -218,7 +246,7 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
             stage="awaiting_review",
             detection_spec_id=spec_id,
             rule_id=rule_id,
-            created_at=datetime.now(UTC).isoformat(),
+            created_at=now,
         )
     )
     db.execute(
@@ -305,6 +333,21 @@ async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str,
     assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
+    now = datetime.now(UTC).isoformat()
+    db.add(
+        ReportModel(
+            id=report_id,
+            source_type="txt",
+            source_uri="seed://pipeline",
+            title="Seed pipeline report",
+            raw_text="PowerShell launch behavior observed",
+            content_hash=f"seed-{report_id}",
+            metadata_json="{}",
+            status="ingested",
+            created_at=now,
+            updated_at=now,
+        )
+    )
     db.add(
         DetectionSpecModel(
             id=spec_id,

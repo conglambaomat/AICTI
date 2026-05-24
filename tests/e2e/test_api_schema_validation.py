@@ -70,6 +70,56 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
     assert body["abstain_code"] == "NO_EVIDENCE"
 
 
+def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+    from de_forge.schemas.api_pipeline import PipelineRunRequest
+
+    class FakeDetectionSpec:
+        id = "spec_orphan"
+        report_id = "rep_orphan"
+        abstain_code = None
+        abstain_human_message = None
+        abstain_context = None
+
+    class FakeDetectionSpecQuery:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return FakeDetectionSpec()
+
+    class FakeReportQuery:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return None
+
+    class FakeDb:
+        def query(self, model):
+            if model is pipeline.ReportModel:
+                return FakeReportQuery()
+            return FakeDetectionSpecQuery()
+
+        def add(self, *_args):
+            return None
+
+        def commit(self) -> None:
+            return None
+
+    monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+
+    response = asyncio.run(
+        pipeline.run_pipeline(
+            PipelineRunRequest(report_id="rep_orphan", profile="balanced"), db=FakeDb()
+        )
+    )
+
+    assert response.status_code == 404
+    body = response.body.decode()
+    assert "Report not found for report_id" in body
+
+
 def test_reports_ingest_is_idempotent_by_content_hash() -> None:
     payload = {
         "source_type": "txt",
