@@ -275,6 +275,65 @@ def test_retrieval_audit_tables_exist_after_migration(migrated_engine) -> None:
         "created_at",
     }.issubset(candidate_columns)
 
+    run_fks = inspector.get_foreign_keys("retrieval_audit_runs")
+    assert any(
+        fk["referred_table"] == "reports" and fk["constrained_columns"] == ["report_id"]
+        for fk in run_fks
+    )
+
+    candidate_fks = inspector.get_foreign_keys("retrieval_candidates")
+    assert any(
+        fk["referred_table"] == "retrieval_audit_runs"
+        and fk["constrained_columns"] == ["retrieval_run_id"]
+        and fk.get("options", {}).get("ondelete") == "CASCADE"
+        for fk in candidate_fks
+    )
+    assert any(
+        fk["referred_table"] == "reports" and fk["constrained_columns"] == ["report_id"]
+        for fk in candidate_fks
+    )
+    assert any(
+        fk["referred_table"] == "report_chunks" and fk["constrained_columns"] == ["chunk_id"]
+        for fk in candidate_fks
+    )
+
+    candidate_unique_constraints = {
+        constraint["name"]: constraint["column_names"]
+        for constraint in inspector.get_unique_constraints("retrieval_candidates")
+    }
+    assert candidate_unique_constraints["uq_retrieval_candidates_run_chunk"] == [
+        "retrieval_run_id",
+        "chunk_id",
+    ]
+
+    run_checks = {constraint["name"] for constraint in inspector.get_check_constraints("retrieval_audit_runs")}
+    assert {
+        "ck_retrieval_audit_runs_query_hash_non_empty",
+        "ck_retrieval_audit_runs_top_k_positive",
+    }.issubset(run_checks)
+
+    candidate_checks = {constraint["name"] for constraint in inspector.get_check_constraints("retrieval_candidates")}
+    assert {
+        "ck_retrieval_candidates_rank_positive",
+        "ck_retrieval_candidates_score_sparse_non_negative",
+        "ck_retrieval_candidates_score_dense_non_negative",
+        "ck_retrieval_candidates_score_fused_non_negative",
+    }.issubset(candidate_checks)
+
+    run_indexes = {index["name"] for index in inspector.get_indexes("retrieval_audit_runs")}
+    assert {
+        "ix_retrieval_audit_runs_run_id",
+        "ix_retrieval_audit_runs_report_id",
+    }.issubset(run_indexes)
+
+    candidate_indexes = {index["name"] for index in inspector.get_indexes("retrieval_candidates")}
+    assert {
+        "ix_retrieval_candidates_retrieval_run_id",
+        "ix_retrieval_candidates_run_id",
+        "ix_retrieval_candidates_report_id",
+        "ix_retrieval_candidates_chunk_id",
+    }.issubset(candidate_indexes)
+
 
 def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine) -> None:
     inspector = inspect(migrated_engine)

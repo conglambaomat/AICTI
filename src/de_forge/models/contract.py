@@ -328,7 +328,7 @@ class RetrievalCandidate(Base):
     score_sparse: Mapped[float] = mapped_column(Float, nullable=False)
     score_dense: Mapped[float] = mapped_column(Float, nullable=False)
     score_fused: Mapped[float] = mapped_column(Float, nullable=False)
-    selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    selected: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
