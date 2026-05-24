@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from de_forge.db.session import get_db
 from de_forge.schemas.run import RunMode, RunSummary
 from de_forge.services.orchestrator import Orchestrator
+from de_forge.services.retrieval_audit import RetrievalAuditService
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -43,17 +46,11 @@ def run_detail(run_id: str) -> dict[str, str]:
 
 
 @router.get("/{run_id}/evidence")
-def run_evidence(run_id: str) -> dict[str, object]:
-    return {
-        "run_id": run_id,
-        "items": [
-            {
-                "quote": "PowerShell -enc AAA",
-                "chunk_id": "chunk_1",
-                "lineage": "report->chunk->evidence",
-            }
-        ],
-    }
+def run_evidence(run_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    try:
+        return RetrievalAuditService(db).get_run_evidence_lineage(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{run_id}/spec")
