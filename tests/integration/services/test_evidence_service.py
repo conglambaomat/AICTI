@@ -192,6 +192,46 @@ def test_evidence_quote_must_match_persisted_chunk_text_at_absolute_offsets() ->
     assert persisted == []
 
 
+def test_evidence_batch_rolls_back_when_any_quote_mismatches() -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report_and_chunk(
+        db, chunk_text="first behavior second behavior", chunk_char_start=10
+    )
+    service = EvidenceService(db)
+
+    with pytest.raises(EvidenceExtractionError, match="quote does not match chunk text"):
+        service.persist_evidence(
+            report_id=report_id,
+            run_id="run-batch-mismatch",
+            created_by_agent="evidence-agent",
+            evidence=[
+                EvidenceInput(
+                    evidence_id="evidence-valid-before-invalid",
+                    chunk_id=chunk_id,
+                    quote="first behavior",
+                    char_start=10,
+                    char_end=24,
+                    supports_claim="First behavior observed",
+                    confidence=0.9,
+                ),
+                EvidenceInput(
+                    evidence_id="evidence-invalid-after-valid",
+                    chunk_id=chunk_id,
+                    quote="unrelated behavior",
+                    char_start=25,
+                    char_end=40,
+                    supports_claim="Second behavior observed",
+                    confidence=0.9,
+                ),
+            ],
+        )
+
+    persisted = (
+        db.execute(select(EvidenceSpan).where(EvidenceSpan.report_id == report_id)).scalars().all()
+    )
+    assert persisted == []
+
+
 def test_evidence_rejects_zero_length_span_even_when_quote_is_non_empty() -> None:
     db = _build_session()
     report_id, chunk_id = _seed_report_and_chunk(db)
