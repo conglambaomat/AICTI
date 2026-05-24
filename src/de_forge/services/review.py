@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from time import time_ns
 from types import SimpleNamespace
@@ -86,7 +87,16 @@ class ReviewService:
                 {
                     "id": f"mv-{decision_id}",
                     "scope": f"{rule_id}:review.handoff",
-                    "value": '{"approved": true}',
+                    "value": json.dumps(
+                        {
+                            "approved": decision == "approved",
+                            "decision": decision,
+                            "reviewer": reviewer,
+                            "run_id": run_id,
+                            "decision_id": decision_id,
+                        },
+                        sort_keys=True,
+                    ),
                     "updated_at": created_at,
                 },
             )
@@ -157,7 +167,7 @@ class ReviewService:
                 {"rule_candidate_id": rule_id},
             ).fetchall()
         except SQLAlchemyError:
-            return False
+            return True
 
         if not rows:
             return False
@@ -176,12 +186,34 @@ class ReviewService:
 
     def _has_review_handoff_memory(self, rule_id: str) -> bool:
         db = self._require_db()
-        rows = db.execute(text("SELECT scope FROM memory_views WHERE key = 'latest'")).fetchall()
-        for row in rows:
-            scope = str(row[0])
-            if scope.endswith(":review.handoff") and rule_id in scope:
-                return True
-        return False
+        row = (
+            db.execute(
+                text(
+                    """
+                    SELECT value
+                    FROM memory_views
+                    WHERE scope = :scope AND key = 'latest'
+                    LIMIT 1
+                    """
+                ),
+                {"scope": f"{rule_id}:review.handoff"},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return False
+        try:
+            payload = json.loads(str(row["value"]))
+        except (TypeError, json.JSONDecodeError):
+            return False
+        return (
+            payload.get("approved") is True
+            and payload.get("decision") == "approved"
+            and bool(payload.get("decision_id"))
+            and bool(payload.get("reviewer"))
+            and bool(payload.get("run_id"))
+        )
 
     def _get_latest_decision(self, rule_id: str) -> SimpleNamespace | None:
         db = self._require_db()

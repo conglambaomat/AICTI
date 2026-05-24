@@ -1,7 +1,8 @@
 """Integration tests for human review gate and export policy."""
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
@@ -223,3 +224,83 @@ def test_export_allowed_when_all_proof_obligations_proven() -> None:
         rule_status="awaiting_review",
         proof_obligations=obligations,
     )
+
+
+def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    rule_id = "rule-rejected-handoff"
+    decision_id = service.record_decision(
+        rule_id=rule_id,
+        run_id="run-rejected-handoff",
+        decision="rejected",
+        reviewer="analyst@example.com",
+    )
+
+    handoff = (
+        db.execute(
+            text(
+                """
+                SELECT value
+                FROM memory_views
+                WHERE scope = :scope AND key = 'latest'
+                """
+            ),
+            {"scope": f"{rule_id}:review.handoff"},
+        )
+        .mappings()
+        .one()
+    )
+    assert '"approved": true' not in handoff["value"]
+    assert '"approved": false' in handoff["value"]
+    assert '"decision": "rejected"' in handoff["value"]
+    assert f'"decision_id": "{decision_id}"' in handoff["value"]
+
+    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
+        service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+
+
+def test_substring_scope_spoofing_does_not_satisfy_target_rule_handoff() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    target_rule_id = "rule-target"
+    spoof_rule_id = "prefix-rule-target-suffix"
+    service.record_decision(
+        rule_id=spoof_rule_id,
+        decision="approved",
+        reviewer="analyst@example.com",
+    )
+
+    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
+        service.assert_can_export(rule_id=target_rule_id, rule_status="awaiting_review")
+
+
+class _ProofLookupFailingSession:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def __getattr__(self, name: str):
+        return getattr(self._db, name)
+
+    def execute(self, statement, params=None, *args, **kwargs):
+        if "FROM proof_obligations" in str(statement):
+            raise SQLAlchemyError("simulated proof obligation lookup failure")
+        return self._db.execute(statement, params or {}, *args, **kwargs)
+
+
+def test_proof_obligation_lookup_error_blocks_export_fail_closed() -> None:
+    db = _build_session()
+    ReviewService(db).record_decision(
+        rule_id="rule-proof-lookup-error",
+        decision="approved",
+        reviewer="analyst@example.com",
+    )
+    service = ReviewService(_ProofLookupFailingSession(db))
+
+    with pytest.raises(ExportBlockedError, match="proof obligation gate failed"):
+        service.assert_can_export(
+            rule_id="rule-proof-lookup-error",
+            rule_status="awaiting_review",
+        )
