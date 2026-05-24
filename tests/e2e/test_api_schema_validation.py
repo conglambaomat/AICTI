@@ -70,6 +70,26 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
     assert body["abstain_code"] == "NO_EVIDENCE"
 
 
+def test_reports_ingest_is_idempotent_by_content_hash() -> None:
+    payload = {
+        "source_type": "txt",
+        "content": "Credential dumping behavior\n\nLSASS access observed",
+        "external_ref": "idempotent-a.txt",
+        "metadata": {"title": "first"},
+    }
+
+    first = client.post("/v1/reports:ingest", json=payload)
+    second = client.post(
+        "/v1/reports:ingest",
+        json={**payload, "external_ref": "idempotent-b.txt", "metadata": {"title": "second"}},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["report_id"] == second.json()["report_id"]
+    assert first.json()["chunk_count"] == second.json()["chunk_count"] == 2
+
+
 def test_review_rejects_invalid_decision_before_persistence() -> None:
     response = client.post(
         "/v1/reviews",
