@@ -27,14 +27,13 @@ async def ingest_report(
         HTTPException: If file exceeds 10MB or contains invalid UTF-8.
     """
     max_file_size = 10 * 1024 * 1024  # 10MB
-    content_bytes = await file.read()
-
-    if len(content_bytes) > max_file_size:
-        raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
     filename = file.filename or "unknown"
-
     if filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
+
+    content_bytes = await file.read()
+    if len(content_bytes) > max_file_size:
+        raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
     source_type = "txt"
 
     service = IngestionService(db)

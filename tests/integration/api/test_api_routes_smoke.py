@@ -1,5 +1,7 @@
 """API route smoke tests to improve coverage for route wiring."""
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from de_forge.main import app
@@ -67,3 +69,20 @@ def test_ingestion_route_rejects_pdf_with_stable_unsupported_error() -> None:
 
     assert response.status_code == 415
     assert response.json()["detail"] == "PDF ingestion is not supported"
+
+
+@pytest.mark.asyncio
+async def test_ingestion_route_rejects_pdf_before_reading_body() -> None:
+    from de_forge.api.routes.ingestion import ingest_report
+
+    class UnreadablePdf:
+        filename = "report.pdf"
+
+        async def read(self) -> bytes:
+            raise AssertionError("PDF body should not be read")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ingest_report(file=UnreadablePdf(), db=object())
+
+    assert exc_info.value.status_code == 415
+    assert exc_info.value.detail == "PDF ingestion is not supported"
