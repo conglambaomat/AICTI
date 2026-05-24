@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from de_forge.db.base import Base
 from de_forge.models import Report, ReportChunk, RetrievalAuditRun, RetrievalCandidate
+from de_forge.services.evidence import EvidenceInput, EvidenceService
 from de_forge.services.retrieval import ScoredChunk
 from de_forge.services.retrieval_audit import RetrievalAuditService
 
@@ -112,3 +113,136 @@ def test_record_retrieval_persists_run_and_ranked_candidates() -> None:
     assert [candidate.score_dense for candidate in persisted_candidates] == [0.75, 0.25]
     assert [candidate.score_fused for candidate in persisted_candidates] == [0.42, 0.21]
     assert [candidate.selected for candidate in persisted_candidates] == [True, True]
+
+
+def _seed_report_with_chunks(db: Session) -> tuple[str, list[str]]:
+    now = "2026-05-24T00:00:00+00:00"
+    report = Report(
+        id="report-lineage",
+        source_type="txt",
+        source_uri="memory://report-lineage",
+        title="Lineage report",
+        raw_text="first behavior second behavior",
+        content_hash="hash-lineage",
+        metadata_json="{}",
+        status="ingested",
+        created_at=now,
+        updated_at=now,
+    )
+    chunks = [
+        ReportChunk(
+            id="chunk-lineage-1",
+            report_id=report.id,
+            chunk_index=0,
+            section_title=None,
+            chunk_text="first behavior",
+            char_start=0,
+            char_end=14,
+            chunk_type="paragraph",
+            created_at=now,
+        ),
+        ReportChunk(
+            id="chunk-lineage-2",
+            report_id=report.id,
+            chunk_index=1,
+            section_title=None,
+            chunk_text="second behavior",
+            char_start=15,
+            char_end=30,
+            chunk_type="paragraph",
+            created_at=now,
+        ),
+    ]
+    db.add(report)
+    db.add_all(chunks)
+    db.commit()
+    return report.id, [chunk.id for chunk in chunks]
+
+
+def test_get_run_evidence_lineage_returns_db_backed_chunk_and_evidence() -> None:
+    db = _build_session()
+    report_id, chunk_ids = _seed_report_with_chunks(db)
+    audit = RetrievalAuditService(db)
+    audit.record_retrieval(
+        run_id="run-lineage",
+        report_id=report_id,
+        query_text="first behavior",
+        retrieval_mode="hybrid_rrf",
+        top_k=1,
+        candidates=[
+            ScoredChunk(
+                chunk_id=chunk_ids[0],
+                text="first behavior",
+                score_sparse=0.0,
+                score_dense=0.0,
+                score_fused=0.03,
+            )
+        ],
+    )
+    EvidenceService(db).persist_evidence(
+        report_id=report_id,
+        run_id="run-lineage",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-1",
+                chunk_id=chunk_ids[0],
+                quote="first behavior",
+                char_start=0,
+                char_end=14,
+                supports_claim="First behavior observed",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    result = audit.get_run_evidence_lineage("run-lineage")
+
+    assert result == {
+        "run_id": "run-lineage",
+        "items": [
+            {
+                "evidence_id": "evidence-1",
+                "report_id": report_id,
+                "chunk_id": chunk_ids[0],
+                "quote": "first behavior",
+                "char_start": 0,
+                "char_end": 14,
+                "retrieval_rank": 1,
+                "retrieval_score_fused": 0.03,
+                "lineage": {
+                    "report_id": report_id,
+                    "chunk_id": chunk_ids[0],
+                    "evidence_id": "evidence-1",
+                },
+            }
+        ],
+    }
+
+
+def test_get_run_evidence_lineage_fails_closed_without_retrieval_audit() -> None:
+    db = _build_session()
+    report_id, chunk_ids = _seed_report_with_chunks(db)
+    EvidenceService(db).persist_evidence(
+        report_id=report_id,
+        run_id="run-no-audit",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-1",
+                chunk_id=chunk_ids[0],
+                quote="first behavior",
+                char_start=0,
+                char_end=14,
+                supports_claim="First behavior observed",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    try:
+        RetrievalAuditService(db).get_run_evidence_lineage("run-no-audit")
+    except ValueError as exc:
+        assert "retrieval audit lineage missing" in str(exc)
+    else:
+        raise AssertionError("Expected retrieval audit lineage missing ValueError")
