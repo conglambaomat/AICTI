@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from de_forge.models import EvidenceSpan, ReportChunk
+from de_forge.services.citation_verifier import verify_citation
 
 
 class EvidenceExtractionError(Exception):
@@ -105,6 +106,21 @@ class EvidenceService:
         if ev.char_end > chunk.char_end:
             raise EvidenceExtractionError(
                 f"Evidence {ev.evidence_id}: char_end {ev.char_end} exceeds chunk end {chunk.char_end}"
+            )
+
+        relative_start = ev.char_start - chunk.char_start
+        relative_end = ev.char_end - chunk.char_start
+        try:
+            quote_matches = verify_citation(
+                chunk.chunk_text, ev.quote, relative_start, relative_end
+            )
+        except ValueError as exc:
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: invalid citation offsets for chunk {ev.chunk_id}"
+            ) from exc
+        if not quote_matches:
+            raise EvidenceExtractionError(
+                f"Evidence {ev.evidence_id}: quote does not match chunk text at char_start={ev.char_start}, char_end={ev.char_end}"
             )
 
 

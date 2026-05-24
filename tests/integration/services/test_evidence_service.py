@@ -88,7 +88,7 @@ def test_valid_evidence_persists_with_lineage_fields() -> None:
                 chunk_id=chunk_id,
                 quote="powershell -enc abc",
                 char_start=0,
-                char_end=18,
+                char_end=19,
                 supports_claim="Encoded PowerShell command execution observed",
                 confidence=0.92,
             )
@@ -156,6 +156,37 @@ def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
     assert persisted.char_start == 100
     assert persisted.char_end == 115
     assert persisted.chunk_id == chunk_id
+
+
+def test_evidence_quote_must_match_persisted_chunk_text_at_absolute_offsets() -> None:
+    db = _build_session()
+    report_id, chunk_id = _seed_report_and_chunk(
+        db, chunk_text="attacker launched powershell -enc abc", chunk_char_start=40
+    )
+    service = EvidenceService(db)
+
+    with pytest.raises(EvidenceExtractionError, match="quote does not match chunk text"):
+        service.persist_evidence(
+            report_id=report_id,
+            run_id="run-mismatch",
+            created_by_agent="evidence-agent",
+            evidence=[
+                EvidenceInput(
+                    evidence_id="evidence-mismatch",
+                    chunk_id=chunk_id,
+                    quote="cmd.exe /c whoami",
+                    char_start=58,
+                    char_end=73,
+                    supports_claim="Encoded PowerShell execution observed",
+                    confidence=0.91,
+                )
+            ],
+        )
+
+    persisted = (
+        db.execute(select(EvidenceSpan).where(EvidenceSpan.report_id == report_id)).scalars().all()
+    )
+    assert persisted == []
 
 
 def test_evidence_graph_rejects_unknown_node_type() -> None:
