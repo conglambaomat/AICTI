@@ -46,6 +46,43 @@ def test_append_only_review_decisions() -> None:
     assert {row.id for row in rows} == {first, second}
 
 
+def test_review_decision_persists_run_id_and_comments() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    decision_id = service.record_decision(
+        rule_id="rule-audit-fields",
+        run_id="run-audit-fields",
+        decision="approved",
+        reviewer="analyst@example.com",
+        comments="Evidence and proof obligations reviewed.",
+    )
+
+    row = db.query(ReviewDecisionModel).filter_by(id=decision_id).one()
+    assert row.rule_id == "rule-audit-fields"
+    assert row.run_id == "run-audit-fields"
+    assert row.decision == "approved"
+    assert row.reviewer == "analyst@example.com"
+    assert row.comments == "Evidence and proof obligations reviewed."
+
+
+def test_invalid_review_decision_is_rejected_before_persistence() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    with pytest.raises(ValueError, match="invalid review decision"):
+        service.record_decision(
+            rule_id="rule-invalid-decision",
+            run_id="run-invalid-decision",
+            decision="maybe",
+            reviewer="analyst@example.com",
+            comments="Invalid decision must not persist.",
+        )
+
+    rows = db.query(ReviewDecisionModel).filter_by(rule_id="rule-invalid-decision").all()
+    assert rows == []
+
+
 def test_export_allowed_after_latest_approval() -> None:
     db = _build_session()
     service = ReviewService(db)

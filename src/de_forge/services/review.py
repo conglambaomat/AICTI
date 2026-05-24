@@ -21,6 +21,9 @@ class ExportBlockedError(ValueError):
     """Raised when export is attempted without required human approval."""
 
 
+ALLOWED_REVIEW_DECISIONS = {"approved", "rejected"}
+
+
 class ReviewService:
     """Service for recording human review decisions and enforcing export policy."""
 
@@ -42,8 +45,18 @@ class ReviewService:
             raise ValueError("database session is required for persistence operations")
         return self.db
 
-    def record_decision(self, rule_id: str, decision: str, reviewer: str) -> str:
+    def record_decision(
+        self,
+        rule_id: str,
+        decision: str,
+        reviewer: str,
+        run_id: str = "run_unknown",
+        comments: str = "",
+    ) -> str:
         """Record append-only review decision for a rule."""
+        if decision not in ALLOWED_REVIEW_DECISIONS:
+            raise ValueError(f"invalid review decision: {decision}")
+
         db = self._require_db()
         decision_id = str(uuid4())
         created_at = datetime.fromtimestamp(time_ns() / 1_000_000_000, tz=UTC).isoformat()
@@ -57,9 +70,9 @@ class ReviewService:
             "created_at": created_at,
         }
         if "run_id" in columns:
-            payload["run_id"] = "run_unknown"
+            payload["run_id"] = run_id
         if "comments" in columns:
-            payload["comments"] = ""
+            payload["comments"] = comments
 
         try:
             db.execute(text(self._build_review_insert_sql(columns)), payload)
