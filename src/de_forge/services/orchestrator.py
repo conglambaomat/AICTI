@@ -99,15 +99,86 @@ class PipelineOrchestrator:
             )
             raise PipelineTransitionError("evidence required before DetectionSpec generation")
 
+        specs = (
+            self.db.execute(
+                select(DetectionSpecModel)
+                .where(
+                    DetectionSpecModel.report_id == report_id,
+                    DetectionSpecModel.is_validated.is_(True),
+                )
+                .order_by(DetectionSpecModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        spec = specs[0] if specs else None
+        if len(specs) > 1:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="detection_spec_ambiguous",
+                detection_spec_id=spec.id,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("single validated DetectionSpec required")
+        if spec is None or spec.abstain_code is not None or not spec.spec_payload:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="detection_spec_required",
+                detection_spec_id=spec.id if spec is not None else None,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("validated DetectionSpec required")
+
+        rules = (
+            self.db.execute(
+                select(GeneratedRuleModel)
+                .where(GeneratedRuleModel.detection_spec_id == spec.id)
+                .order_by(GeneratedRuleModel.id)
+            )
+            .scalars()
+            .all()
+        )
+        populated_rules = [candidate for candidate in rules if candidate.rule_content]
+        rule = populated_rules[0] if populated_rules else None
+        if rule is None:
+            generated = self.rule_generation.generate_sigma_rule(detection_spec_id=spec.id)
+            rule = self.db.get(GeneratedRuleModel, generated.rule_id)
+        if rule is None or not rule.rule_content:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="rule_generation_failed",
+                detection_spec_id=spec.id,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("generated rule required before validation")
+
+        validation = self.static_validator.validate_rule(rule.id)
+        if not validation.is_valid:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="static_validation_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("static validation gate failed")
+
         self._remember_pipeline_run(
             run_id=run_id,
             report_id=report_id,
             status="failed",
-            stage="detection_spec_required",
-            detection_spec_id=None,
-            rule_id=None,
+            stage="evaluation_depth_required",
+            detection_spec_id=spec.id,
+            rule_id=rule.id,
         )
-        raise PipelineTransitionError("validated DetectionSpec required")
+        raise PipelineTransitionError("evaluation-depth gate failed before review")
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(
