@@ -303,21 +303,47 @@ async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str,
     return {"detection_spec_id": spec_id, "report_id": report_id}
 
 
-@router.post("/pipeline:approve", status_code=201)
+@router.post("/pipeline:approve", response_model=None, status_code=201)
 async def approve_rule_for_export(
-    rule_id: str, reviewer: str = "api-reviewer", db: Session = Depends(get_db)
-) -> dict[str, str]:
+    rule_id: str,
+    run_id: str,
+    reviewer: str = "api-reviewer",
+    db: Session = Depends(get_db),
+) -> dict[str, str] | JSONResponse:
+    record = _resolve_run_record(db, run_id)
+    if record is None or record.rule_id != rule_id:
+        return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
+
     service = ReviewService(db)
-    decision_id = service.record_decision(rule_id=rule_id, decision="approved", reviewer=reviewer)
+    decision_id = service.record_decision(
+        rule_id=rule_id,
+        decision="approved",
+        reviewer=reviewer,
+        run_id=run_id,
+        comments="pipeline approval helper",
+    )
     return {"decision_id": decision_id}
 
 
-@router.post("/pipeline:reject", status_code=201)
+@router.post("/pipeline:reject", response_model=None, status_code=201)
 async def reject_rule_for_export(
-    rule_id: str, reviewer: str = "api-reviewer", db: Session = Depends(get_db)
-) -> dict[str, str]:
+    rule_id: str,
+    run_id: str,
+    reviewer: str = "api-reviewer",
+    db: Session = Depends(get_db),
+) -> dict[str, str] | JSONResponse:
+    record = _resolve_run_record(db, run_id)
+    if record is None or record.rule_id != rule_id:
+        return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
+
     service = ReviewService(db)
-    decision_id = service.record_decision(rule_id=rule_id, decision="rejected", reviewer=reviewer)
+    decision_id = service.record_decision(
+        rule_id=rule_id,
+        decision="rejected",
+        reviewer=reviewer,
+        run_id=run_id,
+        comments="pipeline rejection helper",
+    )
     return {"decision_id": decision_id}
 
 

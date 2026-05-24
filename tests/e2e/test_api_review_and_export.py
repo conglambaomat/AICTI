@@ -102,7 +102,7 @@ def test_export_sigma_requires_approval() -> None:
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
 
-    handoff = client.post(f"/v1/pipeline:reject?rule_id={rule_id}")
+    handoff = client.post(f"/v1/pipeline:reject?rule_id={rule_id}&run_id={run_id}")
     assert handoff.status_code == 201
 
     response = client.post(
@@ -149,7 +149,7 @@ def test_export_sigma_success() -> None:
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
 
-    approve = client.post(f"/v1/pipeline:approve?rule_id={rule_id}")
+    approve = client.post(f"/v1/pipeline:approve?rule_id={rule_id}&run_id={run_id}")
     assert approve.status_code == 201
 
     response = client.post(
@@ -177,10 +177,10 @@ def test_export_sigma_blocked_when_latest_decision_is_rejected() -> None:
     assert run_response.status_code == 200
     run_id = run_response.json()["run_id"]
 
-    approve = client.post(f"/v1/pipeline:approve?rule_id={rule_id}")
+    approve = client.post(f"/v1/pipeline:approve?rule_id={rule_id}&run_id={run_id}")
     assert approve.status_code == 201
 
-    reject = client.post(f"/v1/pipeline:reject?rule_id={rule_id}")
+    reject = client.post(f"/v1/pipeline:reject?rule_id={rule_id}&run_id={run_id}")
     assert reject.status_code == 201
 
     response = client.post(

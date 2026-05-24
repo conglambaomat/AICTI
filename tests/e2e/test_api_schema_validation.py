@@ -119,6 +119,61 @@ def test_review_route_passes_run_context_and_comments_to_service(monkeypatch) ->
     assert captured["comments"] == "Persist this audit comment."
 
 
+def test_pipeline_approve_helper_records_run_context(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+
+    captured = {}
+
+    class FakeRecord:
+        rule_id = "rule_demo"
+
+    class FakeReviewService:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def record_decision(self, **kwargs) -> str:
+            captured.update(kwargs)
+            return "review_demo"
+
+    monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
+    monkeypatch.setattr(pipeline, "ReviewService", FakeReviewService)
+
+    response = asyncio.run(
+        pipeline.approve_rule_for_export(
+            rule_id="rule_demo",
+            run_id="run_demo",
+            reviewer="analyst@example.com",
+            db=object(),
+        )
+    )
+
+    assert response["decision_id"] == "review_demo"
+    assert captured["rule_id"] == "rule_demo"
+    assert captured["decision"] == "approved"
+    assert captured["reviewer"] == "analyst@example.com"
+    assert captured["run_id"] == "run_demo"
+    assert captured["comments"] == "pipeline approval helper"
+
+
+def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+
+    class FakeRecord:
+        rule_id = "different_rule"
+
+    monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
+
+    response = asyncio.run(
+        pipeline.approve_rule_for_export(
+            rule_id="rule_demo",
+            run_id="run_demo",
+            db=object(),
+        )
+    )
+
+    assert response.status_code == 404
+
+
 def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReviewRequest
