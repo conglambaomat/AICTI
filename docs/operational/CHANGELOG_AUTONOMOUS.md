@@ -11,6 +11,38 @@ Concise operational log of autonomous progress.
 
 ## Entries
 
+- 2026-05-24 00:20 UTC
+  - Change summary: Reopened MCP gap register from closed snapshot to active SOTA architecture backlog with prioritized open gaps MCP-REG-004..008 and one-gap-per-cycle execution policy.
+  - Scope: `docs/operational/MCP_GAP_REGISTER.md`, `docs/operational/IMPLEMENTATION_PROGRESS.md`, `docs/operational/CHANGELOG_AUTONOMOUS.md`.
+  - Commit SHA: pending
+
+- 2026-05-24 01:40 UTC
+  - Change summary: Closed MCP-REG-004 by enforcing fail-closed evaluation-depth outcomes in authoritative orchestrator path and aligning API/E2E fixtures with the new gate contract.
+  - Scope: `src/de_forge/services/orchestrator.py`, `tests/integration/services/test_orchestrator_state_transitions.py`, `src/de_forge/api/routes/pipeline.py`, `tests/e2e/test_pipeline_e2e.py`, `tests/integration/services/test_agent_audit_integrity.py`, operational evidence docs.
+  - Commit SHA: pending
+
+- 2026-05-24 02:15 UTC
+  - Change summary: Closed MCP-REG-005 by adding high-impact canonical persistence tables (`candidate_scores`, `oracle_evaluation_results`, `regression_runs`, `quality_snapshots`) with schema-contract red→green evidence.
+  - Scope: `src/de_forge/models/contract.py`, `tests/integration/db/test_schema_contract.py`, operational evidence docs.
+  - Commit SHA: pending
+
+- 2026-05-24 03:05 UTC
+  - Change summary: Closed MCP-REG-006 by expanding candidate score dimensions/penalties and enforcing fail-closed ranking-readiness contract with red→green unit evidence.
+  - Scope: `src/de_forge/schemas/rule_candidate.py`, `src/de_forge/services/portfolio_service.py`, `tests/unit/services/test_portfolio_service.py`, operational evidence docs.
+  - Commit SHA: pending
+
+- 2026-05-24 04:10 UTC
+  - Change summary: Closed MCP-REG-007 by expanding `agent_runs` SOTA audit payload schema, aligning migration/runtime schema upgrade path, and verifying restored e2e authoritative flows.
+  - Scope: `src/de_forge/models/contract.py`, `alembic/versions/20260520_01_initial_contract.py`, `src/de_forge/api/routes/pipeline.py`, `tests/integration/db/test_schema_contract.py`, operational evidence docs.
+  - Commit SHA: pending
+
+- 2026-05-24 05:00 UTC
+  - Change summary: Closed MCP-REG-008 by enforcing typed evidence-graph taxonomy and canonical lineage reachability from quote to reviewed rule candidate with red→green integration evidence.
+  - Scope: `src/de_forge/services/evidence_graph.py`, `tests/integration/services/test_evidence_service.py`, `tests/integration/db/test_artifact_graph_persistence.py`, operational evidence docs.
+  - Commit SHA: pending
+
+## Entries
+
 - 2026-05-23 09:40 UTC
   - Change summary: Enforced latest-decision export gate semantics and auditable review decision persistence.
   - Scope: review service, review decision model, integration review gate tests.

@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from de_forge.db.base import Base
 from de_forge.models import EvidenceSpan, Report, ReportChunk
+from de_forge.models.evidence_graph import EvidenceEdge, EvidenceNode
 from de_forge.services.evidence import EvidenceExtractionError, EvidenceInput, EvidenceService
+from de_forge.services.evidence_graph import EvidenceGraphStore
 
 
 def _build_session() -> Session:
@@ -154,3 +156,157 @@ def test_evidence_with_nonzero_chunk_start_validates_absolute_offsets() -> None:
     assert persisted.char_start == 100
     assert persisted.char_end == 115
     assert persisted.chunk_id == chunk_id
+
+
+def test_evidence_graph_rejects_unknown_node_type() -> None:
+    db = _build_session()
+    graph = EvidenceGraphStore(db)
+
+    with pytest.raises(ValueError, match="unsupported node_type"):
+        graph.add_node(run_id="run-lineage-1", node_type="random", payload={"id": "x"})
+
+
+def test_evidence_graph_rejects_unknown_edge_type() -> None:
+    db = _build_session()
+    graph = EvidenceGraphStore(db)
+
+    quote_node = graph.add_node(
+        run_id="run-lineage-2", node_type="evidence_quote", payload={"evidence_id": "ev-1"}
+    )
+    strategy_node = graph.add_node(
+        run_id="run-lineage-2",
+        node_type="detection_strategy",
+        payload={"strategy": "behavioral"},
+    )
+
+    with pytest.raises(ValueError, match="unsupported edge_type"):
+        graph.add_edge(
+            run_id="run-lineage-2",
+            source_node_id=quote_node,
+            target_node_id=strategy_node,
+            edge_type="unknown_link",
+        )
+
+
+def test_evidence_graph_requires_typed_lineage_path_quote_to_reviewed_rule_candidate() -> None:
+    db = _build_session()
+    graph = EvidenceGraphStore(db)
+
+    quote_node = graph.add_node(
+        run_id="run-lineage-3", node_type="evidence_quote", payload={"evidence_id": "ev-2"}
+    )
+    strategy_node = graph.add_node(
+        run_id="run-lineage-3",
+        node_type="detection_strategy",
+        payload={"strategy": "behavioral"},
+    )
+    analytic_node = graph.add_node(
+        run_id="run-lineage-3", node_type="analytic", payload={"analytic": "powershell suspicious"}
+    )
+    data_component_node = graph.add_node(
+        run_id="run-lineage-3",
+        node_type="data_component",
+        payload={"component": "process creation"},
+    )
+    telemetry_node = graph.add_node(
+        run_id="run-lineage-3", node_type="telemetry_source", payload={"source": "windows eventlog"}
+    )
+    rule_candidate_node = graph.add_node(
+        run_id="run-lineage-3",
+        node_type="reviewed_rule_candidate",
+        payload={"rule_id": "rule-1"},
+    )
+
+    graph.add_edge(
+        run_id="run-lineage-3",
+        source_node_id=quote_node,
+        target_node_id=strategy_node,
+        edge_type="supports",
+    )
+    graph.add_edge(
+        run_id="run-lineage-3",
+        source_node_id=strategy_node,
+        target_node_id=analytic_node,
+        edge_type="derives",
+    )
+    graph.add_edge(
+        run_id="run-lineage-3",
+        source_node_id=analytic_node,
+        target_node_id=data_component_node,
+        edge_type="maps_to",
+    )
+    graph.add_edge(
+        run_id="run-lineage-3",
+        source_node_id=data_component_node,
+        target_node_id=telemetry_node,
+        edge_type="maps_to",
+    )
+    graph.add_edge(
+        run_id="run-lineage-3",
+        source_node_id=telemetry_node,
+        target_node_id=rule_candidate_node,
+        edge_type="implements",
+    )
+
+    assert (
+        graph.has_required_lineage_path(
+            run_id="run-lineage-3",
+            from_node_type="evidence_quote",
+            to_node_type="reviewed_rule_candidate",
+        )
+        is True
+    )
+
+
+def test_evidence_graph_reports_missing_required_typed_lineage_path() -> None:
+    db = _build_session()
+    graph = EvidenceGraphStore(db)
+
+    quote_node = graph.add_node(
+        run_id="run-lineage-4", node_type="evidence_quote", payload={"evidence_id": "ev-3"}
+    )
+    strategy_node = graph.add_node(
+        run_id="run-lineage-4",
+        node_type="detection_strategy",
+        payload={"strategy": "behavioral"},
+    )
+    reviewed_node = graph.add_node(
+        run_id="run-lineage-4",
+        node_type="reviewed_rule_candidate",
+        payload={"rule_id": "rule-2"},
+    )
+
+    graph.add_edge(
+        run_id="run-lineage-4",
+        source_node_id=quote_node,
+        target_node_id=strategy_node,
+        edge_type="supports",
+    )
+    graph.add_edge(
+        run_id="run-lineage-4",
+        source_node_id=strategy_node,
+        target_node_id=reviewed_node,
+        edge_type="supports",
+    )
+
+    assert (
+        graph.has_required_lineage_path(
+            run_id="run-lineage-4",
+            from_node_type="evidence_quote",
+            to_node_type="reviewed_rule_candidate",
+        )
+        is False
+    )
+
+    persisted_nodes = (
+        db.execute(select(EvidenceNode).where(EvidenceNode.run_id == "run-lineage-4"))
+        .scalars()
+        .all()
+    )
+    persisted_edges = (
+        db.execute(select(EvidenceEdge).where(EvidenceEdge.run_id == "run-lineage-4"))
+        .scalars()
+        .all()
+    )
+    assert len(persisted_nodes) == 3
+    assert len(persisted_edges) == 2

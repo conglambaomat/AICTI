@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.models import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models import ValidationResult as ValidationResultModel
 from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.agent_audit import AgentAuditService
 from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
@@ -114,17 +115,41 @@ class PipelineOrchestrator:
                 self.refinement.record_rule_refinement(rule.id)
             raise PipelineTransitionError("static validation gate failed")
 
+        self._require_evaluation_depth_passed(run_id=detection_spec_id, rule_id=rule.id)
         self._require_proof_obligations_proven(run_id=detection_spec_id, rule_id=rule.id)
 
         return PipelineState.AWAITING_REVIEW
 
-    def _require_proof_obligations_proven(self, *, run_id: str, rule_id: str) -> None:
-        rows = self.db.execute(
-            select(ProofObligationRecordModel).where(
-                ProofObligationRecordModel.run_id == run_id,
-                ProofObligationRecordModel.rule_candidate_id == rule_id,
+    def _require_evaluation_depth_passed(self, *, run_id: str, rule_id: str) -> None:
+        rows = (
+            self.db.execute(
+                select(ValidationResultModel).where(
+                    ValidationResultModel.run_id == run_id,
+                    ValidationResultModel.rule_id == rule_id,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
+        if len(rows) < 4:
+            raise PipelineTransitionError(
+                "evaluation-depth gate failed: missing persisted outcomes"
+            )
+
+        if any(row.status.lower() != "passed" for row in rows):
+            raise PipelineTransitionError("evaluation-depth gate failed before review")
+
+    def _require_proof_obligations_proven(self, *, run_id: str, rule_id: str) -> None:
+        rows = (
+            self.db.execute(
+                select(ProofObligationRecordModel).where(
+                    ProofObligationRecordModel.run_id == run_id,
+                    ProofObligationRecordModel.rule_candidate_id == rule_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not rows:
             raise PipelineTransitionError("proof obligation gate failed: no persisted obligations")
 

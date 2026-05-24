@@ -61,8 +61,10 @@ def test_evidence_graph_store_persists_nodes_and_edges() -> None:
     db = _session()
     graph = EvidenceGraphStore(db)
 
-    n1 = graph.add_node(run_id="run_1", node_type="report_chunk", payload={"chunk_id": "c1"})
-    n2 = graph.add_node(run_id="run_1", node_type="behavior", payload={"behavior_id": "b1"})
+    n1 = graph.add_node(run_id="run_1", node_type="evidence_quote", payload={"evidence_id": "ev-1"})
+    n2 = graph.add_node(
+        run_id="run_1", node_type="detection_strategy", payload={"strategy": "behavioral"}
+    )
     e1 = graph.add_edge(run_id="run_1", source_node_id=n1, target_node_id=n2, edge_type="supports")
 
     assert db.get(EvidenceNode, n1) is not None

@@ -16,6 +16,13 @@ def _verified_spec() -> DetectionSpec:
         ],
         false_positive_hypotheses=["admin script"],
         test_plan="positive + benign",
+        evidence_ids=["ev-1"],
+        behavior_ids=["bh-1"],
+        detection_strategy="behavioral",
+        analytic="process analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["CommandLine"],
+        rationale_traceability=["ev-1 -> bh-1"],
     )
 
 

@@ -19,6 +19,14 @@ class CandidateScore(BaseModel):
     telemetry_fit: float = Field(default=0.0, ge=0.0, le=1.0)
     static_validity: float = Field(default=0.0, ge=0.0, le=1.0)
     false_positive_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    adversarial_robustness: float = Field(default=0.0, ge=0.0, le=1.0)
+    counterfactual_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    oracle_alignment: float = Field(default=0.0, ge=0.0, le=1.0)
+    regression_safety: float = Field(default=0.0, ge=0.0, le=1.0)
+    explainability: float = Field(default=0.0, ge=0.0, le=1.0)
+    overbreadth_penalty: float = Field(default=0.0, ge=0.0, le=1.0)
+    complexity_penalty: float = Field(default=0.0, ge=0.0, le=1.0)
+    drift_risk_penalty: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class RuleCandidate(BaseModel):

@@ -142,7 +142,10 @@ def upgrade() -> None:
     op.create_table("generated_rules", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("detection_spec_id", sa.String(length=36), sa.ForeignKey("detection_specs.id"), nullable=False), sa.Column("query_candidate_id", sa.String(length=36), sa.ForeignKey("query_candidates.id"), nullable=True))
     op.create_table("validation_results", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False))
     op.create_table("test_runs", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False))
-    op.create_table("agent_runs", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("run_id", sa.String(length=36), nullable=False), sa.Column("trace_id", sa.String(length=36), nullable=False), sa.Column("agent_name", sa.Text(), nullable=False), sa.Column("input_hash", sa.Text(), nullable=False), sa.Column("output_hash", sa.Text(), nullable=True), sa.Column("status", sa.String(length=20), nullable=False), sa.Column("retry_attempt", sa.Integer(), nullable=False, server_default="0"), sa.Column("started_at", sa.String(length=40), nullable=False))
+    op.create_table("agent_runs", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("run_id", sa.String(length=36), nullable=False), sa.Column("trace_id", sa.String(length=36), nullable=False), sa.Column("agent_name", sa.Text(), nullable=False), sa.Column("input_hash", sa.Text(), nullable=False), sa.Column("output_hash", sa.Text(), nullable=True), sa.Column("prompt_version", sa.String(length=64), nullable=False, server_default="unknown"), sa.Column("model_id", sa.String(length=120), nullable=False, server_default="unknown"), sa.Column("tokens_in", sa.Integer(), nullable=False, server_default="0"), sa.Column("tokens_out", sa.Integer(), nullable=False, server_default="0"), sa.Column("latency_ms", sa.Integer(), nullable=False, server_default="0"), sa.Column("cost_usd", sa.Float(), nullable=False, server_default="0"), sa.Column("input_payload_json", sa.Text(), nullable=False, server_default="{}"), sa.Column("output_payload_json", sa.Text(), nullable=False, server_default="{}"), sa.Column("artifact_ids_json", sa.Text(), nullable=False, server_default="[]"), sa.Column("status", sa.String(length=20), nullable=False), sa.Column("retry_attempt", sa.Integer(), nullable=False, server_default="0"), sa.Column("started_at", sa.String(length=40), nullable=False), sa.CheckConstraint("tokens_in >= 0", name="ck_agent_runs_tokens_in_non_negative"), sa.CheckConstraint("tokens_out >= 0", name="ck_agent_runs_tokens_out_non_negative"), sa.CheckConstraint("latency_ms >= 0", name="ck_agent_runs_latency_ms_non_negative"), sa.CheckConstraint("cost_usd >= 0", name="ck_agent_runs_cost_usd_non_negative"), sa.CheckConstraint("retry_attempt >= 0", name="ck_agent_runs_retry_attempt_non_negative"))
+    op.create_index("ix_agent_runs_run_id", "agent_runs", ["run_id"])
+    op.create_index("ix_agent_runs_trace_id", "agent_runs", ["trace_id"])
+    op.create_index("ix_agent_runs_agent_name", "agent_runs", ["agent_name"])
     op.create_table("review_decisions", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=False))
     op.create_table("refinement_iterations", sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("detection_spec_id", sa.String(length=36), sa.ForeignKey("detection_specs.id"), nullable=True), sa.Column("rule_id", sa.String(length=36), sa.ForeignKey("generated_rules.id"), nullable=True))
 
@@ -150,6 +153,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("refinement_iterations")
     op.drop_table("review_decisions")
+    op.drop_index("ix_agent_runs_agent_name", table_name="agent_runs")
+    op.drop_index("ix_agent_runs_trace_id", table_name="agent_runs")
+    op.drop_index("ix_agent_runs_run_id", table_name="agent_runs")
     op.drop_table("agent_runs")
     op.drop_table("test_runs")
     op.drop_table("validation_results")

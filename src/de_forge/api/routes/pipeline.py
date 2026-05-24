@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from de_forge.db.base import Base
@@ -226,6 +227,29 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
             "required_artifact_types2": '["false_positive_analysis"]',
         },
     )
+    db.execute(
+        text(
+            """
+            INSERT INTO validation_results (id, rule_id, run_id, status, details_json, created_at)
+            VALUES (:id1, :rule_id, :run_id, 'passed', '{}', :created_at1),
+                   (:id2, :rule_id, :run_id, 'passed', '{}', :created_at2),
+                   (:id3, :rule_id, :run_id, 'passed', '{}', :created_at3),
+                   (:id4, :rule_id, :run_id, 'passed', '{}', :created_at4)
+            """
+        ),
+        {
+            "id1": f"vr-seed-1-{spec_id}",
+            "id2": f"vr-seed-2-{spec_id}",
+            "id3": f"vr-seed-3-{spec_id}",
+            "id4": f"vr-seed-4-{spec_id}",
+            "rule_id": rule_id,
+            "run_id": spec_id,
+            "created_at1": datetime.now(UTC).isoformat(),
+            "created_at2": datetime.now(UTC).isoformat(),
+            "created_at3": datetime.now(UTC).isoformat(),
+            "created_at4": datetime.now(UTC).isoformat(),
+        },
+    )
     db.commit()
 
     db.execute(
@@ -323,10 +347,44 @@ async def get_run_export_mapping(
     return {"rule_id": rule_id}
 
 
-
-
 def _ensure_schema(db: Session) -> None:
     Base.metadata.create_all(bind=db.get_bind())
+    _ensure_agent_runs_schema(db)
+
+
+def _ensure_agent_runs_schema(db: Session) -> None:
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    tables = set(inspector.get_table_names())
+    if "agent_runs" not in tables:
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("agent_runs")}
+    column_defs = {
+        "prompt_version": "VARCHAR(64) NOT NULL DEFAULT 'unknown'",
+        "model_id": "VARCHAR(120) NOT NULL DEFAULT 'unknown'",
+        "tokens_in": "INTEGER NOT NULL DEFAULT 0",
+        "tokens_out": "INTEGER NOT NULL DEFAULT 0",
+        "latency_ms": "INTEGER NOT NULL DEFAULT 0",
+        "cost_usd": "FLOAT NOT NULL DEFAULT 0",
+        "input_payload_json": "TEXT NOT NULL DEFAULT '{}'",
+        "output_payload_json": "TEXT NOT NULL DEFAULT '{}'",
+        "artifact_ids_json": "TEXT NOT NULL DEFAULT '[]'",
+    }
+
+    for name, ddl in column_defs.items():
+        if name not in columns:
+            db.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {name} {ddl}"))
+
+    index_names = {index["name"] for index in inspector.get_indexes("agent_runs")}
+    if "ix_agent_runs_run_id" not in index_names:
+        db.execute(text("CREATE INDEX ix_agent_runs_run_id ON agent_runs (run_id)"))
+    if "ix_agent_runs_trace_id" not in index_names:
+        db.execute(text("CREATE INDEX ix_agent_runs_trace_id ON agent_runs (trace_id)"))
+    if "ix_agent_runs_agent_name" not in index_names:
+        db.execute(text("CREATE INDEX ix_agent_runs_agent_name ON agent_runs (agent_name)"))
+
+    db.commit()
 
 
 def _remember_run(
@@ -339,7 +397,9 @@ def _remember_run(
     rule_id: str | None,
     stage: str | None = None,
 ) -> None:
-    record = db.query(PipelineRunRecordModel).filter(PipelineRunRecordModel.run_id == run_id).first()
+    record = (
+        db.query(PipelineRunRecordModel).filter(PipelineRunRecordModel.run_id == run_id).first()
+    )
     normalized_stage = stage or _resolve_stage_for_status(status)
     if record is None:
         db.add(

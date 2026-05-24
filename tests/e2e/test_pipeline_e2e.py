@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from de_forge.models.contract import DetectionSpec as DetectionSpecModel
 from de_forge.models.contract import GeneratedRule as GeneratedRuleModel
 from de_forge.models.contract import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models.contract import ValidationResult as ValidationResultModel
 from de_forge.services.orchestrator import (
     PipelineOrchestrator,
     PipelineState,
@@ -27,7 +28,7 @@ def _seed_positive(db: Session, spec_id: str, rule_id: str) -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-positive",
-            spec_payload='{"report_id":"report-positive","behavior_rules":[{"evidence":["attacker used powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"validate against synthetic corpus"}',
+            spec_payload='{"report_id":"report-positive","behavior_rules":[{"evidence":["attacker used powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"validate against synthetic corpus","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -99,6 +100,17 @@ detection:
             justification=None,
         )
     )
+    for idx in range(1, 5):
+        db.add(
+            ValidationResultModel(
+                id=f"vr-{spec_id}-{idx}",
+                rule_id=rule_id,
+                run_id=spec_id,
+                status="passed",
+                details_json="{}",
+                created_at=f"2026-05-23T00:00:0{idx}Z",
+            )
+        )
     db.commit()
 
 

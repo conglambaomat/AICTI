@@ -24,6 +24,152 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
 
 ## Entries
 
+### 2026-05-24 00:20 UTC — MCP register reopen from SOTA architecture audit matrix
+- Status: done
+- Phase/Plan reference: SOTA Core v2 architecture conformance audit → MCP backlog reopen cycle
+- Summary of implementation:
+  - Reopened MCP register from "no open gaps" to active backlog based on architecture audit findings.
+  - Added prioritized open gaps MCP-REG-004..008 with P0/P1 ordering, impact, DoD, and one-line NEXT EXACT STEP semantics.
+  - Added one-gap-per-cycle policy section to operationalize deterministic closure order.
+- Files changed:
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest: pending (docs integrity suite to run after update)
+  - mypy: not required for docs-only cycle
+  - ruff check: not required for docs-only cycle
+  - ruff format --check: pending (via docs scope integrity gate)
+- Commit SHA: pending
+- Next step: run docs integrity tests and close cycle evidence for MCP backlog opening
+- Blockers/risks: none
+
+### 2026-05-24 01:40 UTC — MCP-REG-004 evaluation-depth authoritative gate closure
+- Status: done
+- Phase/Plan reference: MCP-REG-004 one-gap-per-cycle closure
+- Summary of implementation:
+  - Added fail-closed evaluation-depth gate in authoritative orchestrator path requiring persisted evaluation outcomes before `AWAITING_REVIEW`.
+  - Added red→green integration tests for missing/failed evaluation outcomes and updated positive-path fixtures.
+  - Updated API/e2e/integration seed fixtures so authoritative runtime flows satisfy the new gate contract.
+- Files changed:
+  - `src/de_forge/services/orchestrator.py`
+  - `tests/integration/services/test_orchestrator_state_transitions.py`
+  - `src/de_forge/api/routes/pipeline.py`
+  - `tests/e2e/test_pipeline_e2e.py`
+  - `tests/integration/services/test_agent_audit_integrity.py`
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest targeted: `python -m pytest -q tests/integration/services/test_orchestrator_state_transitions.py` pass (15 passed)
+  - pytest impacted e2e/integration: `python -m pytest -q tests/e2e/test_pipeline_e2e.py tests/e2e/test_api_run_status.py tests/e2e/test_api_review_and_export.py tests/e2e/test_api_health_and_contracts.py tests/integration/services/test_agent_audit_integrity.py` pass (24 passed)
+  - pytest full: `python -m pytest -q` pass (317 passed, 1 warning)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: `python -m ruff format --check src tests docs` pass
+- Commit SHA: pending
+- Next step: close MCP-REG-005 with schema-contract red tests for missing canonical persistence domains
+- Blockers/risks: none
+
+### 2026-05-24 02:15 UTC — MCP-REG-005 persistence breadth closure (high-impact canonical tables)
+- Status: done
+- Phase/Plan reference: MCP-REG-005 one-gap-per-cycle closure
+- Summary of implementation:
+  - Added red→green schema contract tests for missing high-impact canonical persistence tables.
+  - Added additive contract models for `candidate_scores`, `oracle_evaluation_results`, `regression_runs`, and `quality_snapshots` with PK/FK/index/check constraints.
+- Files changed:
+  - `tests/integration/db/test_schema_contract.py`
+  - `src/de_forge/models/contract.py`
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest targeted: `python -m pytest -q tests/integration/db/test_schema_contract.py` pass (48 passed)
+  - pytest full: `python -m pytest -q` pass (355 passed, 1 warning)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: `python -m ruff format --check src tests docs` pass
+- Commit SHA: pending
+- Next step: close MCP-REG-006 via score model dimension expansion + ranking contract red tests
+- Blockers/risks: none
+
+### 2026-05-24 03:05 UTC — MCP-REG-006 portfolio/ranking score contract closure
+- Status: done
+- Phase/Plan reference: MCP-REG-006 one-gap-per-cycle closure
+- Summary of implementation:
+  - Expanded candidate score contract with required SOTA ranking dimensions and penalties.
+  - Added/validated fail-closed ranking-readiness gate that rejects candidates missing required dimensions/penalties.
+  - Completed red→green unit coverage for score contract presence and readiness-failure semantics.
+- Files changed:
+  - `src/de_forge/schemas/rule_candidate.py`
+  - `src/de_forge/services/portfolio_service.py`
+  - `tests/unit/services/test_portfolio_service.py`
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest targeted: `python -m pytest -q tests/unit/services/test_portfolio_service.py` pass (4 passed)
+  - pytest full: `python -m pytest -q` pass (359 passed, 1 warning)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: `python -m ruff format --check src tests docs` pass
+- Commit SHA: pending
+- Next step: close MCP-REG-007 by extending `agent_runs` audit payload schema to SOTA §9 with schema-contract red→green tests
+- Blockers/risks: none
+
+### 2026-05-24 04:10 UTC — MCP-REG-007 agent audit payload schema closure
+- Status: done
+- Phase/Plan reference: MCP-REG-007 one-gap-per-cycle closure
+- Summary of implementation:
+  - Expanded `agent_runs` contract with canonical SOTA audit payload columns, non-negative numeric checks, and identity indexes.
+  - Aligned Alembic initial contract and added runtime schema auto-upgrade path for pre-existing `agent_runs` tables to keep `/v1` authoritative path fail-closed and compatible.
+  - Completed red→green schema-contract coverage for `agent_runs` and re-verified failing e2e runtime paths.
+- Files changed:
+  - `src/de_forge/models/contract.py`
+  - `alembic/versions/20260520_01_initial_contract.py`
+  - `src/de_forge/api/routes/pipeline.py`
+  - `tests/integration/db/test_schema_contract.py`
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest targeted schema: `python -m pytest -q tests/integration/db/test_schema_contract.py -k agent_runs` pass (60 passed)
+  - pytest targeted e2e: `python -m pytest -q tests/e2e/test_api_health_and_contracts.py tests/e2e/test_api_review_and_export.py tests/e2e/test_api_run_status.py` pass (16 passed)
+  - pytest full: `python -m pytest -q` pass (418 passed, 1 warning)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: `python -m ruff format --check src tests docs` pass
+- Commit SHA: pending
+- Next step: close MCP-REG-008 by enforcing typed evidence-graph lineage semantics with integration contract tests
+- Blockers/risks: none
+
+### 2026-05-24 05:00 UTC — MCP-REG-008 typed evidence-graph lineage closure
+- Status: done
+- Phase/Plan reference: MCP-REG-008 one-gap-per-cycle closure
+- Summary of implementation:
+  - Enforced fail-closed typed taxonomy for evidence-graph nodes and edges.
+  - Added canonical typed lineage reachability check from evidence quote to reviewed rule candidate across required intermediate artifact classes.
+  - Completed red→green integration coverage for taxonomy rejection + required lineage-path positive/negative behavior and aligned persistence test fixtures to new typed taxonomy.
+- Files changed:
+  - `src/de_forge/services/evidence_graph.py`
+  - `tests/integration/services/test_evidence_service.py`
+  - `tests/integration/db/test_artifact_graph_persistence.py`
+  - `docs/operational/MCP_GAP_REGISTER.md`
+  - `docs/operational/IMPLEMENTATION_PROGRESS.md`
+  - `docs/operational/CHANGELOG_AUTONOMOUS.md`
+- Verification evidence:
+  - pytest targeted lineage: `python -m pytest -q tests/integration/services/test_evidence_service.py` pass (7 passed)
+  - pytest targeted persistence+lineage: `python -m pytest -q tests/integration/db/test_artifact_graph_persistence.py tests/integration/services/test_evidence_service.py` pass (10 passed)
+  - pytest full: `python -m pytest -q` pass (422 passed, 1 warning)
+  - mypy: `python -m mypy src` pass
+  - ruff check: `python -m ruff check src tests` pass
+  - ruff format --check: `python -m ruff format --check src tests docs` pass
+- Commit SHA: pending
+- Next step: maintain closed MCP register and run full verification before any backlog reopen
+- Blockers/risks: none
+
+## Entries
+
 ### 2026-05-23 14:05 UTC — Full completion checklist baseline closure lock
 - Status: done
 - Phase/Plan reference: `docs/superpowers/plans/2026-05-23-sota-core-v2-full-completion-checklist-closure-plan.md` (Tasks 1-7 closure)

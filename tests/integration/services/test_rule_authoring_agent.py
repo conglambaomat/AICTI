@@ -19,6 +19,13 @@ def _spec() -> dict[str, object]:
         ],
         "false_positive_hypotheses": ["admin scripts"],
         "test_plan": "malicious powershell",
+        "evidence_ids": ["ev-1"],
+        "behavior_ids": ["bh-1"],
+        "detection_strategy": "behavioral",
+        "analytic": "process analytic",
+        "data_component": "process_creation",
+        "allowed_telemetry_fields": ["CommandLine"],
+        "rationale_traceability": ["ev-1 -> bh-1"],
     }
 
 

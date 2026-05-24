@@ -219,12 +219,32 @@ class TestRun(Base):
 
 class AgentRun(Base):
     __tablename__ = "agent_runs"
+    __table_args__ = (
+        CheckConstraint("tokens_in >= 0", name="ck_agent_runs_tokens_in_non_negative"),
+        CheckConstraint("tokens_out >= 0", name="ck_agent_runs_tokens_out_non_negative"),
+        CheckConstraint("latency_ms >= 0", name="ck_agent_runs_latency_ms_non_negative"),
+        CheckConstraint("cost_usd >= 0", name="ck_agent_runs_cost_usd_non_negative"),
+        CheckConstraint("retry_attempt >= 0", name="ck_agent_runs_retry_attempt_non_negative"),
+        Index("ix_agent_runs_run_id", "run_id"),
+        Index("ix_agent_runs_trace_id", "trace_id"),
+        Index("ix_agent_runs_agent_name", "agent_name"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     trace_id: Mapped[str] = mapped_column(String(36), nullable=False)
     agent_name: Mapped[str] = mapped_column(Text(), nullable=False)
     input_hash: Mapped[str] = mapped_column(Text(), nullable=False)
     output_hash: Mapped[str | None] = mapped_column(Text())
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
+    model_id: Mapped[str] = mapped_column(String(120), nullable=False, default="unknown")
+    tokens_in: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    input_payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    output_payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    artifact_ids_json: Mapped[str] = mapped_column(Text(), nullable=False, default="[]")
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     retry_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     started_at: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -295,6 +315,87 @@ class RefinementIteration(Base):
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     feedback_ref: Mapped[str] = mapped_column(Text(), nullable=False, default="")
     regression_ref: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class CandidateScore(Base):
+    __tablename__ = "candidate_scores"
+    __table_args__ = (
+        CheckConstraint(
+            "score_value >= 0 and score_value <= 1",
+            name="ck_candidate_scores_score_value_between_0_and_1",
+        ),
+        CheckConstraint("length(score_type) > 0", name="ck_candidate_scores_score_type_non_empty"),
+        Index("ix_candidate_scores_rule_id", "rule_id"),
+        Index("ix_candidate_scores_run_id", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    score_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    score_value: Mapped[float] = mapped_column(Float, nullable=False)
+    score_breakdown_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class OracleEvaluationResult(Base):
+    __tablename__ = "oracle_evaluation_results"
+    __table_args__ = (
+        CheckConstraint(
+            "score >= 0 and score <= 1",
+            name="ck_oracle_evaluation_results_score_between_0_and_1",
+        ),
+        CheckConstraint(
+            "length(oracle_case_id) > 0",
+            name="ck_oracle_evaluation_results_oracle_case_id_non_empty",
+        ),
+        Index("ix_oracle_evaluation_results_rule_id", "rule_id"),
+        Index("ix_oracle_evaluation_results_run_id", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    oracle_case_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    details_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class RegressionRun(Base):
+    __tablename__ = "regression_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('passed', 'failed', 'unknown')",
+            name="ck_regression_runs_status_allowed",
+        ),
+        Index("ix_regression_runs_rule_id", "rule_id"),
+        Index("ix_regression_runs_run_id", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    rule_id: Mapped[str] = mapped_column(ForeignKey("generated_rules.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    result_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class QualitySnapshot(Base):
+    __tablename__ = "quality_snapshots"
+    __table_args__ = (
+        CheckConstraint(
+            "length(snapshot_type) > 0",
+            name="ck_quality_snapshots_snapshot_type_non_empty",
+        ),
+        Index("ix_quality_snapshots_run_id", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    snapshot_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    metrics_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 

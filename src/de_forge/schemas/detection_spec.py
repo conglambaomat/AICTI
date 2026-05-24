@@ -91,7 +91,13 @@ class DetectionSpec(BaseModel):
             raise ValueError("false_positive_hypotheses items must not be empty or whitespace-only")
         return cleaned
 
-    @field_validator("evidence_ids", "behavior_ids", "allowed_telemetry_fields", "rationale_traceability", mode="after")
+    @field_validator(
+        "evidence_ids",
+        "behavior_ids",
+        "allowed_telemetry_fields",
+        "rationale_traceability",
+        mode="after",
+    )
     @classmethod
     def validate_list_items_not_blank(cls, value: list[str]) -> list[str]:
         cleaned = [item.strip() for item in value]

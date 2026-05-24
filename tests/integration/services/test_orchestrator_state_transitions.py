@@ -10,6 +10,7 @@ from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.models import ProofObligationRecord as ProofObligationRecordModel
+from de_forge.models import ValidationResult as ValidationResultModel
 from de_forge.services.orchestrator import (
     PipelineOrchestrator,
     PipelineState,
@@ -117,13 +118,19 @@ def test_pipeline_positive_flow_reaches_awaiting_review() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-ok",
-            spec_payload='{"report_id":"report-ok","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-ok","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
     db.commit()
     _seed_required_runtime_memory_contracts(db, spec_id)
     seeded_rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_validation_results(
+        db,
+        run_id=spec_id,
+        rule_id=seeded_rule.rule_id,
+        statuses=["passed", "passed", "passed", "passed"],
+    )
     _persist_proof_obligations(
         db,
         run_id=spec_id,
@@ -152,7 +159,7 @@ def test_pipeline_fails_when_required_memory_contract_missing() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-no-memory",
-            spec_payload='{"report_id":"report-no-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-no-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -190,7 +197,7 @@ def test_pipeline_rejects_preseeded_invalid_rule_even_if_present() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-invalid",
-            spec_payload='{"report_id":"report-invalid","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-invalid","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -239,13 +246,19 @@ detection:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-new",
-            spec_payload='{"report_id":"report-new","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-new","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
     db.commit()
     _seed_required_runtime_memory_contracts(db, spec_id)
     seeded_rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_validation_results(
+        db,
+        run_id=spec_id,
+        rule_id=seeded_rule.rule_id,
+        statuses=["passed", "passed", "passed", "passed"],
+    )
     _persist_proof_obligations(
         db,
         run_id=spec_id,
@@ -272,7 +285,7 @@ def test_state_transition_blocked_when_gate_fails() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-bad",
-            spec_payload='{"report_id":"report-bad","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-bad","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect powershell"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=False,
         )
     )
@@ -291,7 +304,7 @@ def test_pipeline_fails_when_static_validation_memory_contract_missing() -> None
         DetectionSpecModel(
             id=spec_id,
             report_id="report-missing-static-memory",
-            spec_payload='{"report_id":"report-missing-static-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-missing-static-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -311,7 +324,7 @@ def test_pipeline_fails_when_rule_generation_memory_contract_missing() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-missing-rulegen-memory",
-            spec_payload='{"report_id":"report-missing-rulegen-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-missing-rulegen-memory","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -320,6 +333,23 @@ def test_pipeline_fails_when_rule_generation_memory_contract_missing() -> None:
 
     with pytest.raises(PipelineTransitionError, match="memory contract"):
         orchestrator.run_pipeline(spec_id)
+
+
+def _persist_validation_results(
+    db: Session, *, run_id: str, rule_id: str, statuses: list[str]
+) -> None:
+    for idx, status in enumerate(statuses, start=1):
+        db.add(
+            ValidationResultModel(
+                id=f"vr-{run_id}-{idx}",
+                rule_id=rule_id,
+                run_id=run_id,
+                status=status,
+                details_json="{}",
+                created_at=f"2026-05-23T00:00:0{idx}Z",
+            )
+        )
+    db.commit()
 
 
 def _persist_proof_obligations(
@@ -341,6 +371,59 @@ def _persist_proof_obligations(
     db.commit()
 
 
+def test_pipeline_fails_when_evaluation_depth_results_missing() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-eval-missing"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-eval-missing",
+            spec_payload='{"report_id":"report-eval-missing","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_required_runtime_memory_contracts(db, spec_id)
+
+    rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_proof_obligations(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "proven"]
+    )
+
+    with pytest.raises(PipelineTransitionError, match="evaluation-depth gate failed"):
+        orchestrator.run_pipeline(spec_id)
+
+
+def test_pipeline_fails_when_any_evaluation_depth_result_not_passed() -> None:
+    db = _build_session()
+    orchestrator = PipelineOrchestrator(db)
+
+    spec_id = "spec-eval-failed"
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-eval-failed",
+            spec_payload='{"report_id":"report-eval-failed","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
+            is_validated=True,
+        )
+    )
+    db.commit()
+    _seed_required_runtime_memory_contracts(db, spec_id)
+
+    rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_validation_results(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["passed", "passed", "failed", "passed"]
+    )
+    _persist_proof_obligations(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "proven"]
+    )
+
+    with pytest.raises(PipelineTransitionError, match="evaluation-depth gate failed"):
+        orchestrator.run_pipeline(spec_id)
+
+
 def test_pipeline_fails_when_proof_obligations_missing() -> None:
     db = _build_session()
     orchestrator = PipelineOrchestrator(db)
@@ -350,12 +433,20 @@ def test_pipeline_fails_when_proof_obligations_missing() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-proof-missing",
-            spec_payload='{"report_id":"report-proof-missing","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-proof-missing","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
     db.commit()
     _seed_required_runtime_memory_contracts(db, spec_id)
+
+    seeded_rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
+    _persist_validation_results(
+        db,
+        run_id=spec_id,
+        rule_id=seeded_rule.rule_id,
+        statuses=["passed", "passed", "passed", "passed"],
+    )
 
     with pytest.raises(PipelineTransitionError, match="proof obligation gate failed"):
         orchestrator.run_pipeline(spec_id)
@@ -370,7 +461,7 @@ def test_pipeline_fails_when_any_proof_obligation_not_proven() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-proof-unknown",
-            spec_payload='{"report_id":"report-proof-unknown","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-proof-unknown","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -378,7 +469,12 @@ def test_pipeline_fails_when_any_proof_obligation_not_proven() -> None:
     _seed_required_runtime_memory_contracts(db, spec_id)
 
     rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
-    _persist_proof_obligations(db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "unknown"])
+    _persist_validation_results(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["passed", "passed", "passed", "passed"]
+    )
+    _persist_proof_obligations(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "unknown"]
+    )
 
     generated_state = None
     with pytest.raises(PipelineTransitionError, match="proof obligation gate failed"):
@@ -395,7 +491,7 @@ def test_pipeline_reaches_awaiting_review_when_all_proof_obligations_proven() ->
         DetectionSpecModel(
             id=spec_id,
             report_id="report-proof-proven",
-            spec_payload='{"report_id":"report-proof-proven","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-proof-proven","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -403,7 +499,12 @@ def test_pipeline_reaches_awaiting_review_when_all_proof_obligations_proven() ->
     _seed_required_runtime_memory_contracts(db, spec_id)
 
     rule = orchestrator.rule_generation.generate_sigma_rule(detection_spec_id=spec_id)
-    _persist_proof_obligations(db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "proven"])
+    _persist_validation_results(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["passed", "passed", "passed", "passed"]
+    )
+    _persist_proof_obligations(
+        db, run_id=spec_id, rule_id=rule.rule_id, statuses=["proven", "proven"]
+    )
 
     final_state = orchestrator.run_pipeline(spec_id)
     assert final_state == PipelineState.AWAITING_REVIEW

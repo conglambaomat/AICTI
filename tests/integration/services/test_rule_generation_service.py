@@ -50,7 +50,7 @@ def test_generated_rule_is_immutable_versioned() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-123",
-            spec_payload='{"report_id":"report-123","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-123","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -88,7 +88,7 @@ def test_rule_generation_constrained_by_detection_spec() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-456",
-            spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"CommandLine contains \'-enc\' and Image contains \'pwsh\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-456","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"CommandLine contains \'-enc\' and Image contains \'pwsh\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -123,7 +123,7 @@ def test_rule_generation_fails_for_unsupported_telemetry() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-telemetry",
-            spec_payload='{"report_id":"report-telemetry","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["unknown_source"],"detection_logic":"Image contains \'test\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-telemetry","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["unknown_source"],"detection_logic":"Image contains \'test\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -144,7 +144,7 @@ def test_rule_generation_fails_for_invalid_telemetry_field() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-field",
-            spec_payload='{"report_id":"report-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"BadField contains \'x\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-field","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"BadField contains \'x\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -163,7 +163,7 @@ def test_rule_generation_fails_for_unsupported_logic_shape() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-logic",
-            spec_payload='{"report_id":"report-logic","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"anything OR else"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-logic","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"anything OR else"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -184,7 +184,7 @@ def test_transaction_rollback_on_generation_failure() -> None:
         DetectionSpecModel(
             id=spec_id,
             report_id="report-789",
-            spec_payload='{"report_id":"report-789","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp"}',
+            spec_payload='{"report_id":"report-789","behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"Image contains \'powershell\'"}],"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}',
             is_validated=True,
         )
     )
@@ -244,7 +244,7 @@ def test_rule_generation_uses_ast_compiler_path_for_persistence() -> None:
         '{"report_id":"report-ast","behavior_rules":[{"evidence":["e1"],'
         '"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],'
         '"detection_logic":"CommandLine contains \'-enc\'"}],'
-        '"false_positive_hypotheses":["fp"],"test_plan":"tp"}'
+        '"false_positive_hypotheses":["fp"],"test_plan":"tp","evidence_ids":["ev-1"],"behavior_ids":["bh-1"],"detection_strategy":"behavioral","analytic":"process analytic","data_component":"process_creation","allowed_telemetry_fields":["Image","CommandLine"],"rationale_traceability":["ev-1 -> bh-1"]}'
     )
     db.add(
         DetectionSpecModel(
@@ -331,6 +331,13 @@ def test_generate_rule_uses_ast_compiler_in_memory_contract() -> None:
         ],
         "false_positive_hypotheses": ["admin usage"],
         "test_plan": "tp",
+        "evidence_ids": ["ev-1"],
+        "behavior_ids": ["bh-1"],
+        "detection_strategy": "behavioral",
+        "analytic": "process analytic",
+        "data_component": "process_creation",
+        "allowed_telemetry_fields": ["CommandLine"],
+        "rationale_traceability": ["ev-1 -> bh-1"],
     }
 
     response = service.generate_rule(detection_spec=detection_spec, profile="strict")
