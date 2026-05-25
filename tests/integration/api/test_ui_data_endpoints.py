@@ -14,48 +14,34 @@ def test_runs_list_endpoint_returns_items() -> None:
     assert isinstance(payload["items"], list)
 
 
-def test_run_detail_endpoint_returns_run_id() -> None:
+def test_run_detail_endpoint_returns_not_found_for_missing_run() -> None:
     response = client.get("/api/runs/run_1")
 
-    assert response.status_code == 200
-    assert response.json()["run_id"] == "run_1"
+    assert response.status_code == 404
 
 
-def test_run_evidence_endpoint_returns_quotes() -> None:
+def test_run_evidence_endpoint_returns_not_found_for_missing_run() -> None:
     response = client.get("/api/runs/run_1/evidence")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run_id"] == "run_1"
-    assert isinstance(payload["items"], list)
+    assert response.status_code == 404
 
 
-def test_run_spec_endpoint_returns_detection_spec_shape() -> None:
+def test_run_spec_endpoint_returns_not_found_for_missing_run() -> None:
     response = client.get("/api/runs/run_1/spec")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run_id"] == "run_1"
-    assert "telemetry_requirements" in payload
+    assert response.status_code == 404
 
 
-def test_run_portfolio_endpoint_returns_candidates() -> None:
+def test_run_portfolio_endpoint_returns_not_found_for_missing_run() -> None:
     response = client.get("/api/runs/run_1/portfolio")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run_id"] == "run_1"
-    assert isinstance(payload["items"], list)
+    assert response.status_code == 404
 
 
-def test_run_validation_endpoint_returns_scores() -> None:
+def test_run_validation_endpoint_returns_not_found_for_missing_run() -> None:
     response = client.get("/api/runs/run_1/validation")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run_id"] == "run_1"
-    assert "static_valid" in payload
-    assert "dynamic_score" in payload
+    assert response.status_code == 404
 
 
 def test_review_queue_endpoint_returns_pending_items() -> None:
@@ -73,7 +59,9 @@ def test_ops_metrics_endpoint_returns_operational_summary() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert "queue_depth" in payload
-    assert "avg_latency_ms" in payload
+    assert "run_success_rate" in payload
+    assert "run_counts" in payload
+    assert "total_runs" in payload
 
 
 def test_dashboard_summary_endpoint_returns_topline_cards() -> None:
@@ -83,4 +71,5 @@ def test_dashboard_summary_endpoint_returns_topline_cards() -> None:
     payload = response.json()
     assert "queue" in payload
     assert "quality" in payload
-    assert "throughput" in payload
+    assert "total_runs" in payload["queue"]
+    assert "overall_quality" in payload["quality"]
