@@ -12,6 +12,8 @@ def _page(title: str, body: str) -> str:
   <head><meta charset=\"utf-8\"><title>{title}</title></head>
   <body>
     <h1>DE-Forge UI</h1>
+    <p>Non-authoritative static UI shell</p>
+    <p>Use API responses for production state</p>
     {body}
   </body>
 </html>"""
