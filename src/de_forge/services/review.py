@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from time import time_ns
 from types import SimpleNamespace
 from uuid import uuid4
@@ -60,7 +59,7 @@ class ReviewService:
 
         db = self._require_db()
         decision_id = str(uuid4())
-        created_at = datetime.fromtimestamp(time_ns() / 1_000_000_000, tz=UTC).isoformat()
+        created_at = f"{time_ns():020d}"
         bind = db.get_bind()
         columns = {column["name"] for column in inspect(bind).get_columns("review_decisions")}
         payload: dict[str, str] = {

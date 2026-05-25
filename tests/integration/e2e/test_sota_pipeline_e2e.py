@@ -142,3 +142,125 @@ def test_successful_sota_pipeline_ingest_run_review_export() -> None:
     assert export_body["rule_id"] == run_body["rule_id"]
     assert "CommandLine|contains" in export_body["content"]
     assert "powershell" in export_body["content"]
+
+
+def test_pipeline_run_missing_report_fails_closed() -> None:
+    client, _ = _build_client()
+
+    response = client.post("/v1/pipeline:run", json={"report_id": "missing-report"})
+
+    assert response.status_code == 404
+    assert response.json()["status"] == "failed"
+    assert "persisted Report required" in response.json()["message"]
+
+
+def test_export_requires_latest_approved_review() -> None:
+    client, db = _build_client()
+    ingest_response = client.post(
+        "/v1/reports:ingest",
+        json={
+            "source_type": "txt",
+            "content": "powershell encoded command",
+            "external_ref": "review-e2e-report.txt",
+            "metadata": {},
+        },
+    )
+    report_id = ingest_response.json()["report_id"]
+    chunk = db.query(ReportChunk).filter(ReportChunk.report_id == report_id).one()
+    RetrievalAuditService(db).record_retrieval(
+        run_id="run-review-evidence",
+        report_id=report_id,
+        query_text="powershell encoded command",
+        retrieval_mode="hybrid_rrf_stub",
+        top_k=1,
+        candidates=[
+            ScoredChunk(
+                chunk_id=chunk.id,
+                text=chunk.chunk_text,
+                score_sparse=1.0,
+                score_dense=1.0,
+                score_fused=0.03,
+            )
+        ],
+    )
+    EvidenceService(db).persist_evidence(
+        report_id=report_id,
+        run_id="run-review-evidence",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-review-e2e",
+                chunk_id=chunk.id,
+                quote="powershell encoded command",
+                char_start=0,
+                char_end=26,
+                supports_claim="Encoded PowerShell execution observed",
+                confidence=0.9,
+            )
+        ],
+    )
+    _persist_validated_spec(db, report_id, "evidence-review-e2e")
+    run_body = client.post("/v1/pipeline:run", json={"report_id": report_id}).json()
+
+    approved = client.post(
+        "/v1/reviews",
+        json={
+            "run_id": run_body["run_id"],
+            "decision": "approved",
+            "reviewer": "analyst@example.com",
+            "comments": "Initial approval.",
+        },
+    )
+    assert approved.status_code == 201
+
+    rejected = client.post(
+        "/v1/reviews",
+        json={
+            "run_id": run_body["run_id"],
+            "decision": "rejected",
+            "reviewer": "analyst@example.com",
+            "comments": "Reject after review.",
+        },
+    )
+    assert rejected.status_code == 201
+
+    export_response = client.post("/v1/exports/sigma", json={"run_id": run_body["run_id"]})
+    assert export_response.status_code == 403
+    assert "human approval required before export" in export_response.json()["detail"]
+
+
+def test_pipeline_fails_closed_when_detection_spec_missing_after_evidence() -> None:
+    client, db = _build_client()
+    ingest_response = client.post(
+        "/v1/reports:ingest",
+        json={
+            "source_type": "txt",
+            "content": "powershell encoded command",
+            "external_ref": "missing-spec-e2e-report.txt",
+            "metadata": {},
+        },
+    )
+    report_id = ingest_response.json()["report_id"]
+    chunk = db.query(ReportChunk).filter(ReportChunk.report_id == report_id).one()
+    EvidenceService(db).persist_evidence(
+        report_id=report_id,
+        run_id="run-missing-spec-evidence",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-missing-spec-e2e",
+                chunk_id=chunk.id,
+                quote="powershell encoded command",
+                char_start=0,
+                char_end=26,
+                supports_claim="Encoded PowerShell execution observed",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    response = client.post("/v1/pipeline:run", json={"report_id": report_id})
+
+    assert response.status_code == 400
+    assert response.json()["status"] == "failed"
+    assert "validated DetectionSpec required" in response.json()["message"]
