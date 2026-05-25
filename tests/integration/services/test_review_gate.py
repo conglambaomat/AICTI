@@ -145,7 +145,7 @@ def test_export_blocked_when_latest_decision_is_rejected() -> None:
         comments="Rejected after approval.",
     )
 
-    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
+    with pytest.raises(ExportBlockedError, match="human approval required before export"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
 
     latest = service._get_latest_decision(rule_id)
@@ -371,7 +371,7 @@ def test_rejected_decision_writes_non_approved_handoff_and_export_requires_appro
     assert '"decision": "rejected"' in handoff["value"]
     assert f'"decision_id": "{decision_id}"' in handoff["value"]
 
-    with pytest.raises(ExportBlockedError, match="review handoff memory required"):
+    with pytest.raises(ExportBlockedError, match="human approval required before export"):
         service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
 
 
