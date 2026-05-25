@@ -127,10 +127,35 @@ def test_run_evidence_returns_persisted_lineage_json() -> None:
     }
 
 
-def test_run_evidence_returns_empty_items_for_missing_run() -> None:
+def test_run_evidence_returns_conflict_when_retrieval_lineage_is_missing() -> None:
+    client, db = _build_client()
+    _seed_report_and_chunk(db)
+    EvidenceService(db).persist_evidence(
+        report_id="report-api",
+        run_id="run-api",
+        created_by_agent="evidence-agent",
+        evidence=[
+            EvidenceInput(
+                evidence_id="evidence-api",
+                chunk_id="chunk-api",
+                quote="api behavior",
+                char_start=0,
+                char_end=12,
+                supports_claim="API behavior observed",
+                confidence=0.9,
+            )
+        ],
+    )
+
+    response = client.get("/runs/run-api/evidence")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "retrieval audit lineage missing for evidence chunks"
+
+
+def test_run_evidence_returns_not_found_for_missing_run() -> None:
     client, _db = _build_client()
 
     response = client.get("/runs/missing-run/evidence")
 
-    assert response.status_code == 200
-    assert response.json() == {"run_id": "missing-run", "items": []}
+    assert response.status_code == 404

@@ -39,12 +39,13 @@ def run_detail(run_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
 
 @router.get("/{run_id}/evidence")
 def run_evidence(run_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
-    if RunStateService(db).get_run_detail(run_id) is None:
-        raise HTTPException(status_code=404, detail="Run not found")
     try:
-        return RetrievalAuditService(db).get_run_evidence_lineage(run_id)
+        lineage = RetrievalAuditService(db).get_run_evidence_lineage(run_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not lineage["items"] and RunStateService(db).get_run_detail(run_id) is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return lineage
 
 
 @router.get("/{run_id}/spec")
