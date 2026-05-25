@@ -126,7 +126,16 @@ class PipelineOrchestrator:
                 rule_id=None,
             )
             raise PipelineTransitionError("single validated DetectionSpec required")
-        if spec is None or spec.abstain_code is not None or not spec.spec_payload:
+        if spec is not None and spec.abstain_code is not None:
+            return self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="abstain",
+                stage="detection_spec",
+                detection_spec_id=spec.id,
+                rule_id=None,
+            )
+        if spec is None or not spec.spec_payload:
             self._remember_pipeline_run(
                 run_id=run_id,
                 report_id=report_id,

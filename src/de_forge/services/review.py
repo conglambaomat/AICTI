@@ -76,41 +76,44 @@ class ReviewService:
             payload["comments"] = comments
 
         handoff_scope = f"{rule_id}:review.handoff"
+        run_handoff_scope = f"{rule_id}:{run_id}:review.handoff"
         try:
             db.execute(text(self._build_review_insert_sql(columns)), payload)
             db.execute(
                 text(
                     """
                     DELETE FROM memory_views
-                    WHERE scope = :scope AND key = :key
+                    WHERE scope IN (:rule_scope, :run_scope) AND key = :key
                     """
                 ),
-                {"scope": handoff_scope, "key": "latest"},
+                {"rule_scope": handoff_scope, "run_scope": run_handoff_scope, "key": "latest"},
             )
-            db.execute(
-                text(
-                    """
-                    INSERT INTO memory_views (id, scope, key, value, updated_at)
-                    VALUES (:id, :scope, :key, :value, :updated_at)
-                    """
-                ),
+            handoff_value = json.dumps(
                 {
-                    "id": f"mv-{decision_id}",
-                    "scope": handoff_scope,
-                    "key": "latest",
-                    "value": json.dumps(
-                        {
-                            "approved": decision == "approved",
-                            "decision": decision,
-                            "reviewer": reviewer,
-                            "run_id": run_id,
-                            "decision_id": decision_id,
-                        },
-                        sort_keys=True,
-                    ),
-                    "updated_at": created_at,
+                    "approved": decision == "approved",
+                    "decision": decision,
+                    "reviewer": reviewer,
+                    "run_id": run_id,
+                    "decision_id": decision_id,
                 },
+                sort_keys=True,
             )
+            for scope in (handoff_scope, run_handoff_scope):
+                db.execute(
+                    text(
+                        """
+                        INSERT INTO memory_views (id, scope, key, value, updated_at)
+                        VALUES (:id, :scope, :key, :value, :updated_at)
+                        """
+                    ),
+                    {
+                        "id": f"mv-{decision_id}-{scope}",
+                        "scope": scope,
+                        "key": "latest",
+                        "value": handoff_value,
+                        "updated_at": created_at,
+                    },
+                )
             db.commit()
         except Exception:
             db.rollback()
@@ -141,12 +144,13 @@ class ReviewService:
         rule_id: str,
         rule_status: str,
         proof_obligations: list[ProofObligation] | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Assert that rule can be exported, raising ExportBlockedError if not."""
-        if not self._has_review_handoff_memory(rule_id):
+        if not self._has_review_handoff_memory(rule_id, run_id=run_id):
             raise ExportBlockedError("review handoff memory required before export")
 
-        latest_decision = self._get_latest_decision(rule_id)
+        latest_decision = self._get_latest_decision(rule_id, run_id=run_id)
         if latest_decision is None:
             raise ExportBlockedError("human approval required before export")
 
@@ -161,10 +165,10 @@ class ReviewService:
 
             return
 
-        if self._has_failed_or_unknown_proof_obligations(rule_id):
+        if self._has_failed_or_unknown_proof_obligations(rule_id, run_id=run_id):
             raise ExportBlockedError("proof obligation gate failed before export")
 
-    def _has_failed_or_unknown_proof_obligations(self, rule_id: str) -> bool:
+    def _has_failed_or_unknown_proof_obligations(self, rule_id: str, *, run_id: str | None = None) -> bool:
         db = self._require_db()
         try:
             rows = db.execute(
@@ -173,30 +177,27 @@ class ReviewService:
                     SELECT status, justification
                     FROM proof_obligations
                     WHERE rule_candidate_id = :rule_candidate_id
+                      AND (:run_id IS NULL OR run_id = :run_id)
                     """
                 ),
-                {"rule_candidate_id": rule_id},
+                {"rule_candidate_id": rule_id, "run_id": run_id},
             ).fetchall()
         except SQLAlchemyError:
             return True
 
         if not rows:
-            return False
+            return run_id is not None
 
-        for status, justification in rows:
-            if status == "proven":
-                continue
-            if (
-                status == "not_applicable"
-                and isinstance(justification, str)
-                and justification.strip()
-            ):
-                continue
-            return True
+        for status, _justification in rows:
+            if status != "proven":
+                return True
         return False
 
-    def _has_review_handoff_memory(self, rule_id: str) -> bool:
+    def _has_review_handoff_memory(self, rule_id: str, *, run_id: str | None = None) -> bool:
         db = self._require_db()
+        scope = (
+            f"{rule_id}:{run_id}:review.handoff" if run_id is not None else f"{rule_id}:review.handoff"
+        )
         row = (
             db.execute(
                 text(
@@ -207,7 +208,7 @@ class ReviewService:
                     LIMIT 1
                     """
                 ),
-                {"scope": f"{rule_id}:review.handoff"},
+                {"scope": scope},
             )
             .mappings()
             .first()
@@ -218,15 +219,20 @@ class ReviewService:
             payload = json.loads(str(row["value"]))
         except (TypeError, json.JSONDecodeError):
             return False
+        decision = payload.get("decision")
+        payload_run_id = payload.get("run_id")
         return (
-            payload.get("approved") is True
-            and payload.get("decision") == "approved"
+            decision in ALLOWED_REVIEW_DECISIONS
+            and payload.get("approved") == (decision == "approved")
             and bool(payload.get("decision_id"))
             and bool(payload.get("reviewer"))
-            and bool(payload.get("run_id"))
+            and bool(payload_run_id)
+            and (run_id is None or payload_run_id == run_id)
         )
 
-    def _get_latest_decision(self, rule_id: str) -> SimpleNamespace | None:
+    def _get_latest_decision(
+        self, rule_id: str, *, run_id: str | None = None
+    ) -> SimpleNamespace | None:
         db = self._require_db()
         bind = db.get_bind()
         columns = {column["name"] for column in inspect(bind).get_columns("review_decisions")}
@@ -244,11 +250,12 @@ class ReviewService:
                 SELECT {select_sql}
                 FROM review_decisions
                 WHERE rule_id = :rule_id
+                  AND (:run_id IS NULL OR run_id = :run_id)
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """
                 ),
-                {"rule_id": rule_id},
+                {"rule_id": rule_id, "run_id": run_id},
             )
             .mappings()
             .first()

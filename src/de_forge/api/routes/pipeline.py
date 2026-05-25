@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 
 from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec as DetectionSpecModel
+from de_forge.models import EvidenceSpan as EvidenceSpanModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
 from de_forge.models import PipelineRunRecord as PipelineRunRecordModel
 from de_forge.models import Report as ReportModel
+from de_forge.models import ReportChunk as ReportChunkModel
 from de_forge.schemas.api_errors import ErrorResponse
 from de_forge.schemas.api_pipeline import (
     ExportSigmaRequest,
@@ -108,95 +110,72 @@ async def run_pipeline(
         failed["status"] = "failed"
         return JSONResponse(status_code=500, content=failed)
 
-    report = db.query(ReportModel).filter(ReportModel.id == payload.report_id).first()
-    if report is None:
-        error = ErrorResponse(
-            error_code="PIPELINE_EXECUTION_ERROR",
-            message="Report not found for report_id",
-            trace_id=f"trc_{uuid4().hex[:12]}",
-            run_id=run_id,
-        )
-        failed = error.model_dump()
-        failed["status"] = "failed"
-        return JSONResponse(status_code=404, content=failed)
-
-    detection_spec = (
-        db.query(DetectionSpecModel)
-        .filter(DetectionSpecModel.report_id == payload.report_id)
-        .first()
-    )
-    if detection_spec is None:
-        error = ErrorResponse(
-            error_code="PIPELINE_EXECUTION_ERROR",
-            message="Report not found for report_id",
-            trace_id=f"trc_{uuid4().hex[:12]}",
-            run_id=run_id,
-        )
-        failed = error.model_dump()
-        failed["status"] = "failed"
-        return JSONResponse(status_code=404, content=failed)
-
-    if detection_spec.abstain_code is not None:
-        _remember_run(
-            db,
-            run_id,
-            report_id=payload.report_id,
-            status="abstain",
-            detection_spec_id=detection_spec.id,
-            rule_id=None,
-        )
-        return PipelineRunResponse(
-            run_id=run_id,
-            status="abstain",
-            abstain=True,
-            stage="detection_spec",
-            abstain_code=detection_spec.abstain_code,
-            reason=detection_spec.abstain_human_message or detection_spec.abstain_context,
-            detection_spec_id=detection_spec.id,
-        )
-
     orchestrator = PipelineOrchestrator(db)
     try:
-        final_state = orchestrator.run_pipeline(detection_spec.id)
-    except PipelineTransitionError as exc:
-        _remember_run(
-            db,
-            run_id,
+        record = orchestrator.run_report_pipeline(
             report_id=payload.report_id,
-            status="failed",
-            detection_spec_id=detection_spec.id,
-            rule_id=None,
+            run_id=run_id,
         )
+    except PipelineTransitionError as exc:
+        failed_record = (
+            db.query(PipelineRunRecordModel)
+            .filter(PipelineRunRecordModel.run_id == run_id)
+            .first()
+        )
+        if failed_record is not None and failed_record.status == "abstain":
+            detection_spec = db.get(DetectionSpecModel, failed_record.detection_spec_id)
+            return PipelineRunResponse(
+                run_id=run_id,
+                status=failed_record.status,
+                abstain=True,
+                stage=failed_record.stage,
+                abstain_code=detection_spec.abstain_code if detection_spec else None,
+                reason=(
+                    detection_spec.abstain_human_message or detection_spec.abstain_context
+                    if detection_spec
+                    else str(exc)
+                ),
+                detection_spec_id=failed_record.detection_spec_id,
+            )
         failed = ErrorResponse(
             error_code="PIPELINE_EXECUTION_ERROR",
             message=str(exc),
             trace_id=f"trc_{uuid4().hex[:12]}",
             run_id=run_id,
         ).model_dump()
-        failed["status"] = "failed"
-        return JSONResponse(status_code=400, content=failed)
+        failed["status"] = failed_record.status if failed_record is not None else "failed"
+        status_code = 400
+        if failed_record is not None:
+            failed["stage"] = failed_record.stage
+            failed["detection_spec_id"] = failed_record.detection_spec_id
+            failed["rule_id"] = failed_record.rule_id
+            if failed_record.stage == "report_not_found":
+                status_code = 404
+        return JSONResponse(status_code=status_code, content=failed)
 
-    generated_rule = (
-        db.query(GeneratedRuleModel)
-        .filter(GeneratedRuleModel.detection_spec_id == detection_spec.id)
-        .first()
-    )
-    _remember_run(
-        db,
-        run_id,
-        report_id=payload.report_id,
-        status="ok",
-        detection_spec_id=detection_spec.id,
-        rule_id=generated_rule.id if generated_rule else None,
-    )
+    if record.status == "abstain":
+        detection_spec = db.get(DetectionSpecModel, record.detection_spec_id)
+        return PipelineRunResponse(
+            run_id=run_id,
+            status=record.status,
+            abstain=True,
+            stage=record.stage,
+            abstain_code=detection_spec.abstain_code if detection_spec else None,
+            reason=(
+                detection_spec.abstain_human_message or detection_spec.abstain_context
+                if detection_spec
+                else None
+            ),
+            detection_spec_id=record.detection_spec_id,
+        )
 
     return PipelineRunResponse(
         run_id=run_id,
-        status="ok",
+        status=record.status,
         abstain=False,
-        stage=final_state.value,
-        detection_spec_id=detection_spec.id,
-        rule_id=generated_rule.id if generated_rule else None,
+        stage=record.stage,
+        detection_spec_id=record.detection_spec_id,
+        rule_id=record.rule_id,
     )
 
 
@@ -206,6 +185,8 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     spec_id = f"spec_{uuid4().hex[:12]}"
     rule_id = f"rule_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
+    chunk_id = f"chunk_{uuid4().hex[:12]}"
+    evidence_id = f"ev_{uuid4().hex[:12]}"
     now = datetime.now(UTC).isoformat()
 
     db.add(
@@ -223,10 +204,38 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
         )
     )
     db.add(
+        ReportChunkModel(
+            id=chunk_id,
+            report_id=report_id,
+            chunk_index=0,
+            section_title=None,
+            chunk_text="PowerShell launch behavior observed",
+            char_start=0,
+            char_end=35,
+            chunk_type="paragraph",
+            created_at=now,
+        )
+    )
+    db.add(
+        EvidenceSpanModel(
+            id=evidence_id,
+            report_id=report_id,
+            chunk_id=chunk_id,
+            quote="PowerShell launch behavior observed",
+            char_start=0,
+            char_end=35,
+            supports_claim="PowerShell launch behavior observed",
+            confidence=0.9,
+            created_by_agent="seed",
+            run_id=f"seed-run-{spec_id}",
+            created_at=now,
+        )
+    )
+    db.add(
         DetectionSpecModel(
             id=spec_id,
             report_id=report_id,
-            spec_payload='{"report_id":"seed","behavior_rules":[{"evidence":["powershell"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}],"false_positive_hypotheses":["admin scripts"],"test_plan":"seed"}',
+            spec_payload=f'{{"report_id":"{report_id}","behavior_rules":[{{"evidence":["{evidence_id}"],"attack_ids":["T1059.001"],"required_telemetry":["process_creation"],"detection_logic":"detect encoded powershell"}}],"false_positive_hypotheses":["admin scripts"],"test_plan":"seed","evidence_ids":["{evidence_id}"],"behavior_ids":["behavior-1"],"detection_strategy":"detect encoded powershell","analytic":"powershell command line analytic","data_component":"process creation","allowed_telemetry_fields":["CommandLine","Image"],"rationale_traceability":["{evidence_id}"]}}',
             is_validated=True,
         )
     )
@@ -333,6 +342,8 @@ async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str,
     assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
     report_id = f"report_{uuid4().hex[:12]}"
+    chunk_id = f"chunk_{uuid4().hex[:12]}"
+    evidence_id = f"ev_{uuid4().hex[:12]}"
     now = datetime.now(UTC).isoformat()
     db.add(
         ReportModel(
@@ -346,6 +357,34 @@ async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str,
             status="ingested",
             created_at=now,
             updated_at=now,
+        )
+    )
+    db.add(
+        ReportChunkModel(
+            id=chunk_id,
+            report_id=report_id,
+            chunk_index=0,
+            section_title=None,
+            chunk_text="PowerShell launch behavior observed",
+            char_start=0,
+            char_end=35,
+            chunk_type="paragraph",
+            created_at=now,
+        )
+    )
+    db.add(
+        EvidenceSpanModel(
+            id=evidence_id,
+            report_id=report_id,
+            chunk_id=chunk_id,
+            quote="PowerShell launch behavior observed",
+            char_start=0,
+            char_end=35,
+            supports_claim="No quote-backed behavior found",
+            confidence=0.1,
+            created_by_agent="seed",
+            run_id=f"seed-run-{spec_id}",
+            created_at=now,
         )
     )
     db.add(
@@ -537,7 +576,7 @@ async def export_sigma(
 
     service = ReviewService(db)
     try:
-        service.assert_can_export(rule_id=rule_id, rule_status="awaiting_review")
+        service.assert_can_export(rule_id=rule_id, rule_status=record.stage or "", run_id=payload.run_id)
     except ExportBlockedError as exc:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 
@@ -553,8 +592,10 @@ async def export_sigma(
 
 
 @legacy_router.post("/pipeline/run", response_model=None)
-async def legacy_run_pipeline(payload: PipelineRunRequest) -> PipelineRunResponse | JSONResponse:
-    return await run_pipeline(payload)
+async def legacy_run_pipeline(
+    payload: PipelineRunRequest, db: Session = Depends(get_db)
+) -> PipelineRunResponse | JSONResponse:
+    return await run_pipeline(payload, db=db)
 
 
 @legacy_router.post("/review/decision", response_model=None, status_code=201)

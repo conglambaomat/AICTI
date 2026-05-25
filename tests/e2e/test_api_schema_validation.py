@@ -34,6 +34,9 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
 
+    class FakeReport:
+        id = "rep_demo"
+
     class FakeDetectionSpec:
         id = "spec_demo"
         report_id = "rep_demo"
@@ -41,21 +44,39 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
         abstain_context = "No quote-backed behavior found"
         abstain_human_message = "Cannot generate detection"
 
+    class FakeRecord:
+        status = "abstain"
+        stage = "detection_spec"
+        detection_spec_id = "spec_demo"
+        rule_id = None
+
     class FakeQuery:
         def filter(self, *_args):
             return self
 
         def first(self):
-            return FakeDetectionSpec()
+            return FakeReport()
 
     class FakeDb:
         def query(self, *_args):
             return FakeQuery()
 
-        def commit(self) -> None:
-            return None
+        def get(self, model, key):
+            assert model is pipeline.DetectionSpecModel
+            assert key == "spec_demo"
+            return FakeDetectionSpec()
+
+    class FakeOrchestrator:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def run_report_pipeline(self, *, report_id: str, run_id: str) -> FakeRecord:
+            assert report_id == "rep_demo"
+            assert run_id
+            return FakeRecord()
 
     monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+    monkeypatch.setattr(pipeline, "PipelineOrchestrator", FakeOrchestrator)
 
     response = asyncio.run(
         pipeline.run_pipeline(
@@ -73,41 +94,36 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
 def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
+    from de_forge.services.orchestrator import PipelineTransitionError
 
-    class FakeDetectionSpec:
-        id = "spec_orphan"
-        report_id = "rep_orphan"
-        abstain_code = None
-        abstain_human_message = None
-        abstain_context = None
+    class FakeFailedRecord:
+        status = "failed"
+        stage = "report_not_found"
+        detection_spec_id = None
+        rule_id = None
 
-    class FakeDetectionSpecQuery:
+    class FakeRunQuery:
         def filter(self, *_args):
             return self
 
         def first(self):
-            return FakeDetectionSpec()
-
-    class FakeReportQuery:
-        def filter(self, *_args):
-            return self
-
-        def first(self):
-            return None
+            return FakeFailedRecord()
 
     class FakeDb:
         def query(self, model):
-            if model is pipeline.ReportModel:
-                return FakeReportQuery()
-            return FakeDetectionSpecQuery()
+            assert model is pipeline.PipelineRunRecordModel
+            return FakeRunQuery()
 
-        def add(self, *_args):
-            return None
+    class FakeOrchestrator:
+        def __init__(self, db) -> None:
+            self.db = db
 
-        def commit(self) -> None:
-            return None
+        def run_report_pipeline(self, *, report_id: str, run_id: str):
+            assert report_id == "rep_orphan"
+            raise PipelineTransitionError("persisted Report required")
 
     monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+    monkeypatch.setattr(pipeline, "PipelineOrchestrator", FakeOrchestrator)
 
     response = asyncio.run(
         pipeline.run_pipeline(
@@ -117,7 +133,124 @@ def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatc
 
     assert response.status_code == 404
     body = response.body.decode()
-    assert "Report not found for report_id" in body
+    assert "report_not_found" in body
+    assert "persisted Report required" in body
+
+
+def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+    from de_forge.schemas.api_pipeline import PipelineRunRequest
+
+    captured = {}
+
+    class FakeReport:
+        id = "rep_demo"
+
+    class FakeRecord:
+        status = "ok"
+        stage = "awaiting_review"
+        detection_spec_id = "spec_demo"
+        rule_id = "rule_demo"
+
+    class FakeQuery:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return FakeReport()
+
+    class FakeDb:
+        def query(self, model):
+            assert model is pipeline.ReportModel
+            return FakeQuery()
+
+    class FakeOrchestrator:
+        def __init__(self, db) -> None:
+            captured["db"] = db
+
+        def run_report_pipeline(self, *, report_id: str, run_id: str) -> FakeRecord:
+            captured["report_id"] = report_id
+            captured["run_id"] = run_id
+            return FakeRecord()
+
+        def run_pipeline(self, detection_spec_id: str):
+            raise AssertionError(f"legacy detection spec path used: {detection_spec_id}")
+
+    monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+    monkeypatch.setattr(pipeline, "PipelineOrchestrator", FakeOrchestrator)
+
+    response = asyncio.run(
+        pipeline.run_pipeline(
+            PipelineRunRequest(report_id="rep_demo", profile="balanced"), db=FakeDb()
+        )
+    )
+
+    body = response.model_dump()
+    assert body["status"] == "ok"
+    assert body["stage"] == "awaiting_review"
+    assert body["detection_spec_id"] == "spec_demo"
+    assert body["rule_id"] == "rule_demo"
+    assert captured["report_id"] == "rep_demo"
+    assert captured["run_id"] == body["run_id"]
+
+
+def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+    from de_forge.schemas.api_pipeline import PipelineRunRequest
+    from de_forge.services.orchestrator import PipelineTransitionError
+
+    class FakeReport:
+        id = "rep_demo"
+
+    class FakeFailedRecord:
+        status = "failed"
+        stage = "evidence_required"
+        detection_spec_id = None
+        rule_id = None
+
+    class FakeReportQuery:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return FakeReport()
+
+    class FakeRunQuery:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return FakeFailedRecord()
+
+    class FakeDb:
+        query_count = 0
+
+        def query(self, model):
+            if model is pipeline.ReportModel:
+                return FakeReportQuery()
+            assert model is pipeline.PipelineRunRecordModel
+            return FakeRunQuery()
+
+    class FakeOrchestrator:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def run_report_pipeline(self, *, report_id: str, run_id: str):
+            raise PipelineTransitionError("evidence required before DetectionSpec generation")
+
+    monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+    monkeypatch.setattr(pipeline, "PipelineOrchestrator", FakeOrchestrator)
+
+    response = asyncio.run(
+        pipeline.run_pipeline(
+            PipelineRunRequest(report_id="rep_demo", profile="balanced"), db=FakeDb()
+        )
+    )
+
+    assert response.status_code == 400
+    body = response.body.decode()
+    assert "evidence_required" in body
+    assert "failed" in body
 
 
 def test_reports_ingest_is_idempotent_by_content_hash() -> None:

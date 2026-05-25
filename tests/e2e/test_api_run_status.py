@@ -110,5 +110,6 @@ def test_pipeline_run_rejects_detection_spec_id_as_report_id_bypass() -> None:
     assert run_response.status_code == 404
     body = run_response.json()
     assert body["status"] == "failed"
-    assert "report_id" in body["message"].lower()
+    assert body["stage"] == "report_not_found"
+    assert "report" in body["message"].lower()
     assert "detectionspec" not in body["message"].lower()
