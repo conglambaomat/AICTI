@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from de_forge.services.artifact_lineage import ArtifactLineageError
 from de_forge.services.evidence_graph import EvidenceGraphError
 from de_forge.services.export_eligibility import (
     ExportBlockedReason,
@@ -21,6 +22,7 @@ class FakeRepository:
     proof_rows: list[dict[str, object]] | None = None
     review_decision: object | None = None
     evidence_graph_error: bool = False
+    artifact_lineage_error: bool = False
 
     def get_run(self, run_id: str) -> object | None:
         return self.run
@@ -40,6 +42,10 @@ class FakeRepository:
     def assert_evidence_graph_complete(self, run_id: str, rule_id: str) -> None:
         if self.evidence_graph_error:
             raise EvidenceGraphError("evidence graph path incomplete")
+
+    def assert_artifact_lineage_complete(self, run_id: str, rule_id: str) -> None:
+        if self.artifact_lineage_error:
+            raise ArtifactLineageError("artifact lineage incomplete")
 
 
 def valid_proof_rows(run_id: str = "run-1", rule_id: str = "rule-1") -> list[dict[str, object]]:
@@ -144,6 +150,13 @@ def test_incomplete_evidence_graph_blocks_export_before_success() -> None:
     repo.evidence_graph_error = True
 
     assert_blocks(repo, "EVIDENCE_GRAPH_INCOMPLETE")
+
+
+def test_incomplete_artifact_lineage_blocks_export_before_success() -> None:
+    repo = valid_repo()
+    repo.artifact_lineage_error = True
+
+    assert_blocks(repo, "ARTIFACT_LINEAGE_INCOMPLETE")
 
 
 def test_full_valid_fake_repo_passes() -> None:

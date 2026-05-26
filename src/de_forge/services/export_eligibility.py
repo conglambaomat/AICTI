@@ -7,6 +7,7 @@ from typing import Protocol
 from sqlalchemy.orm import Session
 
 from de_forge.models import DetectionSpec, GeneratedRule, PipelineRunRecord, ProofObligationRecord
+from de_forge.services.artifact_lineage import ArtifactLineageError, ArtifactLineageService
 from de_forge.services.compiler_provenance import (
     CompilerProvenanceError,
     CompilerProvenanceService,
@@ -40,6 +41,9 @@ class ExportEligibilityRepository(Protocol):
 
     def assert_evidence_graph_complete(self, run_id: str, rule_id: str) -> None:
         """Assert the persisted evidence graph export path is complete."""
+
+    def assert_artifact_lineage_complete(self, run_id: str, rule_id: str) -> None:
+        """Assert the persisted artifact lineage path is complete."""
 
 
 class SqlAlchemyExportEligibilityRepository:
@@ -89,6 +93,11 @@ class SqlAlchemyExportEligibilityRepository:
     def assert_evidence_graph_complete(self, run_id: str, rule_id: str) -> None:
         EvidenceGraphService(self.db).assert_export_path_complete(run_id=run_id, rule_id=rule_id)
 
+    def assert_artifact_lineage_complete(self, run_id: str, rule_id: str) -> None:
+        ArtifactLineageService(self.db).assert_rule_lineage_complete(
+            run_id=run_id, rule_id=rule_id
+        )
+
 
 class ExportEligibilityService:
     """Fail-closed export eligibility checks for generated rules."""
@@ -137,3 +146,8 @@ class ExportEligibilityService:
             self.repository.assert_evidence_graph_complete(run_id, rule_id)
         except EvidenceGraphError as exc:
             raise ExportBlockedReason("EVIDENCE_GRAPH_INCOMPLETE") from exc
+
+        try:
+            self.repository.assert_artifact_lineage_complete(run_id, rule_id)
+        except ArtifactLineageError as exc:
+            raise ExportBlockedReason("ARTIFACT_LINEAGE_INCOMPLETE") from exc
