@@ -5,17 +5,17 @@ Revises: 20260526_01
 Create Date: 2026-05-27
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260527_01"
-down_revision: Union[str, None] = "20260526_01"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "20260526_01"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 NODE_TYPE_CHECK = (
@@ -38,8 +38,8 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column("run_id", sa.String(length=36), nullable=False),
         sa.Column("node_type", sa.String(length=64), nullable=False),
-        sa.Column("ref_table", sa.String(length=120), nullable=True),
-        sa.Column("ref_id", sa.String(length=36), nullable=True),
+        sa.Column("ref_table", sa.String(length=120), nullable=False, server_default=""),
+        sa.Column("ref_id", sa.String(length=36), nullable=False, server_default=""),
         sa.Column("payload_json", sa.Text(), nullable=False, server_default="{}"),
         sa.Column("created_at", sa.String(length=40), nullable=False),
         sa.CheckConstraint(NODE_TYPE_CHECK, name="ck_graph_nodes_node_type_allowed"),

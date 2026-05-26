@@ -17,6 +17,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from de_forge.db.base import Base
 
+GRAPH_NODE_TYPE_CHECK = (
+    "node_type in ('report', 'chunk', 'evidence_quote', 'behavior', "
+    "'attack_technique', 'detection_strategy', 'analytic', 'data_component', "
+    "'telemetry_source', 'telemetry_field', 'detection_spec', 'detection_ast', "
+    "'compiled_sigma', 'generated_rule', 'validation_result', 'proof_obligation', "
+    "'review_decision', 'feedback_pattern', 'regression_test')"
+)
+
+GRAPH_EDGE_TYPE_CHECK = (
+    "edge_type in ('supports', 'mentions', 'maps_to', 'requires', 'implements', "
+    "'validated_by', 'derived_from', 'satisfies', 'failed_by', 'contradicts')"
+)
+
 
 class Report(Base):
     __tablename__ = "reports"
@@ -128,10 +141,7 @@ class ExtractedIOC(Base):
 class GraphNode(Base):
     __tablename__ = "graph_nodes"
     __table_args__ = (
-        CheckConstraint(
-            "node_type in ('report', 'chunk', 'evidence_quote', 'behavior', 'attack_technique', 'detection_strategy', 'analytic', 'data_component', 'telemetry_source', 'telemetry_field', 'detection_spec', 'detection_ast', 'compiled_sigma', 'generated_rule', 'validation_result', 'proof_obligation', 'review_decision', 'feedback_pattern', 'regression_test')",
-            name="ck_graph_nodes_node_type_allowed",
-        ),
+        CheckConstraint(GRAPH_NODE_TYPE_CHECK, name="ck_graph_nodes_node_type_allowed"),
         UniqueConstraint("run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"),
         Index("ix_graph_nodes_run_id", "run_id"),
         Index("ix_graph_nodes_node_type", "node_type"),
@@ -141,8 +151,8 @@ class GraphNode(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
     node_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    ref_table: Mapped[str | None] = mapped_column(String(120))
-    ref_id: Mapped[str | None] = mapped_column(String(36))
+    ref_table: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    ref_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
     payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
@@ -151,10 +161,7 @@ class GraphEdge(Base):
     __tablename__ = "graph_edges"
     __table_args__ = (
         CheckConstraint("source_node_id != target_node_id", name="ck_graph_edges_no_self_edge"),
-        CheckConstraint(
-            "edge_type in ('supports', 'mentions', 'maps_to', 'requires', 'implements', 'validated_by', 'derived_from', 'satisfies', 'failed_by', 'contradicts')",
-            name="ck_graph_edges_edge_type_allowed",
-        ),
+        CheckConstraint(GRAPH_EDGE_TYPE_CHECK, name="ck_graph_edges_edge_type_allowed"),
         UniqueConstraint(
             "run_id",
             "source_node_id",
