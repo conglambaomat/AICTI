@@ -13,31 +13,38 @@ from de_forge.api.routes.pipeline import legacy_router as pipeline_legacy_router
 from de_forge.api.routes.pipeline import router as pipeline_router
 from de_forge.api.routes.pipeline import seed_router as pipeline_seed_router
 from de_forge.api.routes.review import router as review_router
-from de_forge.core.config import settings
+from de_forge.core.config import Settings, settings
 from de_forge.db.session import check_database_connection, engine
 from de_forge.services.schema_guard import SchemaContractError, SchemaGuard
 
-app = FastAPI(
-    title="DE-Forge",
-    description="Evidence-Grounded AI-assisted Detection Rule Generation",
-    version="0.1.0",
-)
+def create_app(app_settings: Settings = settings) -> FastAPI:
+    """Create the FastAPI application."""
+    fastapi_app = FastAPI(
+        title="DE-Forge",
+        description="Evidence-Grounded AI-assisted Detection Rule Generation",
+        version="0.1.0",
+    )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    fastapi_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-app.include_router(pipeline_router)
-if settings.enable_dev_seed_routes and settings.env in {"development", "test"}:
-    app.include_router(pipeline_seed_router)
-app.include_router(pipeline_legacy_router)
-app.include_router(ingestion_router)
-app.include_router(review_router)
-app.include_router(api_router)
+    fastapi_app.include_router(pipeline_router)
+    if app_settings.enable_dev_seed_routes and app_settings.env in {"development", "test"}:
+        fastapi_app.include_router(pipeline_seed_router)
+    fastapi_app.include_router(pipeline_legacy_router)
+    fastapi_app.include_router(ingestion_router)
+    fastapi_app.include_router(review_router)
+    fastapi_app.include_router(api_router)
+
+    return fastapi_app
+
+
+app = create_app()
 
 _started_at = monotonic()
 
