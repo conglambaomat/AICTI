@@ -102,9 +102,10 @@ class EvidenceGraphService:
         nodes_by_id = {node.id: node for node in nodes}
         adjacency: dict[str, list[GraphNode]] = defaultdict(list)
         for edge in edges:
+            source = nodes_by_id.get(edge.source_node_id)
             target = nodes_by_id.get(edge.target_node_id)
-            if target is not None:
-                adjacency[edge.source_node_id].append(target)
+            if source is not None and target is not None:
+                adjacency[source.id].append(target)
 
         rule_node = next(
             (
@@ -132,7 +133,11 @@ class EvidenceGraphService:
         ):
             raise EvidenceGraphError("evidence graph path incomplete")
 
-        if not self._has_upstream_detection_spec(rule_node_id=rule_node.id, nodes_by_id=nodes_by_id, edges=edges):
+        if not self._has_required_upstream_path(
+            rule_node_id=rule_node.id,
+            nodes=nodes,
+            adjacency=adjacency,
+        ):
             raise EvidenceGraphError("evidence graph path incomplete")
 
     def _require_db(self) -> Session:
@@ -140,31 +145,35 @@ class EvidenceGraphService:
             raise EvidenceGraphError("evidence graph path incomplete")
         return self.db
 
-    def _has_upstream_detection_spec(
+    def _has_required_upstream_path(
         self,
         *,
         rule_node_id: str,
-        nodes_by_id: dict[str, GraphNode],
-        edges: list[GraphEdge],
+        nodes: list[GraphNode],
+        adjacency: dict[str, list[GraphNode]],
     ) -> bool:
-        reverse_adjacency: dict[str, list[str]] = defaultdict(list)
-        for edge in edges:
-            reverse_adjacency[edge.target_node_id].append(edge.source_node_id)
-
-        queue: deque[str] = deque([rule_node_id])
-        visited: set[str] = {rule_node_id}
-        while queue:
-            node_id = queue.popleft()
-            for source_id in reverse_adjacency.get(node_id, []):
-                if source_id in visited:
-                    continue
-                source = nodes_by_id.get(source_id)
-                if source is None:
-                    continue
-                if source.node_type == "detection_spec":
+        required_path = ["report", "evidence_quote", "detection_spec", "generated_rule"]
+        start_nodes = [node for node in nodes if node.node_type == "report"]
+        for start_node in start_nodes:
+            queue: deque[tuple[str, int]] = deque([(start_node.id, 0)])
+            visited: set[tuple[str, int]] = {(start_node.id, 0)}
+            while queue:
+                node_id, path_index = queue.popleft()
+                if path_index == len(required_path) - 1 and node_id == rule_node_id:
                     return True
-                visited.add(source_id)
-                queue.append(source_id)
+
+                next_index = path_index + 1
+                if next_index >= len(required_path):
+                    continue
+                required_type = required_path[next_index]
+                for target in adjacency.get(node_id, []):
+                    if target.node_type != required_type:
+                        continue
+                    state = (target.id, next_index)
+                    if state in visited:
+                        continue
+                    visited.add(state)
+                    queue.append(state)
         return False
 
 

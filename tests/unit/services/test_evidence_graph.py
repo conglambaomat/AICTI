@@ -31,9 +31,27 @@ def _add_export_path(
     *,
     run_id: str = "run-1",
     rule_id: str = "rule-1",
+    report_run_id: str | None = None,
+    quote_run_id: str | None = None,
     spec_run_id: str | None = None,
     omit_node_type: str | None = None,
 ) -> None:
+    report_node = None
+    if omit_node_type != "report":
+        report_node = service.upsert_node(
+            run_id=report_run_id or run_id,
+            node_type="report",
+            ref_table="reports",
+            ref_id="report-1",
+        )
+    quote_node = None
+    if omit_node_type != "evidence_quote":
+        quote_node = service.upsert_node(
+            run_id=quote_run_id or run_id,
+            node_type="evidence_quote",
+            ref_table="evidence_quotes",
+            ref_id="quote-1",
+        )
     spec_node = None
     if omit_node_type != "detection_spec":
         spec_node = service.upsert_node(
@@ -42,18 +60,6 @@ def _add_export_path(
             ref_table="detection_specs",
             ref_id="spec-1",
         )
-    ast_node = service.upsert_node(
-        run_id=run_id,
-        node_type="detection_ast",
-        ref_table="detection_asts",
-        ref_id="ast-1",
-    )
-    sigma_node = service.upsert_node(
-        run_id=run_id,
-        node_type="compiled_sigma",
-        ref_table="compiled_sigmas",
-        ref_id="sigma-1",
-    )
     rule_node = service.upsert_node(
         run_id=run_id,
         node_type="generated_rule",
@@ -94,25 +100,37 @@ def _add_export_path(
             target_node_id=proof_node,
             edge_type="satisfies",
         )
+    if (
+        report_node is not None
+        and quote_node is not None
+        and (report_run_id is None or report_run_id == run_id)
+        and (quote_run_id is None or quote_run_id == run_id)
+    ):
+        service.add_edge(
+            run_id=run_id,
+            source_node_id=report_node,
+            target_node_id=quote_node,
+            edge_type="derived_from",
+        )
+    if (
+        quote_node is not None
+        and spec_node is not None
+        and (quote_run_id is None or quote_run_id == run_id)
+        and (spec_run_id is None or spec_run_id == run_id)
+    ):
+        service.add_edge(
+            run_id=run_id,
+            source_node_id=quote_node,
+            target_node_id=spec_node,
+            edge_type="derived_from",
+        )
     if spec_node is not None and (spec_run_id is None or spec_run_id == run_id):
         service.add_edge(
             run_id=run_id,
             source_node_id=spec_node,
-            target_node_id=ast_node,
+            target_node_id=rule_node,
             edge_type="derived_from",
         )
-    service.add_edge(
-        run_id=run_id,
-        source_node_id=ast_node,
-        target_node_id=sigma_node,
-        edge_type="derived_from",
-    )
-    service.add_edge(
-        run_id=run_id,
-        source_node_id=sigma_node,
-        target_node_id=rule_node,
-        edge_type="derived_from",
-    )
     if validation_node is not None:
         service.add_edge(
             run_id=run_id,
@@ -141,8 +159,12 @@ def test_missing_review_decision_fails_export_path() -> None:
         service.assert_export_path_complete(run_id="run-1", rule_id="rule-1")
 
 
-@pytest.mark.parametrize("missing_node_type", ["validation_result", "proof_obligation"])
-def test_missing_validation_or_proof_fails_export_path(missing_node_type: str) -> None:
+@pytest.mark.parametrize(
+    "missing_node_type", ["report", "evidence_quote", "validation_result", "proof_obligation"]
+)
+def test_missing_report_quote_validation_or_proof_fails_export_path(
+    missing_node_type: str,
+) -> None:
     session = _empty_db_session()
     service = EvidenceGraphService(db=session)
     _add_export_path(service, omit_node_type=missing_node_type)
@@ -152,10 +174,21 @@ def test_missing_validation_or_proof_fails_export_path(missing_node_type: str) -
         service.assert_export_path_complete(run_id="run-1", rule_id="rule-1")
 
 
-def test_cross_run_detection_spec_cannot_satisfy_export_path() -> None:
+@pytest.mark.parametrize(
+    ("cross_run_node", "kwargs"),
+    [
+        ("report", {"report_run_id": "other-run"}),
+        ("evidence_quote", {"quote_run_id": "other-run"}),
+        ("detection_spec", {"spec_run_id": "other-run"}),
+    ],
+)
+def test_cross_run_upstream_lineage_cannot_satisfy_export_path(
+    cross_run_node: str,
+    kwargs: dict[str, str],
+) -> None:
     session = _empty_db_session()
     service = EvidenceGraphService(db=session)
-    _add_export_path(service, spec_run_id="other-run")
+    _add_export_path(service, **kwargs)
     session.commit()
 
     with pytest.raises(EvidenceGraphError, match="evidence graph path incomplete"):
