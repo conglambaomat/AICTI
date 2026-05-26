@@ -104,6 +104,47 @@ def test_artifact_links_schema_matches_lineage_contract(migrated_engine) -> None
     )
 
 
+def test_evidence_retrieval_links_schema_matches_lineage_contract(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    assert "evidence_retrieval_links" in inspector.get_table_names()
+    columns = {column["name"] for column in inspector.get_columns("evidence_retrieval_links")}
+    assert {"id", "run_id", "evidence_id", "retrieval_candidate_id", "created_at"}.issubset(
+        columns
+    )
+
+    foreign_keys = {
+        foreign_key["name"]: (
+            tuple(foreign_key["constrained_columns"]),
+            foreign_key["referred_table"],
+            tuple(foreign_key["referred_columns"]),
+        )
+        for foreign_key in inspector.get_foreign_keys("evidence_retrieval_links")
+    }
+    assert foreign_keys["fk_evidence_retrieval_links_evidence_id_evidence_spans"] == (
+        ("evidence_id",),
+        "evidence_spans",
+        ("id",),
+    )
+    assert foreign_keys[
+        "fk_evidence_retrieval_links_retrieval_candidate_id_retrieval_candidates"
+    ] == (
+        ("retrieval_candidate_id",),
+        "retrieval_candidates",
+        ("id",),
+    )
+
+    unique_constraints = {
+        constraint["name"]: tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("evidence_retrieval_links")
+    }
+    assert unique_constraints["uq_evidence_retrieval_links_run_evidence_candidate"] == (
+        "run_id",
+        "evidence_id",
+        "retrieval_candidate_id",
+    )
+
+
 def test_foreign_keys_match_core_contract(migrated_engine) -> None:
     """Implemented tables must have required foreign key relationships."""
     inspector = inspect(migrated_engine)

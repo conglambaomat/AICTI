@@ -404,6 +404,39 @@ class RetrievalCandidate(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class EvidenceRetrievalLink(Base):
+    __tablename__ = "evidence_retrieval_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "evidence_id",
+            "retrieval_candidate_id",
+            name="uq_evidence_retrieval_links_run_evidence_candidate",
+        ),
+        Index("ix_evidence_retrieval_links_run_id", "run_id"),
+        Index("ix_evidence_retrieval_links_evidence_id", "evidence_id"),
+        Index("ix_evidence_retrieval_links_retrieval_candidate_id", "retrieval_candidate_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    evidence_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "evidence_spans.id",
+            name="fk_evidence_retrieval_links_evidence_id_evidence_spans",
+        ),
+        nullable=False,
+    )
+    retrieval_candidate_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "retrieval_candidates.id",
+            name="fk_evidence_retrieval_links_retrieval_candidate_id_retrieval_candidates",
+        ),
+        nullable=False,
+    )
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class ProofObligationRecord(Base):
     __tablename__ = "proof_obligations"
     __table_args__ = (
