@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from de_forge.db.session import get_db
 from de_forge.services.ingestion import IngestionService
+from de_forge.services.pdf_text_extraction import PdfExtractionError, PdfTextExtractionService
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -28,13 +29,21 @@ async def ingest_report(
     """
     max_file_size = 10 * 1024 * 1024  # 10MB
     filename = file.filename or "unknown"
-    if filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
 
     content_bytes = await file.read()
     if len(content_bytes) > max_file_size:
         raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
+
     source_type = "txt"
+    metadata: dict[str, object] | None = None
+    if filename.lower().endswith(".pdf"):
+        try:
+            extraction = PdfTextExtractionService().extract_text(content_bytes)
+        except PdfExtractionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        source_type = "pdf"
+        content_bytes = extraction.text.encode("utf-8")
+        metadata = {"pdf_extraction": extraction.metadata}
 
     service = IngestionService(db)
     try:
@@ -42,6 +51,7 @@ async def ingest_report(
             source_type=source_type,
             filename=filename,
             content_bytes=content_bytes,
+            metadata=metadata,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -36,12 +37,19 @@ class IngestionService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def ingest(self, source_type: str, filename: str, content_bytes: bytes) -> IngestionResult:
+    def ingest(
+        self,
+        source_type: str,
+        filename: str,
+        content_bytes: bytes,
+        metadata: dict[str, object] | None = None,
+    ) -> IngestionResult:
         """Ingest report bytes and persist report with deterministic chunks."""
         try:
             raw_text = content_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise ValueError("content_bytes must be valid UTF-8") from exc
+        metadata_json = json.dumps(metadata or {}, sort_keys=True)
         content_hash = sha256(content_bytes).hexdigest()
 
         # Idempotency policy: reports are deduplicated by content_hash only.
@@ -85,7 +93,7 @@ class IngestionService:
             title=filename,
             raw_text=raw_text,
             content_hash=content_hash,
-            metadata_json="{}",
+            metadata_json=metadata_json,
             status="ingested",
             created_at=created_at,
             updated_at=created_at,

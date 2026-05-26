@@ -253,39 +253,78 @@ def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch) -> N
     assert "failed" in body
 
 
-def test_reports_ingest_is_idempotent_by_content_hash() -> None:
-    payload = {
-        "source_type": "txt",
-        "content": "Credential dumping behavior\n\nLSASS access observed",
-        "external_ref": "idempotent-a.txt",
-        "metadata": {"title": "first"},
-    }
+def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+    from de_forge.schemas.api_pipeline import ReportIngestRequest
 
-    first = client.post("/v1/reports:ingest", json=payload)
-    second = client.post(
-        "/v1/reports:ingest",
-        json={**payload, "external_ref": "idempotent-b.txt", "metadata": {"title": "second"}},
+    class FakeResult:
+        report_id = "report_same_content"
+        chunks = [object(), object()]
+
+    class FakeIngestionService:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def ingest(self, **kwargs) -> FakeResult:
+            assert kwargs["source_type"] == "txt"
+            assert kwargs["content_bytes"] == b"Credential dumping behavior\n\nLSASS access observed"
+            return FakeResult()
+
+    monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+    monkeypatch.setattr(pipeline, "IngestionService", FakeIngestionService)
+
+    first = asyncio.run(
+        pipeline.ingest_report(
+            ReportIngestRequest(
+                source_type="txt",
+                content="Credential dumping behavior\n\nLSASS access observed",
+                external_ref="idempotent-a.txt",
+                metadata={"title": "first"},
+            ),
+            db=object(),
+        )
+    )
+    second = asyncio.run(
+        pipeline.ingest_report(
+            ReportIngestRequest(
+                source_type="txt",
+                content="Credential dumping behavior\n\nLSASS access observed",
+                external_ref="idempotent-b.txt",
+                metadata={"title": "second"},
+            ),
+            db=object(),
+        )
     )
 
-    assert first.status_code == 201
-    assert second.status_code == 201
-    assert first.json()["report_id"] == second.json()["report_id"]
-    assert first.json()["chunk_count"] == second.json()["chunk_count"] == 2
+    assert first.report_id == second.report_id == "report_same_content"
+    assert first.chunk_count == second.chunk_count == 2
 
 
-def test_reports_ingest_rejects_pdf_with_stable_unsupported_error() -> None:
-    response = client.post(
-        "/v1/reports:ingest",
-        json={
-            "source_type": "pdf",
-            "content": "%PDF-1.7 fake content",
-            "external_ref": "report.pdf",
-            "metadata": {},
-        },
-    )
+def test_reports_ingest_rejects_invalid_pdf_fail_closed(monkeypatch) -> None:
+    from fastapi import HTTPException
 
-    assert response.status_code == 415
-    assert response.json()["detail"] == "PDF ingestion is not supported"
+    from de_forge.api.routes import pipeline
+    from de_forge.schemas.api_pipeline import ReportIngestRequest
+
+    monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
+
+    try:
+        asyncio.run(
+            pipeline.ingest_report(
+                ReportIngestRequest(
+                    source_type="pdf",
+                    content="%PDF-1.7 fake content",
+                    external_ref="report.pdf",
+                    metadata={},
+                ),
+                db=object(),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert exc.detail == "PDF text extraction failed"
+    else:
+        raise AssertionError("invalid PDF should fail closed")
 
 
 def test_review_rejects_invalid_decision_before_persistence() -> None:

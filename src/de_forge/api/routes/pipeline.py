@@ -36,6 +36,7 @@ from de_forge.services.export_eligibility import (
 )
 from de_forge.services.ingestion import IngestionService
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
+from de_forge.services.pdf_text_extraction import PdfExtractionError, PdfTextExtractionService
 from de_forge.services.review import ReviewService
 from de_forge.services.schema_guard import assert_schema_contract_current
 
@@ -49,14 +50,24 @@ async def ingest_report(
     payload: ReportIngestRequest, db: Session = Depends(get_db)
 ) -> ReportIngestResponse:
     assert_schema_contract_current(db)
+    source_type = payload.source_type
+    content_bytes = payload.content.encode("utf-8")
+    metadata: dict[str, object] | None = payload.metadata or None
     if payload.source_type == "pdf":
-        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
+        try:
+            extraction = PdfTextExtractionService().extract_text(content_bytes)
+        except PdfExtractionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        source_type = "pdf"
+        content_bytes = extraction.text.encode("utf-8")
+        metadata = {**(metadata or {}), "pdf_extraction": extraction.metadata}
 
     try:
         result = IngestionService(db).ingest(
-            source_type=payload.source_type,
+            source_type=source_type,
             filename=payload.external_ref or "inline-report.txt",
-            content_bytes=payload.content.encode("utf-8"),
+            content_bytes=content_bytes,
+            metadata=metadata,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -626,15 +637,24 @@ async def legacy_ingest(
 ) -> ReportIngestResponse:
     assert_schema_contract_current(db)
     filename = file.filename or "unknown"
-    if filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=415, detail="PDF ingestion is not supported")
-
     content_bytes = await file.read()
+    source_type = "txt"
+    metadata: dict[str, object] | None = None
+    if filename.lower().endswith(".pdf"):
+        try:
+            extraction = PdfTextExtractionService().extract_text(content_bytes)
+        except PdfExtractionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        source_type = "pdf"
+        content_bytes = extraction.text.encode("utf-8")
+        metadata = {"pdf_extraction": extraction.metadata}
+
     try:
         result = IngestionService(db).ingest(
-            source_type="txt",
+            source_type=source_type,
             filename=filename,
             content_bytes=content_bytes,
+            metadata=metadata,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
