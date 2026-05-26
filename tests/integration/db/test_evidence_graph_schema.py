@@ -1,7 +1,7 @@
 """Integration tests for evidence graph persistence schema."""
 
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,9 +10,19 @@ from de_forge.db.base import Base
 from de_forge.models.contract import GraphEdge, GraphNode
 
 
+def create_sqlite_engine_with_foreign_keys():
+    engine = create_engine("sqlite:///:memory:")
+
+    @event.listens_for(engine, "connect")
+    def enable_foreign_keys(dbapi_connection, _connection_record):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    return engine
+
+
 def test_evidence_graph_tables_exist_with_required_columns() -> None:
     """Evidence graph nodes and edges must be first-class persisted tables."""
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     inspector = inspect(engine)
@@ -49,14 +59,23 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
     assert node_indexes["ix_graph_nodes_ref_lookup"] == ("ref_table", "ref_id")
 
     edge_foreign_keys = {
-        tuple(foreign_key["constrained_columns"]): (
+        foreign_key["name"]: (
+            tuple(foreign_key["constrained_columns"]),
             foreign_key["referred_table"],
             tuple(foreign_key["referred_columns"]),
         )
         for foreign_key in inspector.get_foreign_keys("graph_edges")
     }
-    assert edge_foreign_keys[("source_node_id",)] == ("graph_nodes", ("id",))
-    assert edge_foreign_keys[("target_node_id",)] == ("graph_nodes", ("id",))
+    assert edge_foreign_keys["fk_graph_edges_source_node_id_run_graph_nodes"] == (
+        ("source_node_id", "run_id"),
+        "graph_nodes",
+        ("id", "run_id"),
+    )
+    assert edge_foreign_keys["fk_graph_edges_target_node_id_run_graph_nodes"] == (
+        ("target_node_id", "run_id"),
+        "graph_nodes",
+        ("id", "run_id"),
+    )
 
     edge_indexes = {index["name"]: tuple(index["column_names"]) for index in inspector.get_indexes("graph_edges")}
     assert edge_indexes["ix_graph_edges_run_id"] == ("run_id",)
@@ -99,7 +118,7 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
 
 def test_graph_node_ref_columns_are_non_nullable_for_portable_uniqueness() -> None:
     """Unreferenced nodes must use a non-null sentinel so uniqueness is portable."""
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     inspector = inspect(engine)
@@ -110,7 +129,7 @@ def test_graph_node_ref_columns_are_non_nullable_for_portable_uniqueness() -> No
 
 
 def test_invalid_node_type_is_rejected() -> None:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as session:
@@ -130,7 +149,7 @@ def test_invalid_node_type_is_rejected() -> None:
 
 
 def test_invalid_edge_type_is_rejected() -> None:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as session:
@@ -168,7 +187,7 @@ def test_invalid_edge_type_is_rejected() -> None:
 
 
 def test_self_edge_is_rejected() -> None:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as session:
@@ -198,7 +217,7 @@ def test_self_edge_is_rejected() -> None:
 
 
 def test_duplicate_graph_node_with_same_run_type_ref_is_rejected() -> None:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as session:
@@ -223,8 +242,46 @@ def test_duplicate_graph_node_with_same_run_type_ref_is_rejected() -> None:
             session.commit()
 
 
+def test_cross_run_graph_edge_is_rejected() -> None:
+    engine = create_sqlite_engine_with_foreign_keys()
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as session:
+        source = GraphNode(
+            id="cross-run-source",
+            run_id="run-1",
+            node_type="report",
+            ref_table="reports",
+            ref_id="report-1",
+            created_at="2026-05-27T00:00:00Z",
+        )
+        target = GraphNode(
+            id="cross-run-target",
+            run_id="run-1",
+            node_type="chunk",
+            ref_table="report_chunks",
+            ref_id="chunk-1",
+            created_at="2026-05-27T00:00:00Z",
+        )
+        session.add_all([source, target])
+        session.flush()
+        session.add(
+            GraphEdge(
+                id="cross-run-edge",
+                run_id="run-2",
+                source_node_id=source.id,
+                target_node_id=target.id,
+                edge_type="mentions",
+                created_at="2026-05-27T00:00:00Z",
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+
 def test_duplicate_graph_edge_with_same_run_source_target_type_is_rejected() -> None:
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_sqlite_engine_with_foreign_keys()
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as session:

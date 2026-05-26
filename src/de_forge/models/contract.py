@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -143,6 +144,7 @@ class GraphNode(Base):
     __table_args__ = (
         CheckConstraint(GRAPH_NODE_TYPE_CHECK, name="ck_graph_nodes_node_type_allowed"),
         UniqueConstraint("run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"),
+        UniqueConstraint("id", "run_id", name="uq_graph_nodes_id_run"),
         Index("ix_graph_nodes_run_id", "run_id"),
         Index("ix_graph_nodes_node_type", "node_type"),
         Index("ix_graph_nodes_ref_lookup", "ref_table", "ref_id"),
@@ -169,20 +171,24 @@ class GraphEdge(Base):
             "edge_type",
             name="uq_graph_edges_run_source_target_type",
         ),
+        ForeignKeyConstraint(
+            ["source_node_id", "run_id"],
+            ["graph_nodes.id", "graph_nodes.run_id"],
+            name="fk_graph_edges_source_node_id_run_graph_nodes",
+        ),
+        ForeignKeyConstraint(
+            ["target_node_id", "run_id"],
+            ["graph_nodes.id", "graph_nodes.run_id"],
+            name="fk_graph_edges_target_node_id_run_graph_nodes",
+        ),
         Index("ix_graph_edges_run_id", "run_id"),
         Index("ix_graph_edges_edge_type", "edge_type"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    source_node_id: Mapped[str] = mapped_column(
-        ForeignKey("graph_nodes.id", name="fk_graph_edges_source_node_id_graph_nodes"),
-        nullable=False,
-    )
-    target_node_id: Mapped[str] = mapped_column(
-        ForeignKey("graph_nodes.id", name="fk_graph_edges_target_node_id_graph_nodes"),
-        nullable=False,
-    )
+    source_node_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    target_node_id: Mapped[str] = mapped_column(String(36), nullable=False)
     edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)

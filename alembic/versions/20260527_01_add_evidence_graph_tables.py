@@ -46,6 +46,7 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"
         ),
+        sa.UniqueConstraint("id", "run_id", name="uq_graph_nodes_id_run"),
     )
     op.create_index("ix_graph_nodes_run_id", "graph_nodes", ["run_id"])
     op.create_index("ix_graph_nodes_node_type", "graph_nodes", ["node_type"])
@@ -55,18 +56,8 @@ def upgrade() -> None:
         "graph_edges",
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column("run_id", sa.String(length=36), nullable=False),
-        sa.Column(
-            "source_node_id",
-            sa.String(length=36),
-            sa.ForeignKey("graph_nodes.id", name="fk_graph_edges_source_node_id_graph_nodes"),
-            nullable=False,
-        ),
-        sa.Column(
-            "target_node_id",
-            sa.String(length=36),
-            sa.ForeignKey("graph_nodes.id", name="fk_graph_edges_target_node_id_graph_nodes"),
-            nullable=False,
-        ),
+        sa.Column("source_node_id", sa.String(length=36), nullable=False),
+        sa.Column("target_node_id", sa.String(length=36), nullable=False),
         sa.Column("edge_type", sa.String(length=64), nullable=False),
         sa.Column("payload_json", sa.Text(), nullable=False, server_default="{}"),
         sa.Column("created_at", sa.String(length=40), nullable=False),
@@ -78,6 +69,16 @@ def upgrade() -> None:
             "target_node_id",
             "edge_type",
             name="uq_graph_edges_run_source_target_type",
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_node_id", "run_id"],
+            ["graph_nodes.id", "graph_nodes.run_id"],
+            name="fk_graph_edges_source_node_id_run_graph_nodes",
+        ),
+        sa.ForeignKeyConstraint(
+            ["target_node_id", "run_id"],
+            ["graph_nodes.id", "graph_nodes.run_id"],
+            name="fk_graph_edges_target_node_id_run_graph_nodes",
         ),
     )
     op.create_index("ix_graph_edges_run_id", "graph_edges", ["run_id"])
