@@ -1,7 +1,7 @@
 """add evidence graph tables
 
 Revision ID: 20260527_01
-Revises: 20260520_01
+Revises: 20260526_01
 Create Date: 2026-05-27
 """
 
