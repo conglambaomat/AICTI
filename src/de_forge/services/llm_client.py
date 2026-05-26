@@ -24,6 +24,14 @@ class LLMError(Exception):
     """Base class for all LLM client errors."""
 
 
+class ConfigurationError(LLMError):
+    """Invalid LLM client configuration or policy."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.retryable = False
+
+
 class RateLimitError(LLMError):
     """Rate limit exceeded (429)."""
 
@@ -251,6 +259,8 @@ class LLMClient:
     def call(self, request: LLMRequest) -> LLMResponse:
         """Execute LLM call with retry/backoff/timeout handling."""
         self._validate_metadata(request.metadata)
+        if request.model != self._model:
+            raise ConfigurationError("model override is not allowed")
 
         for attempt in range(1, MAX_RETRIES + 2):
             started = time.perf_counter()
@@ -331,6 +341,7 @@ class LLMClient:
 
 __all__ = [
     "AuthenticationError",
+    "ConfigurationError",
     "ContentFilterError",
     "InternalServerError",
     "InvalidRequestError",
