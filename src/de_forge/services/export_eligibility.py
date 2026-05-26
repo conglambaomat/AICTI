@@ -11,11 +11,12 @@ from de_forge.services.compiler_provenance import (
     CompilerProvenanceError,
     CompilerProvenanceService,
 )
+from de_forge.services.evidence_graph import EvidenceGraphError, EvidenceGraphService
 from de_forge.services.proof_coverage import ProofCoverageError, ProofCoverageService
 from de_forge.services.review import ReviewService
 
 
-class ExportBlockedReason(ValueError):
+class ExportBlockedReason(ValueError):  # noqa: N818
     """Raised with the stable reason code for a blocked export."""
 
 
@@ -36,6 +37,9 @@ class ExportEligibilityRepository(Protocol):
 
     def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
         """Return the latest human review decision for the run and rule."""
+
+    def assert_evidence_graph_complete(self, run_id: str, rule_id: str) -> None:
+        """Assert the persisted evidence graph export path is complete."""
 
 
 class SqlAlchemyExportEligibilityRepository:
@@ -82,6 +86,9 @@ class SqlAlchemyExportEligibilityRepository:
     def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
         return ReviewService(self.db)._get_latest_decision(rule_id, run_id=run_id)
 
+    def assert_evidence_graph_complete(self, run_id: str, rule_id: str) -> None:
+        EvidenceGraphService(self.db).assert_export_path_complete(run_id=run_id, rule_id=rule_id)
+
 
 class ExportEligibilityService:
     """Fail-closed export eligibility checks for generated rules."""
@@ -125,3 +132,8 @@ class ExportEligibilityService:
             )
         except ProofCoverageError as exc:
             raise ExportBlockedReason("PROOF_COVERAGE_MISSING") from exc
+
+        try:
+            self.repository.assert_evidence_graph_complete(run_id, rule_id)
+        except EvidenceGraphError as exc:
+            raise ExportBlockedReason("EVIDENCE_GRAPH_INCOMPLETE") from exc
