@@ -299,6 +299,25 @@ def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
     service.generate_proof_obligations_from_artifacts(
         run_id="run-selectable", rule_id=rule_id
     )
+    for claim_type in (
+        "positive_tests_pass",
+        "benign_baseline_not_matched",
+        "oracle_expectations_satisfied",
+        "regression_safe",
+    ):
+        db.add(
+            ProofObligationRecord(
+                id=f"proof-{claim_type}",
+                run_id="run-selectable",
+                rule_candidate_id=rule_id,
+                claim_type=claim_type,
+                claim_text=f"{claim_type} is not applicable for this persisted verifier test.",
+                required_artifact_types=json.dumps([]),
+                status="not_applicable",
+                justification="conditional proof obligation not applicable",
+            )
+        )
+    db.commit()
 
     assert (
         service.verify_persisted_proofs_selectable(
@@ -306,6 +325,30 @@ def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
         )
         is True
     )
+
+
+def test_verify_persisted_proofs_requires_full_required_coverage() -> None:
+    db = _build_session()
+    rule_id = _seed_rule(db)
+    service = ValidationProofPersistenceService(db)
+    db.add(
+        ProofObligationRecord(
+            id="proof-citation-faithful",
+            run_id="run-1",
+            rule_candidate_id=rule_id,
+            claim_type="citation_faithful",
+            claim_text="Rule citations are faithful to validated evidence.",
+            required_artifact_types=json.dumps(["static_validation"]),
+            status="proven",
+            justification="citation verifier passed",
+        )
+    )
+    db.commit()
+
+    with pytest.raises(
+        ProofObligationError, match="missing required proof obligations"
+    ):
+        service.verify_persisted_proofs_selectable(run_id="run-1", rule_id=rule_id)
 
 
 def test_verify_persisted_proofs_fails_closed_on_unknown_or_missing_obligations() -> None:

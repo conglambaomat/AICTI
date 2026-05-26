@@ -21,6 +21,7 @@ from de_forge.models import (
 )
 from de_forge.schemas.oracle import OracleEvaluationResult as OracleEvaluationSchema
 from de_forge.services.dynamic_validation import SyntheticValidationResult
+from de_forge.services.proof_coverage import ProofCoverageError, ProofCoverageService
 from de_forge.services.static_validation import ValidationReport
 
 
@@ -208,14 +209,22 @@ class ValidationProofPersistenceService:
         )
         if not obligations:
             raise ProofObligationError("proof obligations missing")
-        for obligation in obligations:
-            if obligation.status == "proven":
-                continue
-            if obligation.status == "not_applicable" and obligation.justification:
-                continue
-            raise ProofObligationError(
-                f"proof obligation {obligation.claim_type} is {obligation.status}"
+        proof_rows = [
+            {
+                "run_id": obligation.run_id,
+                "rule_candidate_id": obligation.rule_candidate_id,
+                "claim_type": obligation.claim_type,
+                "status": obligation.status,
+                "justification": obligation.justification,
+            }
+            for obligation in obligations
+        ]
+        try:
+            ProofCoverageService().assert_coverage_satisfied(
+                run_id=run_id, rule_id=rule_id, proof_rows=proof_rows
             )
+        except ProofCoverageError as exc:
+            raise ProofObligationError(str(exc)) from exc
         return True
 
     def _has_passed_static_validation(self, run_id: str, rule_id: str) -> bool:
