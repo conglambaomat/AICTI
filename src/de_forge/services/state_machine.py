@@ -48,7 +48,6 @@ class StateMachine:
             },
             RunState.DETECTION_SPEC_READY: {
                 RunState.DETECTION_SPEC_VERIFIED,
-                RunState.AWAITING_REVIEW,
                 RunState.FAILED,
             },
             RunState.DETECTION_SPEC_VERIFIED: {

@@ -24,6 +24,13 @@ def test_state_machine_rejects_raw_report_to_rule_candidate_transition() -> None
         machine.transition(RunState.INGESTED, RunState.RULE_CANDIDATES_READY)
 
 
+def test_detection_spec_ready_cannot_transition_directly_to_awaiting_review() -> None:
+    machine = StateMachine()
+
+    with pytest.raises(ValidationGateError):
+        machine.transition(RunState.DETECTION_SPEC_READY, RunState.AWAITING_REVIEW)
+
+
 def test_run_mode_values_include_auto_and_cautious() -> None:
     assert RunMode.AUTO == "auto"
     assert RunMode.CAUTIOUS == "cautious"
