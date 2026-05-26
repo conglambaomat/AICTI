@@ -75,9 +75,7 @@ class RuleGenerationService:
                     id=rule_id,
                     detection_spec_id=spec.id,
                     rule_content=rule_content,
-                    generation_source="compiler",
-                    detection_ast_id=f"ast-{rule_id}",
-                    compiled_sigma_id=f"sigma-{rule_id}",
+                    generation_source="manual_draft",
                 )
             )
             self.db.commit()

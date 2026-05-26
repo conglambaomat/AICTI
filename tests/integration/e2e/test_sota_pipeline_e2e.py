@@ -67,7 +67,7 @@ def _persist_validated_spec(db: Session, report_id: str, evidence_id: str) -> st
     return spec.id
 
 
-def test_successful_sota_pipeline_ingest_run_review_export() -> None:
+def test_sota_pipeline_generated_rule_export_fails_without_compiler_provenance() -> None:
     client, db = _build_client()
 
     ingest_response = client.post(
@@ -137,11 +137,8 @@ def test_successful_sota_pipeline_ingest_run_review_export() -> None:
     assert review_response.status_code == 201
 
     export_response = client.post("/v1/exports/sigma", json={"run_id": run_body["run_id"]})
-    assert export_response.status_code == 200
-    export_body = export_response.json()
-    assert export_body["rule_id"] == run_body["rule_id"]
-    assert "CommandLine|contains" in export_body["content"]
-    assert "powershell" in export_body["content"]
+    assert export_response.status_code == 403
+    assert export_response.json()["detail"] == "COMPILER_PROVENANCE_MISSING"
 
 
 def test_pipeline_run_missing_report_fails_closed() -> None:
@@ -226,7 +223,7 @@ def test_export_requires_latest_approved_review() -> None:
 
     export_response = client.post("/v1/exports/sigma", json={"run_id": run_body["run_id"]})
     assert export_response.status_code == 403
-    assert export_response.json()["detail"] == "HUMAN_APPROVAL_REQUIRED"
+    assert export_response.json()["detail"] == "COMPILER_PROVENANCE_MISSING"
 
 
 def test_pipeline_fails_closed_when_detection_spec_missing_after_evidence() -> None:

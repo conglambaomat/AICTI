@@ -10,6 +10,7 @@ class CompilerProvenanceError(ValueError):
 class RuleWithCompilerProvenance(Protocol):
     """Protocol for rule objects with compiler provenance fields."""
 
+    id: str
     generation_source: str
     detection_ast_id: object
     compiled_sigma_id: object
@@ -36,3 +37,10 @@ class CompilerProvenanceService:
             raise CompilerProvenanceError("Rule is missing Detection AST provenance")
         if not rule.compiled_sigma_id:
             raise CompilerProvenanceError("Rule is missing compiled Sigma provenance")
+
+        rule_id = getattr(rule, "id", None)
+        if rule_id is not None:
+            if rule.detection_ast_id == f"ast-{rule_id}":
+                raise CompilerProvenanceError("Rule uses placeholder Detection AST provenance")
+            if rule.compiled_sigma_id == f"sigma-{rule_id}":
+                raise CompilerProvenanceError("Rule uses placeholder compiled Sigma provenance")
