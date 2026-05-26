@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from de_forge.core.errors import ProofObligationError
 from de_forge.schemas.proof_obligation import ProofObligation
 from de_forge.schemas.review import ReviewAction, ReviewDecision, ReviewRequest
+from de_forge.services.evidence_graph import EvidenceGraphService
 from de_forge.services.proof_obligation_service import ProofObligationService
 
 
@@ -113,6 +114,27 @@ class ReviewService:
                         "updated_at": created_at,
                     },
                 )
+            graph = EvidenceGraphService(db)
+            rule_node = graph.upsert_node(
+                run_id=run_id,
+                node_type="generated_rule",
+                ref_table="generated_rules",
+                ref_id=rule_id,
+                payload={},
+            )
+            decision_node = graph.upsert_node(
+                run_id=run_id,
+                node_type="review_decision",
+                ref_table="review_decisions",
+                ref_id=decision_id,
+                payload={"decision": decision, "reviewer": reviewer},
+            )
+            graph.add_edge(
+                run_id=run_id,
+                source_node_id=rule_node,
+                target_node_id=decision_node,
+                edge_type="validated_by",
+            )
             db.commit()
         except Exception:
             db.rollback()
@@ -187,10 +209,7 @@ class ReviewService:
         if not rows:
             return run_id is not None
 
-        for status, _justification in rows:
-            if status != "proven":
-                return True
-        return False
+        return any(status != "proven" for status, _justification in rows)
 
     def _has_review_handoff_memory(self, rule_id: str, *, run_id: str | None = None) -> bool:
         db = self._require_db()

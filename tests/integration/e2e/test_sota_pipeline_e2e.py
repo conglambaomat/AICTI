@@ -12,6 +12,7 @@ from de_forge.db.base import Base
 from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec, ReportChunk
 from de_forge.services.evidence import EvidenceInput, EvidenceService
+from de_forge.services.evidence_graph import EvidenceGraphService
 from de_forge.services.retrieval import ScoredChunk
 from de_forge.services.retrieval_audit import RetrievalAuditService
 
@@ -135,6 +136,10 @@ def test_sota_pipeline_generated_rule_export_fails_without_compiler_provenance()
         },
     )
     assert review_response.status_code == 201
+
+    EvidenceGraphService(db).assert_export_path_complete(
+        run_id=run_body["run_id"], rule_id=run_body["rule_id"]
+    )
 
     export_response = client.post("/v1/exports/sigma", json={"run_id": run_body["run_id"]})
     assert export_response.status_code == 403

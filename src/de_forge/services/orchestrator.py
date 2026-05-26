@@ -19,9 +19,10 @@ from de_forge.models import Report as ReportModel
 from de_forge.models import ValidationResult as ValidationResultModel
 from de_forge.schemas.run import RunMode, RunState, RunSummary
 from de_forge.services.agent_audit import AgentAuditService
+from de_forge.services.dynamic_validation import DynamicValidationService
+from de_forge.services.evidence_graph import EvidenceGraphService
 from de_forge.services.memory_policy import MemoryPolicyEngine, latest_payload_namespaces
 from de_forge.services.refinement import RefinementLimitExceededError, RefinementService
-from de_forge.services.dynamic_validation import DynamicValidationService
 from de_forge.services.rule_generation import RuleGenerationService
 from de_forge.services.state_machine import StateMachine
 from de_forge.services.static_validation import StaticValidationService
@@ -268,6 +269,25 @@ class PipelineOrchestrator:
             )
             raise PipelineTransitionError("proof validation gate failed") from exc
 
+        try:
+            self._persist_artifact_graph_path(
+                run_id=run_id,
+                report=report,
+                evidence_rows=evidence_rows,
+                spec=spec,
+                rule=rule,
+            )
+        except Exception as exc:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="graph_persistence_failed",
+                detection_spec_id=spec.id,
+                rule_id=rule.id,
+            )
+            raise PipelineTransitionError("graph persistence failed") from exc
+
         return self._remember_pipeline_run(
             run_id=run_id,
             report_id=report_id,
@@ -276,6 +296,110 @@ class PipelineOrchestrator:
             detection_spec_id=spec.id,
             rule_id=rule.id,
         )
+
+    def _persist_artifact_graph_path(
+        self,
+        *,
+        run_id: str,
+        report: ReportModel,
+        evidence_rows: list[EvidenceSpanModel],
+        spec: DetectionSpecModel,
+        rule: GeneratedRuleModel,
+    ) -> None:
+        graph = EvidenceGraphService(self.db)
+        report_node = graph.upsert_node(
+            run_id=run_id,
+            node_type="report",
+            ref_table="reports",
+            ref_id=report.id,
+            payload={"source_type": report.source_type},
+        )
+        spec_node = graph.upsert_node(
+            run_id=run_id,
+            node_type="detection_spec",
+            ref_table="detection_specs",
+            ref_id=spec.id,
+            payload={"validated": spec.is_validated},
+        )
+        rule_node = graph.upsert_node(
+            run_id=run_id,
+            node_type="generated_rule",
+            ref_table="generated_rules",
+            ref_id=rule.id,
+            payload={"detection_spec_id": spec.id},
+        )
+        for evidence in evidence_rows:
+            evidence_node = graph.upsert_node(
+                run_id=run_id,
+                node_type="evidence_quote",
+                ref_table="evidence_spans",
+                ref_id=evidence.id,
+                payload={"report_id": evidence.report_id, "supports_claim": evidence.supports_claim},
+            )
+            graph.add_edge(
+                run_id=run_id,
+                source_node_id=report_node,
+                target_node_id=evidence_node,
+                edge_type="derived_from",
+            )
+            graph.add_edge(
+                run_id=run_id,
+                source_node_id=evidence_node,
+                target_node_id=spec_node,
+                edge_type="supports",
+            )
+        graph.add_edge(
+            run_id=run_id,
+            source_node_id=spec_node,
+            target_node_id=rule_node,
+            edge_type="derived_from",
+        )
+
+        validation_rows = self.db.execute(
+            select(ValidationResultModel).where(
+                ValidationResultModel.run_id == run_id,
+                ValidationResultModel.rule_id == rule.id,
+            )
+        ).scalars().all()
+        validation_node_ids: list[str] = []
+        for validation in validation_rows:
+            validation_node = graph.upsert_node(
+                run_id=run_id,
+                node_type="validation_result",
+                ref_table="validation_results",
+                ref_id=validation.id,
+                payload={"status": validation.status},
+            )
+            validation_node_ids.append(validation_node)
+            graph.add_edge(
+                run_id=run_id,
+                source_node_id=rule_node,
+                target_node_id=validation_node,
+                edge_type="validated_by",
+            )
+
+        proof_rows = self.db.execute(
+            select(ProofObligationRecordModel).where(
+                ProofObligationRecordModel.run_id == run_id,
+                ProofObligationRecordModel.rule_candidate_id == rule.id,
+            )
+        ).scalars().all()
+        for proof in proof_rows:
+            proof_node = graph.upsert_node(
+                run_id=run_id,
+                node_type="proof_obligation",
+                ref_table="proof_obligations",
+                ref_id=proof.id,
+                payload={"claim_type": proof.claim_type, "status": proof.status},
+            )
+            for validation_node in validation_node_ids:
+                graph.add_edge(
+                    run_id=run_id,
+                    source_node_id=validation_node,
+                    target_node_id=proof_node,
+                    edge_type="satisfies",
+                )
+        self.db.flush()
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(
