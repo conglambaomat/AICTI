@@ -9,7 +9,12 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from de_forge.models import EvidenceSpan, RetrievalAuditRun, RetrievalCandidate
+from de_forge.models import (
+    EvidenceRetrievalLink,
+    EvidenceSpan,
+    RetrievalAuditRun,
+    RetrievalCandidate,
+)
 from de_forge.services.retrieval import ScoredChunk
 
 
@@ -91,14 +96,53 @@ class RetrievalAuditService:
             .scalars()
             .all()
         )
-        candidate_by_chunk_id = {candidate.chunk_id: candidate for candidate in candidates}
+        candidates_by_chunk_id: dict[str, list[RetrievalCandidate]] = {}
+        for candidate in candidates:
+            candidates_by_chunk_id.setdefault(candidate.chunk_id, []).append(candidate)
 
-        if any(evidence.chunk_id not in candidate_by_chunk_id for evidence in evidence_rows):
-            raise ValueError("retrieval audit lineage missing for evidence chunks")
+        links = (
+            self.db.execute(
+                select(EvidenceRetrievalLink).where(
+                    EvidenceRetrievalLink.run_id == run_id,
+                    EvidenceRetrievalLink.evidence_id.in_(
+                        {evidence.id for evidence in evidence_rows}
+                    ),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        links_by_evidence_id: dict[str, list[EvidenceRetrievalLink]] = {}
+        for link in links:
+            links_by_evidence_id.setdefault(link.evidence_id, []).append(link)
+
+        candidate_by_id = {candidate.id: candidate for candidate in candidates}
+        candidate_by_evidence_id: dict[str, RetrievalCandidate] = {}
+        for evidence in evidence_rows:
+            rows = candidates_by_chunk_id.get(evidence.chunk_id, [])
+            if not rows:
+                raise ValueError("retrieval audit lineage missing for evidence chunks")
+
+            evidence_links = links_by_evidence_id.get(evidence.id, [])
+            if evidence_links:
+                if len(evidence_links) != 1:
+                    raise ValueError("ambiguous retrieval audit lineage for evidence chunks")
+                link = evidence_links[0]
+                linked_candidate = candidate_by_id.get(link.retrieval_candidate_id)
+                if linked_candidate is None or linked_candidate.chunk_id != evidence.chunk_id:
+                    raise ValueError("ambiguous retrieval audit lineage for evidence chunks")
+                candidate_by_evidence_id[evidence.id] = linked_candidate
+                continue
+
+            if len(rows) == 1:
+                candidate_by_evidence_id[evidence.id] = rows[0]
+                continue
+
+            raise ValueError("ambiguous retrieval audit lineage for evidence chunks")
 
         items = []
         for evidence in evidence_rows:
-            candidate = candidate_by_chunk_id[evidence.chunk_id]
+            candidate = candidate_by_evidence_id[evidence.id]
             items.append(
                 {
                     "evidence_id": evidence.id,
