@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from sqlalchemy.orm import Session
+
+from de_forge.models import DetectionSpec, GeneratedRule, PipelineRunRecord, ProofObligationRecord
 from de_forge.services.compiler_provenance import (
     CompilerProvenanceError,
     CompilerProvenanceService,
 )
 from de_forge.services.proof_coverage import ProofCoverageError, ProofCoverageService
+from de_forge.services.review import ReviewService
 
 
 class ExportBlockedReason(ValueError):
@@ -32,6 +36,51 @@ class ExportEligibilityRepository(Protocol):
 
     def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
         """Return the latest human review decision for the run and rule."""
+
+
+class SqlAlchemyExportEligibilityRepository:
+    """SQLAlchemy-backed repository for export eligibility checks."""
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def get_run(self, run_id: str) -> PipelineRunRecord | None:
+        return (
+            self.db.query(PipelineRunRecord)
+            .filter(PipelineRunRecord.run_id == run_id)
+            .first()
+        )
+
+    def get_rule(self, rule_id: str) -> GeneratedRule | None:
+        return self.db.get(GeneratedRule, rule_id)
+
+    def get_detection_spec(self, spec_id: str | None) -> DetectionSpec | None:
+        if spec_id is None:
+            return None
+        return self.db.get(DetectionSpec, spec_id)
+
+    def get_proof_rows(self, run_id: str, rule_id: str) -> list[dict[str, object]]:
+        rows = (
+            self.db.query(ProofObligationRecord)
+            .filter(
+                ProofObligationRecord.run_id == run_id,
+                ProofObligationRecord.rule_candidate_id == rule_id,
+            )
+            .all()
+        )
+        return [
+            {
+                "run_id": row.run_id,
+                "rule_candidate_id": row.rule_candidate_id,
+                "claim_type": row.claim_type,
+                "status": row.status,
+                "justification": row.justification,
+            }
+            for row in rows
+        ]
+
+    def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
+        return ReviewService(self.db)._get_latest_decision(rule_id, run_id=run_id)
 
 
 class ExportEligibilityService:
@@ -64,6 +113,10 @@ class ExportEligibilityService:
         except CompilerProvenanceError as exc:
             raise ExportBlockedReason("COMPILER_PROVENANCE_MISSING") from exc
 
+        latest_decision = self.repository.latest_review_decision(run_id, rule_id)
+        if getattr(latest_decision, "decision", None) != "approved":
+            raise ExportBlockedReason("HUMAN_APPROVAL_REQUIRED")
+
         try:
             self.proof_coverage.assert_coverage_satisfied(
                 run_id=run_id,
@@ -72,7 +125,3 @@ class ExportEligibilityService:
             )
         except ProofCoverageError as exc:
             raise ExportBlockedReason("PROOF_COVERAGE_MISSING") from exc
-
-        latest_decision = self.repository.latest_review_decision(run_id, rule_id)
-        if getattr(latest_decision, "decision", None) != "approved":
-            raise ExportBlockedReason("HUMAN_APPROVAL_REQUIRED")

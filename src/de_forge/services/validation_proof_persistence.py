@@ -168,9 +168,33 @@ class ValidationProofPersistenceService:
                 all_required_artifacts_passed,
             ),
             (
+                "positive_tests_pass",
+                "Positive tests pass for malicious behavior.",
+                ["dynamic_validation"],
+                all_required_artifacts_passed,
+            ),
+            (
+                "benign_baseline_not_matched",
+                "Benign baseline events are not matched.",
+                ["dynamic_validation"],
+                all_required_artifacts_passed,
+            ),
+            (
                 "citation_faithful",
                 "Rule citations are faithful to validated evidence.",
                 ["static_validation"],
+                all_required_artifacts_passed,
+            ),
+            (
+                "oracle_expectations_satisfied",
+                "Oracle expectations are satisfied or not applicable for this run.",
+                ["static_validation"],
+                all_required_artifacts_passed,
+            ),
+            (
+                "regression_safe",
+                "Regression gates passed for the rule.",
+                ["regression"],
                 all_required_artifacts_passed,
             ),
         ]

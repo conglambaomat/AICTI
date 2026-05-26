@@ -226,7 +226,7 @@ def test_export_requires_latest_approved_review() -> None:
 
     export_response = client.post("/v1/exports/sigma", json={"run_id": run_body["run_id"]})
     assert export_response.status_code == 403
-    assert "human approval required before export" in export_response.json()["detail"]
+    assert export_response.json()["detail"] == "HUMAN_APPROVAL_REQUIRED"
 
 
 def test_pipeline_fails_closed_when_detection_spec_missing_after_evidence() -> None:

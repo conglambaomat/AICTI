@@ -29,9 +29,14 @@ from de_forge.schemas.api_pipeline import (
     ReviewResponse,
     RunStatusResponse,
 )
+from de_forge.services.export_eligibility import (
+    ExportBlockedReason,
+    ExportEligibilityService,
+    SqlAlchemyExportEligibilityRepository,
+)
 from de_forge.services.ingestion import IngestionService
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
-from de_forge.services.review import ExportBlockedError, ReviewService
+from de_forge.services.review import ReviewService
 from de_forge.services.schema_guard import assert_schema_contract_current
 
 router = APIRouter(prefix="/v1", tags=["pipeline"])
@@ -575,10 +580,11 @@ async def export_sigma(
     if rule_id is None:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
 
-    service = ReviewService(db)
     try:
-        service.assert_can_export(rule_id=rule_id, rule_status=record.stage or "", run_id=payload.run_id)
-    except ExportBlockedError as exc:
+        ExportEligibilityService(
+            SqlAlchemyExportEligibilityRepository(db)
+        ).assert_exportable(run_id=payload.run_id, rule_id=rule_id)
+    except ExportBlockedReason as exc:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     generated_rule = db.get(GeneratedRuleModel, rule_id)
