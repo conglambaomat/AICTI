@@ -57,6 +57,53 @@ def test_expected_core_tables_exist(migrated_engine) -> None:
     assert expected.issubset(tables)
 
 
+def test_artifact_links_schema_matches_lineage_contract(migrated_engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    assert "artifact_links" in inspector.get_table_names()
+    columns = {column["name"] for column in inspector.get_columns("artifact_links")}
+    assert {"id", "parent_artifact_id", "child_artifact_id", "link_type", "created_at"}.issubset(
+        columns
+    )
+
+    foreign_keys = {
+        foreign_key["name"]: (
+            tuple(foreign_key["constrained_columns"]),
+            foreign_key["referred_table"],
+            tuple(foreign_key["referred_columns"]),
+        )
+        for foreign_key in inspector.get_foreign_keys("artifact_links")
+    }
+    assert foreign_keys["fk_artifact_links_parent_artifact_id_artifacts"] == (
+        ("parent_artifact_id",),
+        "artifacts",
+        ("id",),
+    )
+    assert foreign_keys["fk_artifact_links_child_artifact_id_artifacts"] == (
+        ("child_artifact_id",),
+        "artifacts",
+        ("id",),
+    )
+
+    unique_constraints = {
+        constraint["name"]: tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("artifact_links")
+    }
+    assert unique_constraints["uq_artifact_links_parent_child_type"] == (
+        "parent_artifact_id",
+        "child_artifact_id",
+        "link_type",
+    )
+
+    check_constraints = {
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("artifact_links")
+    }
+    assert check_constraints["ck_artifact_links_no_self_link"] == (
+        "parent_artifact_id != child_artifact_id"
+    )
+
+
 def test_foreign_keys_match_core_contract(migrated_engine) -> None:
     """Implemented tables must have required foreign key relationships."""
     inspector = inspect(migrated_engine)
