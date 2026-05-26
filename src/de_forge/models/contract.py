@@ -125,6 +125,56 @@ class ExtractedIOC(Base):
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
+class GraphNode(Base):
+    __tablename__ = "graph_nodes"
+    __table_args__ = (
+        CheckConstraint(
+            "node_type in ('report', 'chunk', 'evidence_quote', 'behavior', 'attack_technique', 'detection_strategy', 'analytic', 'data_component', 'telemetry_source', 'telemetry_field', 'detection_spec', 'detection_ast', 'compiled_sigma', 'generated_rule', 'validation_result', 'proof_obligation', 'review_decision', 'feedback_pattern', 'regression_test')",
+            name="ck_graph_nodes_node_type_allowed",
+        ),
+        UniqueConstraint("run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"),
+        Index("ix_graph_nodes_run_id", "run_id"),
+        Index("ix_graph_nodes_node_type", "node_type"),
+        Index("ix_graph_nodes_ref_lookup", "ref_table", "ref_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    node_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ref_table: Mapped[str | None] = mapped_column(String(120))
+    ref_id: Mapped[str | None] = mapped_column(String(36))
+    payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class GraphEdge(Base):
+    __tablename__ = "graph_edges"
+    __table_args__ = (
+        CheckConstraint("source_node_id != target_node_id", name="ck_graph_edges_no_self_edge"),
+        CheckConstraint(
+            "edge_type in ('supports', 'mentions', 'maps_to', 'requires', 'implements', 'validated_by', 'derived_from', 'satisfies', 'failed_by', 'contradicts')",
+            name="ck_graph_edges_edge_type_allowed",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "source_node_id",
+            "target_node_id",
+            "edge_type",
+            name="uq_graph_edges_run_source_target_type",
+        ),
+        Index("ix_graph_edges_run_id", "run_id"),
+        Index("ix_graph_edges_edge_type", "edge_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    source_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
+    target_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
+    edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class QueryCandidate(Base):
     __tablename__ = "query_candidates"
     __table_args__ = (
