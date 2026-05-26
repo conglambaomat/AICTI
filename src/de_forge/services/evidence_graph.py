@@ -10,6 +10,21 @@ from sqlalchemy.orm import Session
 from de_forge.models.evidence_graph import EvidenceEdge, EvidenceNode
 
 
+class EvidenceGraphError(ValueError):
+    pass
+
+
+class EvidenceGraphService:
+    def __init__(self, db: Session | None) -> None:
+        self.db = db
+
+    def assert_export_path_complete(self, *, run_id: str, rule_id: str) -> None:
+        if self.db is None:
+            raise EvidenceGraphError("evidence graph path incomplete")
+        # Real graph traversal is added in Task 13 after graph persistence is wired.
+        raise EvidenceGraphError("evidence graph path incomplete")
+
+
 class EvidenceGraphStore:
     _ALLOWED_NODE_TYPES = {
         "evidence_quote",
