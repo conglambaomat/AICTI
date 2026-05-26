@@ -185,6 +185,9 @@ class GeneratedRule(Base):
     detection_spec_id: Mapped[str] = mapped_column(ForeignKey("detection_specs.id"), nullable=False)
     query_candidate_id: Mapped[str | None] = mapped_column(ForeignKey("query_candidates.id"))
     rule_content: Mapped[str | None] = mapped_column(Text())
+    generation_source: Mapped[str] = mapped_column(String(30), nullable=False, default="manual_draft")
+    detection_ast_id: Mapped[str | None] = mapped_column(String(36))
+    compiled_sigma_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class ValidationResult(Base):
