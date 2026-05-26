@@ -12,6 +12,23 @@ class SchemaContractError(RuntimeError):
     pass
 
 
+_REQUIRED_TABLES = {
+    "agent_runs",
+    "detection_specs",
+    "evidence_spans",
+    "generated_rules",
+    "graph_edges",
+    "graph_nodes",
+    "pipeline_runs",
+    "proof_obligations",
+    "report_chunks",
+    "reports",
+    "retrieval_audit_runs",
+    "retrieval_candidates",
+    "review_decisions",
+    "validation_results",
+}
+
 _REQUIRED_AGENT_RUNS_COLUMNS = {
     "prompt_version",
     "model_id",
@@ -38,8 +55,9 @@ class SchemaGuard:
     def assert_contract_current(self) -> None:
         inspector = inspect(self.engine)
         table_names = set(inspector.get_table_names())
-        if "agent_runs" not in table_names:
-            raise SchemaContractError("schema drift: missing table agent_runs")
+        missing_tables = sorted(_REQUIRED_TABLES - table_names)
+        if missing_tables:
+            raise SchemaContractError(f"schema drift: missing table {missing_tables[0]}")
 
         self._assert_agent_runs_columns(inspector)
         self._assert_agent_runs_indexes(inspector)
