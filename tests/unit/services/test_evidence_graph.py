@@ -35,6 +35,7 @@ def _add_export_path(
     quote_run_id: str | None = None,
     spec_run_id: str | None = None,
     omit_node_type: str | None = None,
+    wrong_edge: str | None = None,
 ) -> None:
     report_node = None
     if omit_node_type != "report":
@@ -85,7 +86,7 @@ def _add_export_path(
             run_id=run_id,
             source_node_id=rule_node,
             target_node_id=review_node,
-            edge_type="satisfies",
+            edge_type="satisfies" if wrong_edge == "review_decision" else "validated_by",
         )
     if omit_node_type != "proof_obligation" and validation_node is not None:
         proof_node = service.upsert_node(
@@ -98,7 +99,7 @@ def _add_export_path(
             run_id=run_id,
             source_node_id=validation_node,
             target_node_id=proof_node,
-            edge_type="satisfies",
+            edge_type="derived_from" if wrong_edge == "proof_obligation" else "satisfies",
         )
     if (
         report_node is not None
@@ -110,7 +111,7 @@ def _add_export_path(
             run_id=run_id,
             source_node_id=report_node,
             target_node_id=quote_node,
-            edge_type="derived_from",
+            edge_type="supports" if wrong_edge == "evidence_quote" else "derived_from",
         )
     if (
         quote_node is not None
@@ -122,7 +123,7 @@ def _add_export_path(
             run_id=run_id,
             source_node_id=quote_node,
             target_node_id=spec_node,
-            edge_type="derived_from",
+            edge_type="derived_from" if wrong_edge == "detection_spec" else "supports",
         )
     if spec_node is not None and (spec_run_id is None or spec_run_id == run_id):
         service.add_edge(
@@ -189,6 +190,25 @@ def test_cross_run_upstream_lineage_cannot_satisfy_export_path(
     session = _empty_db_session()
     service = EvidenceGraphService(db=session)
     _add_export_path(service, **kwargs)
+    session.commit()
+
+    with pytest.raises(EvidenceGraphError, match="evidence graph path incomplete"):
+        service.assert_export_path_complete(run_id="run-1", rule_id="rule-1")
+
+
+@pytest.mark.parametrize(
+    "wrong_edge",
+    [
+        "evidence_quote",
+        "detection_spec",
+        "review_decision",
+        "proof_obligation",
+    ],
+)
+def test_wrong_edge_type_in_export_path_fails(wrong_edge: str) -> None:
+    session = _empty_db_session()
+    service = EvidenceGraphService(db=session)
+    _add_export_path(service, wrong_edge=wrong_edge)
     session.commit()
 
     with pytest.raises(EvidenceGraphError, match="evidence graph path incomplete"):

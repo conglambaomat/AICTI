@@ -100,12 +100,12 @@ class EvidenceGraphService:
         nodes = db.execute(select(GraphNode).where(GraphNode.run_id == run_id)).scalars().all()
         edges = db.execute(select(GraphEdge).where(GraphEdge.run_id == run_id)).scalars().all()
         nodes_by_id = {node.id: node for node in nodes}
-        adjacency: dict[str, list[GraphNode]] = defaultdict(list)
+        adjacency: dict[str, list[tuple[str, GraphNode]]] = defaultdict(list)
         for edge in edges:
             source = nodes_by_id.get(edge.source_node_id)
             target = nodes_by_id.get(edge.target_node_id)
             if source is not None and target is not None:
-                adjacency[source.id].append(target)
+                adjacency[source.id].append((edge.edge_type, target))
 
         rule_node = next(
             (
@@ -120,16 +120,24 @@ class EvidenceGraphService:
         if rule_node is None:
             raise EvidenceGraphError("evidence graph path incomplete")
 
-        if not any(node.node_type == "review_decision" for node in adjacency[rule_node.id]):
-            raise EvidenceGraphError("evidence graph path incomplete")
-        if not any(node.node_type == "validation_result" for node in adjacency[rule_node.id]):
+        if not any(
+            edge_type == "validated_by" and node.node_type == "review_decision"
+            for edge_type, node in adjacency[rule_node.id]
+        ):
             raise EvidenceGraphError("evidence graph path incomplete")
 
-        validation_nodes = [node for node in adjacency[rule_node.id] if node.node_type == "validation_result"]
+        validation_nodes = [
+            node
+            for edge_type, node in adjacency[rule_node.id]
+            if edge_type == "validated_by" and node.node_type == "validation_result"
+        ]
+        if not validation_nodes:
+            raise EvidenceGraphError("evidence graph path incomplete")
+
         if not any(
-            target.node_type == "proof_obligation"
+            edge_type == "satisfies" and target.node_type == "proof_obligation"
             for validation_node in validation_nodes
-            for target in adjacency[validation_node.id]
+            for edge_type, target in adjacency[validation_node.id]
         ):
             raise EvidenceGraphError("evidence graph path incomplete")
 
@@ -150,26 +158,29 @@ class EvidenceGraphService:
         *,
         rule_node_id: str,
         nodes: list[GraphNode],
-        adjacency: dict[str, list[GraphNode]],
+        adjacency: dict[str, list[tuple[str, GraphNode]]],
     ) -> bool:
-        required_path = ["report", "evidence_quote", "detection_spec", "generated_rule"]
+        required_hops = [
+            ("derived_from", "evidence_quote"),
+            ("supports", "detection_spec"),
+            ("derived_from", "generated_rule"),
+        ]
         start_nodes = [node for node in nodes if node.node_type == "report"]
         for start_node in start_nodes:
             queue: deque[tuple[str, int]] = deque([(start_node.id, 0)])
             visited: set[tuple[str, int]] = {(start_node.id, 0)}
             while queue:
-                node_id, path_index = queue.popleft()
-                if path_index == len(required_path) - 1 and node_id == rule_node_id:
+                node_id, hop_index = queue.popleft()
+                if hop_index == len(required_hops) and node_id == rule_node_id:
                     return True
-
-                next_index = path_index + 1
-                if next_index >= len(required_path):
+                if hop_index >= len(required_hops):
                     continue
-                required_type = required_path[next_index]
-                for target in adjacency.get(node_id, []):
-                    if target.node_type != required_type:
+
+                required_edge_type, required_node_type = required_hops[hop_index]
+                for edge_type, target in adjacency.get(node_id, []):
+                    if edge_type != required_edge_type or target.node_type != required_node_type:
                         continue
-                    state = (target.id, next_index)
+                    state = (target.id, hop_index + 1)
                     if state in visited:
                         continue
                     visited.add(state)

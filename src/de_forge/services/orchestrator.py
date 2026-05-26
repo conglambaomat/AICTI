@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import uuid4
@@ -306,6 +307,13 @@ class PipelineOrchestrator:
         spec: DetectionSpecModel,
         rule: GeneratedRuleModel,
     ) -> None:
+        referenced_evidence_ids = self._detection_spec_evidence_ids(spec)
+        supported_evidence_rows = [
+            evidence for evidence in evidence_rows if evidence.id in referenced_evidence_ids
+        ]
+        if not supported_evidence_rows:
+            raise PipelineTransitionError("DetectionSpec evidence lineage required")
+
         graph = EvidenceGraphService(self.db)
         report_node = graph.upsert_node(
             run_id=run_id,
@@ -328,7 +336,7 @@ class PipelineOrchestrator:
             ref_id=rule.id,
             payload={"detection_spec_id": spec.id},
         )
-        for evidence in evidence_rows:
+        for evidence in supported_evidence_rows:
             evidence_node = graph.upsert_node(
                 run_id=run_id,
                 node_type="evidence_quote",
@@ -400,6 +408,18 @@ class PipelineOrchestrator:
                     edge_type="satisfies",
                 )
         self.db.flush()
+
+    def _detection_spec_evidence_ids(self, spec: DetectionSpecModel) -> set[str]:
+        if not spec.spec_payload:
+            return set()
+        try:
+            payload = json.loads(spec.spec_payload)
+        except json.JSONDecodeError:
+            return set()
+        evidence_ids = payload.get("evidence_ids")
+        if isinstance(evidence_ids, list):
+            return {evidence_id for evidence_id in evidence_ids if isinstance(evidence_id, str)}
+        return set()
 
     def run_pipeline(self, detection_spec_id: str) -> PipelineState:
         spec = self.db.execute(
