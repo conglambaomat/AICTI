@@ -58,13 +58,13 @@ def upgrade() -> None:
         sa.Column(
             "source_node_id",
             sa.String(length=36),
-            sa.ForeignKey("graph_nodes.id"),
+            sa.ForeignKey("graph_nodes.id", name="fk_graph_edges_source_node_id_graph_nodes"),
             nullable=False,
         ),
         sa.Column(
             "target_node_id",
             sa.String(length=36),
-            sa.ForeignKey("graph_nodes.id"),
+            sa.ForeignKey("graph_nodes.id", name="fk_graph_edges_target_node_id_graph_nodes"),
             nullable=False,
         ),
         sa.Column("edge_type", sa.String(length=64), nullable=False),

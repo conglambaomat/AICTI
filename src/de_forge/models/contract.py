@@ -175,8 +175,14 @@ class GraphEdge(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    source_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
-    target_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
+    source_node_id: Mapped[str] = mapped_column(
+        ForeignKey("graph_nodes.id", name="fk_graph_edges_source_node_id_graph_nodes"),
+        nullable=False,
+    )
+    target_node_id: Mapped[str] = mapped_column(
+        ForeignKey("graph_nodes.id", name="fk_graph_edges_target_node_id_graph_nodes"),
+        nullable=False,
+    )
     edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text(), nullable=False, default="{}")
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
