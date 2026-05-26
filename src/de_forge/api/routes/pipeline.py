@@ -35,6 +35,7 @@ from de_forge.services.review import ExportBlockedError, ReviewService
 from de_forge.services.schema_guard import assert_schema_contract_current
 
 router = APIRouter(prefix="/v1", tags=["pipeline"])
+seed_router = APIRouter(prefix="/v1", tags=["pipeline-seed"])
 legacy_router = APIRouter(tags=["pipeline-legacy"])
 
 
@@ -179,7 +180,7 @@ async def run_pipeline(
     )
 
 
-@router.post("/pipeline:seed", status_code=201)
+@seed_router.post("/pipeline:seed", status_code=201)
 async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str]:
     assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"
@@ -337,7 +338,7 @@ async def seed_pipeline_run_data(db: Session = Depends(get_db)) -> dict[str, str
     return {"detection_spec_id": spec_id, "rule_id": rule_id, "report_id": report_id}
 
 
-@router.post("/pipeline:seed-abstain", status_code=201)
+@seed_router.post("/pipeline:seed-abstain", status_code=201)
 async def seed_pipeline_abstain_data(db: Session = Depends(get_db)) -> dict[str, str]:
     assert_schema_contract_current(db)
     spec_id = f"spec_{uuid4().hex[:12]}"

@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # Server
     port: int = Field(default=8000, description="Server port")
     host: str = Field(default="0.0.0.0", description="Server host")
+    enable_dev_seed_routes: bool = Field(
+        default=False,
+        description="Mount development-only seed routes when explicitly enabled.",
+    )
 
     # Logging
     log_level: str = Field(default="INFO", description="Log level")

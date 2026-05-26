@@ -11,6 +11,7 @@ from de_forge.api.router import api_router
 from de_forge.api.routes.ingestion import router as ingestion_router
 from de_forge.api.routes.pipeline import legacy_router as pipeline_legacy_router
 from de_forge.api.routes.pipeline import router as pipeline_router
+from de_forge.api.routes.pipeline import seed_router as pipeline_seed_router
 from de_forge.api.routes.review import router as review_router
 from de_forge.core.config import settings
 from de_forge.db.session import check_database_connection, engine
@@ -31,6 +32,8 @@ app.add_middleware(
 )
 
 app.include_router(pipeline_router)
+if settings.enable_dev_seed_routes and settings.env in {"development", "test"}:
+    app.include_router(pipeline_seed_router)
 app.include_router(pipeline_legacy_router)
 app.include_router(ingestion_router)
 app.include_router(review_router)
