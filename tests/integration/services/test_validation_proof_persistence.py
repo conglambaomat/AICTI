@@ -232,9 +232,13 @@ def test_generate_proof_obligations_marks_proven_when_required_artifacts_pass() 
     )
     assert {obligation.status for obligation in obligations} == {"proven"}
     assert {obligation.claim_type for obligation in obligations} == {
+        "benign_baseline_not_matched",
         "citation_faithful",
         "detects_report_behavior",
         "not_overbroad",
+        "oracle_expectations_satisfied",
+        "positive_tests_pass",
+        "regression_safe",
         "telemetry_fields_exist",
     }
 
@@ -309,25 +313,6 @@ def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
         details={"regressions": []},
     )
     service.generate_proof_obligations_from_artifacts(run_id="run-selectable", rule_id=rule_id)
-    for claim_type in (
-        "positive_tests_pass",
-        "benign_baseline_not_matched",
-        "oracle_expectations_satisfied",
-        "regression_safe",
-    ):
-        db.add(
-            ProofObligationRecord(
-                id=f"proof-{claim_type}",
-                run_id="run-selectable",
-                rule_candidate_id=rule_id,
-                claim_type=claim_type,
-                claim_text=f"{claim_type} is not applicable for this persisted verifier test.",
-                required_artifact_types=json.dumps([]),
-                status="not_applicable",
-                justification="conditional proof obligation not applicable",
-            )
-        )
-    db.commit()
 
     assert (
         service.verify_persisted_proofs_selectable(run_id="run-selectable", rule_id=rule_id) is True

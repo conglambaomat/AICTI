@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from de_forge.db.base import Base
 from de_forge.models import (
     DetectionSpec,
+    EvidenceSpan,
     GeneratedRule,
     PipelineRunRecord,
     ProofObligationRecord,
@@ -83,11 +84,14 @@ def _persist_evidence(db: Session, report_id: str, chunk_id: str, run_id: str = 
 
 
 def _persist_validated_spec(db: Session, report_id: str, spec_id: str = "spec-1") -> str:
+    evidence_id = db.execute(
+        select(EvidenceSpan).where(EvidenceSpan.report_id == report_id).order_by(EvidenceSpan.id)
+    ).scalar_one().id
     spec_payload = {
         "report_id": report_id,
         "behavior_rules": [
             {
-                "evidence": ["evidence-run-spec"],
+                "evidence": [evidence_id],
                 "attack_ids": ["T1059.001"],
                 "required_telemetry": ["process_creation"],
                 "detection_logic": "CommandLine contains 'powershell'",
@@ -95,13 +99,13 @@ def _persist_validated_spec(db: Session, report_id: str, spec_id: str = "spec-1"
         ],
         "false_positive_hypotheses": ["administrative scripts"],
         "test_plan": "validate against process creation logs",
-        "evidence_ids": ["evidence-run-spec"],
+        "evidence_ids": [evidence_id],
         "behavior_ids": ["behavior-1"],
         "detection_strategy": "detect encoded powershell",
         "analytic": "powershell command line analytic",
         "data_component": "process creation",
         "allowed_telemetry_fields": ["CommandLine", "Image"],
-        "rationale_traceability": ["evidence-run-spec"],
+        "rationale_traceability": [evidence_id],
     }
     spec = DetectionSpec(
         id=spec_id,
@@ -142,7 +146,7 @@ def test_run_report_pipeline_requires_validated_detection_spec_after_evidence() 
     record = db.execute(
         select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-spec")
     ).scalar_one()
-    assert record.stage == "detection_spec_required"
+    assert record.stage == "detection_spec_missing"
 
 
 def test_run_report_pipeline_generates_rule_from_validated_detection_spec() -> None:
