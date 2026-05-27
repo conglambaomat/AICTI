@@ -108,6 +108,40 @@ def test_invalid_review_decision_is_rejected_before_persistence() -> None:
     assert rows == []
 
 
+def test_default_api_reviewer_is_rejected_before_persistence() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    with pytest.raises(ValueError, match="explicit human reviewer"):
+        service.record_decision(
+            rule_id="rule-default-reviewer",
+            run_id="run-default-reviewer",
+            decision="approved",
+            reviewer=" api-reviewer ",
+            comments="Default API reviewer must not persist.",
+        )
+
+    rows = db.query(ReviewDecisionModel).filter_by(rule_id="rule-default-reviewer").all()
+    assert rows == []
+
+
+def test_blank_reviewer_is_rejected_before_persistence() -> None:
+    db = _build_session()
+    service = ReviewService(db)
+
+    with pytest.raises(ValueError, match="explicit human reviewer"):
+        service.record_decision(
+            rule_id="rule-blank-reviewer",
+            run_id="run-blank-reviewer",
+            decision="approved",
+            reviewer="  ",
+            comments="Blank reviewer must not persist.",
+        )
+
+    rows = db.query(ReviewDecisionModel).filter_by(rule_id="rule-blank-reviewer").all()
+    assert rows == []
+
+
 def test_export_allowed_after_latest_approval() -> None:
     db = _build_session()
     service = ReviewService(db)

@@ -51,6 +51,11 @@ def test_review_queue_endpoint_returns_pending_items() -> None:
     payload = response.json()
     assert "items" in payload
     assert isinstance(payload["items"], list)
+    assert {
+        "run_id": "run_1",
+        "rule_candidate_id": "candidate_1",
+        "state": "awaiting_review",
+    } not in payload["items"]
 
 
 def test_ops_metrics_endpoint_returns_operational_summary() -> None:

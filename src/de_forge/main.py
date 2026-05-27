@@ -13,7 +13,7 @@ from de_forge.api.routes.pipeline import legacy_router as pipeline_legacy_router
 from de_forge.api.routes.pipeline import router as pipeline_router
 from de_forge.api.routes.pipeline import seed_router as pipeline_seed_router
 from de_forge.api.routes.review import router as review_router
-from de_forge.core.config import Settings, settings
+from de_forge.core.config import REQUIRED_OPENAI_BASE_URL, REQUIRED_OPENAI_MODEL, Settings, settings
 from de_forge.db.session import check_database_connection, engine
 from de_forge.services.schema_guard import SchemaContractError, SchemaGuard
 
@@ -140,17 +140,20 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
             and app_settings.env not in {"development", "test"}
             else "ok"
         )
-        provider_config_check = (
-            "ok"
-            if app_settings.env != "production" or bool(app_settings.openai_api_key)
-            else "failed"
-        )
+        provider_errors: list[str] = []
+        if app_settings.env == "production":
+            if not app_settings.openai_api_key:
+                provider_errors.append("provider_config_missing")
+            if app_settings.openai_model != REQUIRED_OPENAI_MODEL:
+                provider_errors.append("provider_model_policy_mismatch")
+            if app_settings.openai_base_url != REQUIRED_OPENAI_BASE_URL:
+                provider_errors.append("provider_base_url_policy_mismatch")
+        provider_config_check = "failed" if provider_errors else "ok"
         checks["seed_routes"] = seed_routes_check
         checks["provider_config"] = provider_config_check
         if seed_routes_check == "failed":
             errors.append("seed_routes_enabled_outside_dev")
-        if provider_config_check == "failed":
-            errors.append("provider_config_missing")
+        errors.extend(provider_errors)
         is_ready = (
             bool(health_payload["ready"])
             and seed_routes_check == "ok"

@@ -426,18 +426,30 @@ async def approve_rule_for_export(
     reviewer: str = "api-reviewer",
     db: Session = Depends(get_db),
 ) -> dict[str, str] | JSONResponse:
+    normalized_reviewer = reviewer.strip()
+    if normalized_reviewer == "" or normalized_reviewer == "api-reviewer":
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "explicit human reviewer is required"},
+        )
+
     record = _resolve_run_record(db, run_id)
     if record is None or record.rule_id != rule_id:
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
 
     service = ReviewService(db)
-    decision_id = service.record_decision(
-        rule_id=rule_id,
-        decision="approved",
-        reviewer=reviewer,
-        run_id=run_id,
-        comments="pipeline approval helper",
-    )
+    try:
+        decision_id = service.record_decision(
+            rule_id=rule_id,
+            decision="approved",
+            reviewer=reviewer,
+            run_id=run_id,
+            comments="pipeline approval helper",
+        )
+    except ValueError as exc:
+        if str(exc) == "explicit human reviewer is required":
+            return JSONResponse(status_code=403, content={"detail": str(exc)})
+        raise
     return {"decision_id": decision_id}
 
 

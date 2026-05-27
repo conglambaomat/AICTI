@@ -33,13 +33,18 @@ def record_decision(
     request: ReviewDecisionRequest, db: Session = Depends(get_db)
 ) -> ReviewDecisionResponse:
     service = ReviewService(db)
-    decision_id = service.record_decision(
-        rule_id=request.rule_id,
-        decision=request.decision,
-        reviewer=request.reviewer,
-        run_id=request.run_id,
-        comments=request.comments,
-    )
+    try:
+        decision_id = service.record_decision(
+            rule_id=request.rule_id,
+            decision=request.decision,
+            reviewer=request.reviewer,
+            run_id=request.run_id,
+            comments=request.comments,
+        )
+    except ValueError as exc:
+        if str(exc) == "explicit human reviewer is required":
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise
     return ReviewDecisionResponse(decision_id=decision_id)
 
 
@@ -68,12 +73,4 @@ def decide_review(request: ReviewRequest) -> ReviewDecision:
 
 @router.get("/queue")
 def review_queue() -> dict[str, list[dict[str, str]]]:
-    return {
-        "items": [
-            {
-                "run_id": "run_1",
-                "rule_candidate_id": "candidate_1",
-                "state": "awaiting_review",
-            }
-        ]
-    }
+    return {"items": []}

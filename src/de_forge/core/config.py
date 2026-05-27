@@ -8,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from de_forge.core.constants import PROFILE_THRESHOLDS
 
+REQUIRED_OPENAI_BASE_URL = "https://shopapikey.com/v1"
+REQUIRED_OPENAI_MODEL = "cx/gpt-5.5"
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -36,11 +39,11 @@ class Settings(BaseSettings):
     # OpenAI-compatible API
     openai_api_key: str = Field(default="", description="OpenAI API key")
     openai_base_url: str = Field(
-        default="https://shopapikey.com/v1",
+        default=REQUIRED_OPENAI_BASE_URL,
         description="OpenAI-compatible base URL",
     )
     openai_model: str = Field(
-        default="cx/gpt-5.5",
+        default=REQUIRED_OPENAI_MODEL,
         description="Model identifier for all agents",
     )
 

@@ -38,6 +38,40 @@ def test_ready_endpoint_fails_without_production_provider_key() -> None:
     assert "provider_config_missing" in body["errors"]
 
 
+def test_ready_endpoint_fails_with_wrong_production_model() -> None:
+    test_app = create_app(
+        Settings(env="production", openai_api_key="key", openai_model="other-model")
+    )
+
+    response = TestClient(test_app).get("/ready")
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ready"] is False
+    assert body["readiness"] == "not_ready"
+    assert body["checks"]["provider_config"] == "failed"
+    assert "provider_model_policy_mismatch" in body["errors"]
+
+
+def test_ready_endpoint_fails_with_wrong_production_base_url() -> None:
+    test_app = create_app(
+        Settings(
+            env="production",
+            openai_api_key="key",
+            openai_base_url="https://example.test/v1",
+        )
+    )
+
+    response = TestClient(test_app).get("/ready")
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ready"] is False
+    assert body["readiness"] == "not_ready"
+    assert body["checks"]["provider_config"] == "failed"
+    assert "provider_base_url_policy_mismatch" in body["errors"]
+
+
 def test_ready_endpoint_fails_when_seed_routes_enabled_outside_dev() -> None:
     test_app = create_app(
         Settings(env="production", openai_api_key="key", enable_dev_seed_routes=True)

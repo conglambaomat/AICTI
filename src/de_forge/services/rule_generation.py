@@ -42,7 +42,12 @@ class RuleGenerationService:
                 "abstain_reason": str(
                     detection_spec.get("abstain_reason", "DetectionSpec abstained")
                 ),
-                "metadata": {"profile": profile},
+                "metadata": {
+                    "profile": profile,
+                    "generation_source": "draft",
+                    "authoritative_for_export": False,
+                    "exportable": False,
+                },
             }
 
         spec = DetectionSpec.model_validate(detection_spec)
@@ -58,7 +63,12 @@ class RuleGenerationService:
         return {
             "sigma_rule": compiled.model_dump(exclude={"provenance"}, exclude_none=True),
             "abstain": False,
-            "metadata": {"profile": profile},
+            "metadata": {
+                "profile": profile,
+                "generation_source": "draft",
+                "authoritative_for_export": False,
+                "exportable": False,
+            },
         }
 
     def generate_sigma_rule(self, detection_spec_id: str) -> RuleGenerationResult:

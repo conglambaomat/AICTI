@@ -23,6 +23,7 @@ class ExportBlockedError(ValueError):
 
 
 ALLOWED_REVIEW_DECISIONS = {"approved", "rejected"}
+SYSTEM_REVIEWERS = {"api-reviewer"}
 
 
 class ReviewService:
@@ -59,6 +60,7 @@ class ReviewService:
         """Record append-only review decision for a rule."""
         if decision not in ALLOWED_REVIEW_DECISIONS:
             raise ValueError(f"invalid review decision: {decision}")
+        reviewer = self._validated_reviewer(reviewer)
 
         db = self._require_db()
         decision_id = str(uuid4())
@@ -143,6 +145,12 @@ class ReviewService:
             raise
 
         return decision_id
+
+    def _validated_reviewer(self, reviewer: str) -> str:
+        normalized = reviewer.strip()
+        if normalized == "" or normalized in SYSTEM_REVIEWERS:
+            raise ValueError("explicit human reviewer is required")
+        return normalized
 
     def _build_review_insert_sql(self, columns: set[str]) -> str:
         ordered = ["id", "rule_id"]

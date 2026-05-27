@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from de_forge.db.base import Base
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import GeneratedRule as GeneratedRuleModel
+from de_forge.schemas.detection_spec import DetectionSpec
 from de_forge.services.detection_ast_service import DetectionAstService
 from de_forge.services.rule_generation import (
     RuleGenerationService,
@@ -21,6 +22,37 @@ def _build_session() -> Session:
     Base.metadata.create_all(bind=engine)
     maker = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
     return maker()
+
+
+def test_draft_rule_generation_is_marked_non_authoritative_for_export() -> None:
+    detection_spec = DetectionSpec(
+        report_id="report-draft",
+        behavior_rules=[
+            {
+                "evidence": ["quote-1"],
+                "attack_ids": ["T1059.001"],
+                "required_telemetry": ["process_creation"],
+                "detection_logic": "Image contains 'powershell'",
+            }
+        ],
+        false_positive_hypotheses=["admin shell"],
+        test_plan="validate process creation events",
+        evidence_ids=["quote-1"],
+        behavior_ids=["behavior-1"],
+        detection_strategy="behavioral",
+        analytic="process analytic",
+        data_component="process_creation",
+        allowed_telemetry_fields=["Image", "CommandLine"],
+        rationale_traceability=["quote-1 -> behavior-1"],
+    )
+
+    result = RuleGenerationService().generate_rule(detection_spec.model_dump(), profile="strict")
+
+    assert result["abstain"] is False
+    assert result["metadata"]["profile"] == "strict"
+    assert result["metadata"]["generation_source"] == "draft"
+    assert result["metadata"]["authoritative_for_export"] is False
+    assert result["metadata"]["exportable"] is False
 
 
 def test_generation_without_validated_spec_fails_hard_gate() -> None:

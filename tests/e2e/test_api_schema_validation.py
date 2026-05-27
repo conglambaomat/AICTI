@@ -426,11 +426,69 @@ def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch) -> Non
         pipeline.approve_rule_for_export(
             rule_id="rule_demo",
             run_id="run_demo",
+            reviewer="analyst@example.com",
             db=object(),
         )
     )
 
     assert response.status_code == 404
+
+
+def test_pipeline_approve_helper_rejects_default_api_reviewer(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+
+    class FakeRecord:
+        rule_id = "rule_demo"
+
+    class FakeReviewService:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def record_decision(self, **_kwargs) -> str:
+            raise AssertionError("default api reviewer must not create approval")
+
+    monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
+    monkeypatch.setattr(pipeline, "ReviewService", FakeReviewService)
+
+    response = asyncio.run(
+        pipeline.approve_rule_for_export(
+            rule_id="rule_demo",
+            run_id="run_demo",
+            db=object(),
+        )
+    )
+
+    assert response.status_code == 403
+    assert "human reviewer" in response.body.decode().lower()
+
+
+def test_pipeline_approve_helper_rejects_blank_reviewer(monkeypatch) -> None:
+    from de_forge.api.routes import pipeline
+
+    class FakeRecord:
+        rule_id = "rule_demo"
+
+    class FakeReviewService:
+        def __init__(self, db) -> None:
+            self.db = db
+
+        def record_decision(self, **_kwargs) -> str:
+            raise AssertionError("blank reviewer must not create approval")
+
+    monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
+    monkeypatch.setattr(pipeline, "ReviewService", FakeReviewService)
+
+    response = asyncio.run(
+        pipeline.approve_rule_for_export(
+            rule_id="rule_demo",
+            run_id="run_demo",
+            reviewer="  ",
+            db=object(),
+        )
+    )
+
+    assert response.status_code == 403
+    assert "human reviewer" in response.body.decode().lower()
 
 
 def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch) -> None:
