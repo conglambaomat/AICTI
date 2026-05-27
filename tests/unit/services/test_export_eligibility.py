@@ -1,11 +1,11 @@
-from __future__ import annotations
-
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
 
 from de_forge.services.artifact_lineage import ArtifactLineageError
+from de_forge.services.compiler_provenance import RuleWithCompilerProvenance
 from de_forge.services.evidence_graph import EvidenceGraphError
 from de_forge.services.export_eligibility import (
     ExportBlockedReason,
@@ -19,7 +19,7 @@ class FakeRepository:
     run: object | None = None
     rule: object | None = None
     spec: object | None = None
-    proof_rows: list[dict[str, object]] | None = None
+    proof_rows: list[Mapping[str, object]] | None = None
     review_decision: object | None = None
     evidence_graph_error: bool = False
     artifact_lineage_error: bool = False
@@ -27,13 +27,13 @@ class FakeRepository:
     def get_run(self, run_id: str) -> object | None:
         return self.run
 
-    def get_rule(self, rule_id: str) -> object | None:
-        return self.rule
+    def get_rule(self, rule_id: str) -> RuleWithCompilerProvenance | None:
+        return self.rule  # type: ignore[return-value]
 
-    def get_detection_spec(self, spec_id: str) -> object | None:
+    def get_detection_spec(self, spec_id: str | None) -> object | None:
         return self.spec
 
-    def get_proof_rows(self, run_id: str, rule_id: str) -> list[dict[str, object]]:
+    def get_proof_rows(self, run_id: str, rule_id: str) -> list[Mapping[str, object]]:
         return self.proof_rows or []
 
     def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
@@ -48,7 +48,7 @@ class FakeRepository:
             raise ArtifactLineageError("artifact lineage incomplete")
 
 
-def valid_proof_rows(run_id: str = "run-1", rule_id: str = "rule-1") -> list[dict[str, object]]:
+def valid_proof_rows(run_id: str = "run-1", rule_id: str = "rule-1") -> list[Mapping[str, object]]:
     return [
         {
             "run_id": run_id,

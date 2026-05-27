@@ -34,6 +34,7 @@ def test_build_detection_spec_returns_complete_behavior_branch() -> None:
         telemetry_registry={"process_creation": ["Image", "CommandLine"]},
         profile="balanced",
     )
+    assert isinstance(spec, dict)
 
     assert spec["abstain"] is False
     assert spec["behavior"]
@@ -52,6 +53,8 @@ def test_build_detection_spec_abstains_on_missing_inputs() -> None:
         telemetry_registry={"process_creation": ["Image", "CommandLine"]},
         profile="balanced",
     )
+
+    assert isinstance(spec, dict)
 
     assert spec["abstain"] is True
     assert isinstance(spec["abstain_reason"], str)

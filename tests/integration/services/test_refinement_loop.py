@@ -4,6 +4,7 @@ import pytest
 
 from de_forge.core.errors import ValidationGateError
 from de_forge.schemas.feedback import FeedbackDecision, ReviewFeedback
+from de_forge.schemas.sigma import SigmaRule
 from de_forge.services.feedback_learning import FeedbackLearningService
 from de_forge.services.refinement import RefinementController
 from de_forge.services.regression import RegressionService
@@ -73,20 +74,22 @@ def test_refinement_loop_blocks_reintroduced_rejected_pattern() -> None:
     )
     regression = FeedbackLearningService().to_regression_test(rejected)
 
+    rule = SigmaRule(
+        title="Rule",
+        id="r",
+        status="experimental",
+        description="d",
+        references=[],
+        tags=[],
+        logsource={"product": "windows", "category": "process_creation"},
+        detection={"selection": {"Image|contains": "cmd.exe"}, "condition": "selection"},
+        falsepositives=[],
+        level="medium",
+        provenance={},
+    )
+
     with pytest.raises(ValidationGateError, match="repeats rejected pattern noisy_parent_image"):
         RegressionService([regression]).assert_candidate_safe(
             candidate_patterns=["noisy_parent_image"],
-            rule={
-                "title": "Rule",
-                "id": "r",
-                "status": "experimental",
-                "description": "d",
-                "references": [],
-                "tags": [],
-                "logsource": {"product": "windows", "category": "process_creation"},
-                "detection": {"selection": {"Image|contains": "cmd.exe"}, "condition": "selection"},
-                "falsepositives": [],
-                "level": "medium",
-                "provenance": {},
-            },
+            rule=rule,
         )

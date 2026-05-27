@@ -1,18 +1,26 @@
+from typing import Any
+
 import pytest
 from sqlalchemy import create_engine, event, inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from typing_extensions import Protocol
 
 import de_forge.models  # noqa: F401
 from de_forge.db.base import Base
 from de_forge.models.contract import EvidenceRetrievalLink
 
 
-def create_sqlite_engine_with_foreign_keys():
+class _SQLiteConnection(Protocol):
+    def execute(self, statement: str, parameters: Any = ...) -> Any: ...
+
+
+def create_sqlite_engine_with_foreign_keys() -> Engine:
     engine = create_engine("sqlite:///:memory:")
 
     @event.listens_for(engine, "connect")
-    def enable_foreign_keys(dbapi_connection, _connection_record):
+    def enable_foreign_keys(dbapi_connection: _SQLiteConnection, _connection_record: object) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
     return engine

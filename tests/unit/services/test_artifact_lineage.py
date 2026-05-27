@@ -41,7 +41,9 @@ def _add_complete_lineage(db: Session, *, run_id: str = "run-1", rule_id: str = 
         ]
     )
     db.flush()
-    db.get(Artifact, "artifact-rule").payload = {"rule_id": rule_id}
+    rule_artifact = db.get(Artifact, "artifact-rule")
+    assert rule_artifact is not None
+    rule_artifact.payload = {"rule_id": rule_id}
     db.add_all(
         [
             ArtifactLink(

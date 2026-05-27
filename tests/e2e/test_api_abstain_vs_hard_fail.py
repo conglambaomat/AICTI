@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -11,6 +11,9 @@ from sqlalchemy.pool import StaticPool
 from de_forge.api.routes.pipeline import router as pipeline_router
 from de_forge.db.base import Base
 from de_forge.db.session import get_db
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 def _build_client() -> tuple[TestClient, Session]:

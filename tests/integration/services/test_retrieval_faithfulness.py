@@ -154,8 +154,8 @@ class TestUnsupportedClaimRejection:
 
     def test_empty_evidence_with_claims_fails(self):
         """DetectionSpec with claims but no evidence should fail."""
-        evidence = []
-        chunks = {}
+        evidence: list[dict[str, object]] = []
+        chunks: dict[str, dict[str, object]] = {}
         claims = ["some behavior"]
 
         result = validate_retrieval_faithfulness(evidence, chunks, required_claims=claims)

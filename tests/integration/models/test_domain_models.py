@@ -1,4 +1,4 @@
-from __future__ import annotations
+from collections.abc import Generator
 
 import pytest
 from sqlalchemy import create_engine
@@ -16,7 +16,7 @@ from de_forge.models.domain import (
 
 
 @pytest.fixture
-def db_session() -> Session:
+def db_session() -> Generator[Session, None, None]:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_local = sessionmaker(bind=engine)

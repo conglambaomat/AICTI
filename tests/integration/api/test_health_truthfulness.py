@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from de_forge import main
@@ -25,7 +26,7 @@ def test_health_separates_measured_checks_from_static_policy() -> None:
     }
 
 
-def test_health_fails_closed_when_database_probe_fails(monkeypatch) -> None:
+def test_health_fails_closed_when_database_probe_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     def fail_database_probe() -> None:
         raise RuntimeError("db unavailable")
 
@@ -43,7 +44,7 @@ def test_health_fails_closed_when_database_probe_fails(monkeypatch) -> None:
     assert "database_probe_failed" in body["errors"]
 
 
-def test_health_fails_closed_when_schema_guard_raises_unexpected_error(monkeypatch) -> None:
+def test_health_fails_closed_when_schema_guard_raises_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def pass_database_probe() -> None:
         return None
 

@@ -89,6 +89,7 @@ def test_replay_fails_when_event_payload_tampered() -> None:
         text("SELECT id, value FROM memory_events WHERE scope = :scope AND key = '1'"),
         {"scope": "run-1:evidence.working_set"},
     ).fetchone()
+    assert row is not None
     payload = json.loads(row[1])
     payload["payload"] = {"tampered": True}
     db.execute(

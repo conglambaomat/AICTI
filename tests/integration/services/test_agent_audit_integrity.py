@@ -1,10 +1,12 @@
 """Integration tests for agent audit integrity verification."""
 
+from typing import Any, cast
+
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from de_forge.core.hashing import snapshot_hash
+from de_forge.core.hashing import JsonValue, snapshot_hash
 from de_forge.db.base import Base
 from de_forge.models import AgentRun as AgentRunModel
 from de_forge.models import DetectionSpec as DetectionSpecModel
@@ -30,8 +32,8 @@ def test_agent_run_read_fails_on_hash_mismatch() -> None:
 
     # Seed agent run with mismatched hash
     run_id = "run-tampered"
-    input_snapshot = {"prompt": "test", "context": "data"}
-    output_snapshot = {"result": "output"}
+    input_snapshot: JsonValue = {"prompt": "test", "context": "data"}
+    output_snapshot: JsonValue = {"result": "output"}
 
     tampered_input_hash = "tampered-hash-value"
 
@@ -52,7 +54,10 @@ def test_agent_run_read_fails_on_hash_mismatch() -> None:
 
     # Attempt to load with verification
     with pytest.raises(IntegrityError, match="input hash mismatch"):
-        service.load_agent_run_verified(run_id=run_id, input_snapshot=input_snapshot)
+        service.load_agent_run_verified(
+            run_id=run_id,
+            input_snapshot=cast("dict[str, Any]", input_snapshot),
+        )
 
 
 def test_agent_run_read_passes_on_valid_hashes() -> None:
@@ -62,8 +67,8 @@ def test_agent_run_read_passes_on_valid_hashes() -> None:
 
     # Seed agent run with correct hashes
     run_id = "run-valid"
-    input_snapshot = {"prompt": "test", "context": "data"}
-    output_snapshot = {"result": "output"}
+    input_snapshot: JsonValue = {"prompt": "test", "context": "data"}
+    output_snapshot: JsonValue = {"result": "output"}
 
     input_hash = snapshot_hash(input_snapshot)
     output_hash = snapshot_hash(output_snapshot)
@@ -84,7 +89,10 @@ def test_agent_run_read_passes_on_valid_hashes() -> None:
     db.commit()
 
     # Load with verification should succeed
-    loaded = service.load_agent_run_verified(run_id=run_id, input_snapshot=input_snapshot)
+    loaded = service.load_agent_run_verified(
+        run_id=run_id,
+        input_snapshot=cast("dict[str, Any]", input_snapshot),
+    )
     assert loaded.id == run_id
     assert loaded.input_hash == input_hash
 
@@ -94,15 +102,15 @@ def test_agent_run_persist_stores_hashes() -> None:
     db = _build_session()
     service = AgentAuditService(db)
 
-    input_snapshot = {"prompt": "persist test"}
-    output_snapshot = {"result": "persist output"}
+    input_snapshot: JsonValue = {"prompt": "persist test"}
+    output_snapshot: JsonValue = {"result": "persist output"}
 
     run_id = service.persist_agent_run(
         run_id="run-persist",
         trace_id="trace-persist",
         agent_name="persist-agent",
-        input_snapshot=input_snapshot,
-        output_snapshot=output_snapshot,
+        input_snapshot=cast("dict[str, Any]", input_snapshot),
+        output_snapshot=cast("dict[str, Any]", output_snapshot),
         status="completed",
     )
 

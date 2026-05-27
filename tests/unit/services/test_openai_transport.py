@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
 from de_forge.services.openai_transport import OpenAICompatibleTransport, OpenAITransportError
@@ -9,7 +11,7 @@ class FakeResponse:
     def raise_for_status(self) -> None:
         return None
 
-    def json(self) -> dict:
+    def json(self) -> dict[str, Any]:
         return {
             "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
             "model": "cx/gpt-5.5",
@@ -18,10 +20,16 @@ class FakeResponse:
 
 
 def test_openai_transport_builds_authorized_json_request() -> None:
-    sent = {}
+    sent: dict[str, Any] = {}
 
     class FakeHttpClient:
-        def post(self, url, headers, json, timeout):
+        def post(
+            self,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+            timeout: int,
+        ) -> FakeResponse:
             sent["url"] = url
             sent["headers"] = headers
             sent["json"] = json
@@ -65,11 +73,12 @@ def test_openai_transport_closes_owned_http_client() -> None:
             self.closed = True
 
     transport = OpenAICompatibleTransport(base_url="https://shopapikey.com/v1", api_key="key")
-    transport.http_client = ClosableHttpClient()
+    closable = ClosableHttpClient()
+    transport.http_client = cast("Any", closable)
 
     transport.close()
 
-    assert transport.http_client.closed is True
+    assert closable.closed is True
 
 
 def test_openai_transport_rejects_malformed_provider_response() -> None:
@@ -77,11 +86,17 @@ def test_openai_transport_rejects_malformed_provider_response() -> None:
         def raise_for_status(self) -> None:
             return None
 
-        def json(self) -> dict:
+        def json(self) -> dict[str, Any]:
             return {"choices": [], "model": "cx/gpt-5.5", "usage": {}}
 
     class FakeHttpClient:
-        def post(self, url, headers, json, timeout):
+        def post(
+            self,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+            timeout: int,
+        ) -> MalformedResponse:
             return MalformedResponse()
 
     transport = OpenAICompatibleTransport(

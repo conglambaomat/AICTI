@@ -100,13 +100,17 @@ def test_abstain_decision_rejects_invalid_abstain_code():
 def test_abstain_decision_enforces_required_fields():
     """AbstainDecision requires abstain_context and human_message."""
     with pytest.raises(ValidationError) as exc_info:
-        AbstainDecision(abstain_code="NO_EVIDENCE", human_message="Human readable message")
+        AbstainDecision.model_validate(
+            {"abstain_code": "NO_EVIDENCE", "human_message": "Human readable message"}
+        )
     assert any(
         e["loc"] == ("abstain_context",) and e["type"] == "missing" for e in exc_info.value.errors()
     )
 
     with pytest.raises(ValidationError) as exc_info:
-        AbstainDecision(abstain_code="NO_EVIDENCE", abstain_context="Some context")
+        AbstainDecision.model_validate(
+            {"abstain_code": "NO_EVIDENCE", "abstain_context": "Some context"}
+        )
     assert any(
         e["loc"] == ("human_message",) and e["type"] == "missing" for e in exc_info.value.errors()
     )
@@ -152,12 +156,12 @@ def test_abstain_decision_rejects_legacy_context_and_extra_fields():
     assert "context" not in schema["properties"]
     assert set(schema["required"]) == {"abstain_code", "abstain_context", "human_message"}
 
-    with pytest.raises(AttributeError):
-        _ = AbstainDecision(
-            abstain_code="NO_TELEMETRY",
-            abstain_context="Sysmon process_creation data is unavailable for this environment.",
-            human_message="Cannot generate a safe detection rule with available telemetry.",
-        ).context
+    abstain = AbstainDecision(
+        abstain_code="NO_TELEMETRY",
+        abstain_context="Sysmon process_creation data is unavailable for this environment.",
+        human_message="Cannot generate a safe detection rule with available telemetry.",
+    )
+    assert "context" not in abstain.model_dump()
 
     assert set(AbstainDecision.model_fields.keys()) == {
         "abstain_code",
@@ -222,29 +226,33 @@ def test_behavior_rule_strict_validation_for_attack_ids_telemetry_and_blank_stri
 def test_contract_schemas_forbid_extra_fields():
     """Test contract schemas reject undeclared fields via extra='forbid'."""
     with pytest.raises(ValidationError) as exc_info:
-        BehaviorRule(
-            evidence=["ev"],
-            attack_ids=["T1105"],
-            required_telemetry=["process_creation"],
-            detection_logic="logic",
-            unknown_field="boom",
+        BehaviorRule.model_validate(
+            {
+                "evidence": ["ev"],
+                "attack_ids": ["T1105"],
+                "required_telemetry": ["process_creation"],
+                "detection_logic": "logic",
+                "unknown_field": "boom",
+            }
         )
     assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
     with pytest.raises(ValidationError) as exc_info:
-        DetectionSpec(
-            report_id="report-1",
-            behavior_rules=[
-                BehaviorRule(
-                    evidence=["ev"],
-                    attack_ids=["T1105"],
-                    required_telemetry=["process_creation"],
-                    detection_logic="logic",
-                )
-            ],
-            false_positive_hypotheses=["fp"],
-            test_plan="plan",
-            extra_field=True,
+        DetectionSpec.model_validate(
+            {
+                "report_id": "report-1",
+                "behavior_rules": [
+                    {
+                        "evidence": ["ev"],
+                        "attack_ids": ["T1105"],
+                        "required_telemetry": ["process_creation"],
+                        "detection_logic": "logic",
+                    }
+                ],
+                "false_positive_hypotheses": ["fp"],
+                "test_plan": "plan",
+                "extra_field": True,
+            }
         )
     assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
@@ -270,11 +278,14 @@ def test_contract_schemas_forbid_extra_fields():
     )
 
     with pytest.raises(ValidationError) as exc_info:
-        RuleGenerationRequest(
-            detection_spec=valid_spec,
-            target_format="sigma",
-            surprise="nope",
+        RuleGenerationRequest.model_validate(
+            {
+                "detection_spec": valid_spec.model_dump(mode="python"),
+                "target_format": "sigma",
+                "surprise": "nope",
+            }
         )
+    assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
     assert any(e["type"] == "extra_forbidden" for e in exc_info.value.errors())
 
 
@@ -319,34 +330,35 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
 
     # Request without DetectionSpec should fail
     with pytest.raises(ValidationError) as exc_info:
-        RuleGenerationRequest(
-            target_format="sigma",
-        )
+        RuleGenerationRequest.model_validate({"target_format": "sigma"})
     assert "detection_spec" in str(exc_info.value).lower()
 
     # Request with invalid DetectionSpec (missing behavior_rules) should fail
     with pytest.raises(ValidationError) as exc_info:
-        DetectionSpec(
-            report_id="report-002",
-            behavior_rules=[],  # Empty behavior rules
-            false_positive_hypotheses=["Some hypothesis"],
-            test_plan="Some test plan",
+        DetectionSpec.model_validate(
+            {
+                "report_id": "report-002",
+                "behavior_rules": [],
+                "false_positive_hypotheses": ["Some hypothesis"],
+                "test_plan": "Some test plan",
+            }
         )
     assert "behavior_rules" in str(exc_info.value).lower()
 
     # Request with DetectionSpec missing required fields should fail during spec creation
     with pytest.raises(ValidationError) as exc_info:
-        DetectionSpec(
-            report_id="report-003",
-            behavior_rules=[
-                BehaviorRule(
-                    evidence=["Some evidence"],
-                    attack_ids=["T1059.001"],
-                    required_telemetry=["process_creation"],
-                    detection_logic="Some logic",
-                )
-            ],
-            # Missing false_positive_hypotheses and test_plan
+        DetectionSpec.model_validate(
+            {
+                "report_id": "report-003",
+                "behavior_rules": [
+                    {
+                        "evidence": ["Some evidence"],
+                        "attack_ids": ["T1059.001"],
+                        "required_telemetry": ["process_creation"],
+                        "detection_logic": "Some logic",
+                    }
+                ]
+            }
         )
     errors = str(exc_info.value).lower()
     assert "false_positive_hypotheses" in errors or "test_plan" in errors

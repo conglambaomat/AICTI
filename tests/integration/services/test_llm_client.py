@@ -4,6 +4,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -34,11 +35,12 @@ class FakeTransport:
         self.events = events
         self.calls = 0
 
-    def send(self, payload: dict, timeout_seconds: int) -> FakeHTTPResponse:
+    def send(self, payload: dict[str, Any], timeout_seconds: int) -> FakeHTTPResponse:
         self.calls += 1
         event = self.events.pop(0)
         if isinstance(event, Exception):
             raise event
+        assert isinstance(event, FakeHTTPResponse)
         return event
 
 

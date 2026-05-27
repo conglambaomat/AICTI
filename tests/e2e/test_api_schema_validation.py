@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
+import pytest
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from de_forge.main import app
 
@@ -30,7 +34,7 @@ def test_pipeline_run_rejects_missing_report_id() -> None:
     assert response.status_code == 422
 
 
-def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
+def test_pipeline_run_returns_abstain_contract_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
 
@@ -51,23 +55,22 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
         rule_id = None
 
     class FakeQuery:
-        def filter(self, *_args):
+        def filter(self, *_args: object) -> FakeQuery:
             return self
 
-        def first(self):
+        def first(self) -> FakeReport:
             return FakeReport()
 
     class FakeDb:
-        def query(self, *_args):
+        def query(self, *_args: object) -> FakeQuery:
             return FakeQuery()
 
-        def get(self, model, key):
-            assert model is pipeline.DetectionSpecModel
+        def get(self, model: object, key: object) -> FakeDetectionSpec:
             assert key == "spec_demo"
             return FakeDetectionSpec()
 
     class FakeOrchestrator:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
         def run_report_pipeline(self, *, report_id: str, run_id: str) -> FakeRecord:
@@ -80,10 +83,12 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
 
     response = asyncio.run(
         pipeline.run_pipeline(
-            PipelineRunRequest(report_id="rep_demo", profile="strict"), db=FakeDb()
+            PipelineRunRequest(report_id="rep_demo", profile="strict"),
+            db=cast("Session", FakeDb()),
         )
     )
 
+    assert not isinstance(response, JSONResponse)
     body = response.model_dump()
     assert body["status"] == "abstain"
     assert body["abstain"] is True
@@ -91,7 +96,7 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch) -> None:
     assert body["abstain_code"] == "NO_EVIDENCE"
 
 
-def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatch) -> None:
+def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
     from de_forge.services.orchestrator import PipelineTransitionError
@@ -103,22 +108,21 @@ def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatc
         rule_id = None
 
     class FakeRunQuery:
-        def filter(self, *_args):
+        def filter(self, *_args: object) -> FakeRunQuery:
             return self
 
-        def first(self):
+        def first(self) -> FakeFailedRecord:
             return FakeFailedRecord()
 
     class FakeDb:
-        def query(self, model):
-            assert model is pipeline.PipelineRunRecordModel
+        def query(self, _model: object) -> FakeRunQuery:
             return FakeRunQuery()
 
     class FakeOrchestrator:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def run_report_pipeline(self, *, report_id: str, run_id: str):
+        def run_report_pipeline(self, *, report_id: str, run_id: str) -> object:
             assert report_id == "rep_orphan"
             raise PipelineTransitionError("persisted Report required")
 
@@ -127,21 +131,23 @@ def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatc
 
     response = asyncio.run(
         pipeline.run_pipeline(
-            PipelineRunRequest(report_id="rep_orphan", profile="balanced"), db=FakeDb()
+            PipelineRunRequest(report_id="rep_orphan", profile="balanced"),
+            db=cast("Session", FakeDb()),
         )
     )
 
+    assert isinstance(response, JSONResponse)
     assert response.status_code == 404
-    body = response.body.decode()
+    body = bytes(response.body).decode()
     assert "report_not_found" in body
     assert "persisted Report required" in body
 
 
-def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> None:
+def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
 
-    captured = {}
+    captured: dict[str, object] = {}
 
     class FakeReport:
         id = "rep_demo"
@@ -153,19 +159,18 @@ def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> 
         rule_id = "rule_demo"
 
     class FakeQuery:
-        def filter(self, *_args):
+        def filter(self, *_args: object) -> FakeQuery:
             return self
 
-        def first(self):
+        def first(self) -> FakeReport:
             return FakeReport()
 
     class FakeDb:
-        def query(self, model):
-            assert model is pipeline.ReportModel
+        def query(self, model: object) -> FakeQuery:
             return FakeQuery()
 
     class FakeOrchestrator:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             captured["db"] = db
 
         def run_report_pipeline(self, *, report_id: str, run_id: str) -> FakeRecord:
@@ -173,7 +178,7 @@ def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> 
             captured["run_id"] = run_id
             return FakeRecord()
 
-        def run_pipeline(self, detection_spec_id: str):
+        def run_pipeline(self, detection_spec_id: str) -> object:
             raise AssertionError(f"legacy detection spec path used: {detection_spec_id}")
 
     monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
@@ -181,10 +186,12 @@ def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> 
 
     response = asyncio.run(
         pipeline.run_pipeline(
-            PipelineRunRequest(report_id="rep_demo", profile="balanced"), db=FakeDb()
+            PipelineRunRequest(report_id="rep_demo", profile="balanced"),
+            db=cast("Session", FakeDb()),
         )
     )
 
+    assert not isinstance(response, JSONResponse)
     body = response.model_dump()
     assert body["status"] == "ok"
     assert body["stage"] == "awaiting_review"
@@ -194,8 +201,9 @@ def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch) -> 
     assert captured["run_id"] == body["run_id"]
 
 
-def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch) -> None:
+def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
+    from de_forge.models import Report as ReportModel
     from de_forge.schemas.api_pipeline import PipelineRunRequest
     from de_forge.services.orchestrator import PipelineTransitionError
 
@@ -209,33 +217,32 @@ def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch) -> N
         rule_id = None
 
     class FakeReportQuery:
-        def filter(self, *_args):
+        def filter(self, *_args: object) -> FakeReportQuery:
             return self
 
-        def first(self):
+        def first(self) -> FakeReport:
             return FakeReport()
 
     class FakeRunQuery:
-        def filter(self, *_args):
+        def filter(self, *_args: object) -> FakeRunQuery:
             return self
 
-        def first(self):
+        def first(self) -> FakeFailedRecord:
             return FakeFailedRecord()
 
     class FakeDb:
         query_count = 0
 
-        def query(self, model):
-            if model is pipeline.ReportModel:
+        def query(self, model: object) -> object:
+            if model is ReportModel:
                 return FakeReportQuery()
-            assert model is pipeline.PipelineRunRecordModel
             return FakeRunQuery()
 
     class FakeOrchestrator:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def run_report_pipeline(self, *, report_id: str, run_id: str):
+        def run_report_pipeline(self, *, report_id: str, run_id: str) -> object:
             raise PipelineTransitionError("evidence required before DetectionSpec generation")
 
     monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)
@@ -243,17 +250,19 @@ def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch) -> N
 
     response = asyncio.run(
         pipeline.run_pipeline(
-            PipelineRunRequest(report_id="rep_demo", profile="balanced"), db=FakeDb()
+            PipelineRunRequest(report_id="rep_demo", profile="balanced"),
+            db=cast("Session", FakeDb()),
         )
     )
 
+    assert isinstance(response, JSONResponse)
     assert response.status_code == 400
-    body = response.body.decode()
+    body = bytes(response.body).decode()
     assert "evidence_required" in body
     assert "failed" in body
 
 
-def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
+def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReportIngestRequest
 
@@ -262,10 +271,10 @@ def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
         chunks = [object(), object()]
 
     class FakeIngestionService:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def ingest(self, **kwargs) -> FakeResult:
+        def ingest(self, **kwargs: object) -> FakeResult:
             assert kwargs["source_type"] == "txt"
             assert (
                 kwargs["content_bytes"] == b"Credential dumping behavior\n\nLSASS access observed"
@@ -283,7 +292,7 @@ def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
                 external_ref="idempotent-a.txt",
                 metadata={"title": "first"},
             ),
-            db=object(),
+            db=cast("Session", object()),
         )
     )
     second = asyncio.run(
@@ -294,7 +303,7 @@ def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
                 external_ref="idempotent-b.txt",
                 metadata={"title": "second"},
             ),
-            db=object(),
+            db=cast("Session", object()),
         )
     )
 
@@ -302,7 +311,7 @@ def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
     assert first.chunk_count == second.chunk_count == 2
 
 
-def test_reports_ingest_rejects_invalid_pdf_fail_closed(monkeypatch) -> None:
+def test_reports_ingest_rejects_invalid_pdf_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi import HTTPException
 
     from de_forge.api.routes import pipeline
@@ -319,7 +328,7 @@ def test_reports_ingest_rejects_invalid_pdf_fail_closed(monkeypatch) -> None:
                     external_ref="report.pdf",
                     metadata={},
                 ),
-                db=object(),
+                db=cast("Session", object()),
             )
         )
     except HTTPException as exc:
@@ -343,20 +352,20 @@ def test_review_rejects_invalid_decision_before_persistence() -> None:
     assert response.status_code == 422
 
 
-def test_review_route_passes_run_context_and_comments_to_service(monkeypatch) -> None:
+def test_review_route_passes_run_context_and_comments_to_service(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReviewRequest
 
-    captured = {}
+    captured: dict[str, object] = {}
 
     class FakeRecord:
         rule_id = "rule_demo"
 
     class FakeReviewService:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def record_decision(self, **kwargs) -> str:
+        def record_decision(self, **kwargs: object) -> str:
             captured.update(kwargs)
             return "review_demo"
 
@@ -371,26 +380,26 @@ def test_review_route_passes_run_context_and_comments_to_service(monkeypatch) ->
         comments="Persist this audit comment.",
     )
 
-    response = __import__("asyncio").run(pipeline.create_review(payload, db=object()))
+    response = __import__("asyncio").run(pipeline.create_review(payload, db=cast("Session", object())))
 
     assert response.run_id == "run_demo"
     assert captured["run_id"] == "run_demo"
     assert captured["comments"] == "Persist this audit comment."
 
 
-def test_pipeline_approve_helper_records_run_context(monkeypatch) -> None:
+def test_pipeline_approve_helper_records_run_context(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
 
-    captured = {}
+    captured: dict[str, object] = {}
 
     class FakeRecord:
         rule_id = "rule_demo"
 
     class FakeReviewService:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def record_decision(self, **kwargs) -> str:
+        def record_decision(self, **kwargs: object) -> str:
             captured.update(kwargs)
             return "review_demo"
 
@@ -402,10 +411,11 @@ def test_pipeline_approve_helper_records_run_context(monkeypatch) -> None:
             rule_id="rule_demo",
             run_id="run_demo",
             reviewer="analyst@example.com",
-            db=object(),
+            db=cast("Session", object()),
         )
     )
 
+    assert isinstance(response, dict)
     assert response["decision_id"] == "review_demo"
     assert captured["rule_id"] == "rule_demo"
     assert captured["decision"] == "approved"
@@ -414,7 +424,7 @@ def test_pipeline_approve_helper_records_run_context(monkeypatch) -> None:
     assert captured["comments"] == "pipeline approval helper"
 
 
-def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch) -> None:
+def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
 
     class FakeRecord:
@@ -427,24 +437,25 @@ def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch) -> Non
             rule_id="rule_demo",
             run_id="run_demo",
             reviewer="analyst@example.com",
-            db=object(),
+            db=cast("Session", object()),
         )
     )
 
+    assert isinstance(response, JSONResponse)
     assert response.status_code == 404
 
 
-def test_pipeline_approve_helper_rejects_default_api_reviewer(monkeypatch) -> None:
+def test_pipeline_approve_helper_rejects_default_api_reviewer(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
 
     class FakeRecord:
         rule_id = "rule_demo"
 
     class FakeReviewService:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def record_decision(self, **_kwargs) -> str:
+        def record_decision(self, **_kwargs: object) -> str:
             raise AssertionError("default api reviewer must not create approval")
 
     monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
@@ -454,25 +465,26 @@ def test_pipeline_approve_helper_rejects_default_api_reviewer(monkeypatch) -> No
         pipeline.approve_rule_for_export(
             rule_id="rule_demo",
             run_id="run_demo",
-            db=object(),
+            db=cast("Session", object()),
         )
     )
 
+    assert isinstance(response, JSONResponse)
     assert response.status_code == 403
-    assert "human reviewer" in response.body.decode().lower()
+    assert "human reviewer" in bytes(response.body).decode().lower()
 
 
-def test_pipeline_approve_helper_rejects_blank_reviewer(monkeypatch) -> None:
+def test_pipeline_approve_helper_rejects_blank_reviewer(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
 
     class FakeRecord:
         rule_id = "rule_demo"
 
     class FakeReviewService:
-        def __init__(self, db) -> None:
+        def __init__(self, db: object) -> None:
             self.db = db
 
-        def record_decision(self, **_kwargs) -> str:
+        def record_decision(self, **_kwargs: object) -> str:
             raise AssertionError("blank reviewer must not create approval")
 
     monkeypatch.setattr(pipeline, "_resolve_run_record", lambda db, run_id: FakeRecord())
@@ -483,21 +495,22 @@ def test_pipeline_approve_helper_rejects_blank_reviewer(monkeypatch) -> None:
             rule_id="rule_demo",
             run_id="run_demo",
             reviewer="  ",
-            db=object(),
+            db=cast("Session", object()),
         )
     )
 
+    assert isinstance(response, JSONResponse)
     assert response.status_code == 403
-    assert "human reviewer" in response.body.decode().lower()
+    assert "human reviewer" in bytes(response.body).decode().lower()
 
 
-def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch) -> None:
+def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReviewRequest
 
-    captured = {}
+    captured: dict[str, object] = {}
 
-    async def fake_create_review(payload, db):
+    async def fake_create_review(payload: object, db: object) -> object:
         captured["payload"] = payload
         captured["db"] = db
         return object()
@@ -512,19 +525,19 @@ def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch) -> Non
     )
     fake_db = object()
 
-    asyncio.run(pipeline.legacy_review_decision(payload, db=fake_db))
+    asyncio.run(pipeline.legacy_review_decision(payload, db=cast("Session", fake_db)))
 
     assert captured["payload"] is payload
     assert captured["db"] is fake_db
 
 
-def test_legacy_assert_export_forwards_db_to_export_sigma(monkeypatch) -> None:
+def test_legacy_assert_export_forwards_db_to_export_sigma(monkeypatch: pytest.MonkeyPatch) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ExportSigmaRequest
 
-    captured = {}
+    captured: dict[str, object] = {}
 
-    async def fake_export_sigma(payload, db):
+    async def fake_export_sigma(payload: object, db: object) -> object:
         captured["payload"] = payload
         captured["db"] = db
         return object()
@@ -534,7 +547,7 @@ def test_legacy_assert_export_forwards_db_to_export_sigma(monkeypatch) -> None:
     payload = ExportSigmaRequest(run_id="run_demo")
     fake_db = object()
 
-    asyncio.run(pipeline.legacy_assert_export(payload, db=fake_db))
+    asyncio.run(pipeline.legacy_assert_export(payload, db=cast("Session", fake_db)))
 
     assert captured["payload"] is payload
     assert captured["db"] is fake_db

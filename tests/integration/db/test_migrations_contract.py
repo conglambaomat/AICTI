@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+
+
+
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
@@ -14,7 +23,7 @@ from de_forge.services.review import ReviewService
 
 
 @pytest.fixture()
-def migrated_engine(tmp_path: Path):
+def migrated_engine(tmp_path: Path) -> Generator[Engine, None, None]:
     """Apply migrations to a temporary SQLite database and return engine."""
     db_path = tmp_path / "contract.db"
     alembic_ini_path = Path(__file__).resolve().parents[3] / "alembic.ini"
@@ -32,7 +41,7 @@ def migrated_engine(tmp_path: Path):
         engine.dispose()
 
 
-def test_expected_core_tables_exist(migrated_engine) -> None:
+def test_expected_core_tables_exist(migrated_engine: Engine) -> None:
     """Expected core persistence tables must exist after migration."""
     inspector = inspect(migrated_engine)
     tables = set(inspector.get_table_names())
@@ -57,7 +66,7 @@ def test_expected_core_tables_exist(migrated_engine) -> None:
     assert expected.issubset(tables)
 
 
-def test_artifact_links_schema_matches_lineage_contract(migrated_engine) -> None:
+def test_artifact_links_schema_matches_lineage_contract(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
     assert "artifact_links" in inspector.get_table_names()
@@ -104,7 +113,7 @@ def test_artifact_links_schema_matches_lineage_contract(migrated_engine) -> None
     )
 
 
-def test_evidence_retrieval_links_schema_matches_lineage_contract(migrated_engine) -> None:
+def test_evidence_retrieval_links_schema_matches_lineage_contract(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
     assert "evidence_retrieval_links" in inspector.get_table_names()
@@ -143,7 +152,7 @@ def test_evidence_retrieval_links_schema_matches_lineage_contract(migrated_engin
     )
 
 
-def test_foreign_keys_match_core_contract(migrated_engine) -> None:
+def test_foreign_keys_match_core_contract(migrated_engine: Engine) -> None:
     """Implemented tables must have required foreign key relationships."""
     inspector = inspect(migrated_engine)
 
@@ -174,7 +183,7 @@ def test_foreign_keys_match_core_contract(migrated_engine) -> None:
     )
 
 
-def test_indexes_match_core_contract(migrated_engine) -> None:
+def test_indexes_match_core_contract(migrated_engine: Engine) -> None:
     """Implemented tables must expose required indexes/uniques."""
     inspector = inspect(migrated_engine)
 
@@ -248,7 +257,7 @@ def test_strict_fail_closed_blocks_legacy_review_decision_rows(tmp_path: Path) -
         command.upgrade(config, "head")
 
 
-def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
+def test_constraints_and_fks_for_task3_subset(migrated_engine: Engine) -> None:
     """Task 3 subset should include critical checks and foreign keys."""
     inspector = inspect(migrated_engine)
 
@@ -328,7 +337,7 @@ def test_constraints_and_fks_for_task3_subset(migrated_engine) -> None:
     )
 
 
-def test_retrieval_audit_tables_exist_after_migration(migrated_engine) -> None:
+def test_retrieval_audit_tables_exist_after_migration(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
     assert "retrieval_audit_runs" in inspector.get_table_names()
@@ -425,7 +434,7 @@ def test_retrieval_audit_tables_exist_after_migration(migrated_engine) -> None:
     }.issubset(candidate_indexes)
 
 
-def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine) -> None:
+def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
     detection_columns = {column["name"] for column in inspector.get_columns("detection_specs")}
@@ -445,7 +454,7 @@ def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrate
     )
 
 
-def test_migrated_breadth_tables_match_current_models(migrated_engine) -> None:
+def test_migrated_breadth_tables_match_current_models(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
     tables = set(inspector.get_table_names())
 
@@ -511,7 +520,7 @@ def test_migrated_breadth_tables_match_current_models(migrated_engine) -> None:
     assert {"id", "run_id", "snapshot_type", "metrics_json", "created_at"}.issubset(quality_columns)
 
 
-def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_engine) -> None:
+def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
     pipeline_indexes = {idx["name"] for idx in inspector.get_indexes("pipeline_runs")}
@@ -577,7 +586,7 @@ def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_e
     assert "ck_quality_snapshots_snapshot_type_non_empty" in quality_checks
 
 
-def test_review_export_gate_works_on_alembic_created_schema(migrated_engine) -> None:
+def test_review_export_gate_works_on_alembic_created_schema(migrated_engine: Engine) -> None:
     """ReviewService must approve export against the real migrated schema."""
     maker = sessionmaker(bind=migrated_engine, autoflush=False, autocommit=False, class_=Session)
     db = maker()

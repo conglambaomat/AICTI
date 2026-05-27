@@ -32,8 +32,8 @@ def test_detection_spec_ready_cannot_transition_directly_to_awaiting_review() ->
 
 
 def test_run_mode_values_include_auto_and_cautious() -> None:
-    assert RunMode.AUTO == "auto"
-    assert RunMode.CAUTIOUS == "cautious"
+    assert RunMode.AUTO.value == "auto"
+    assert RunMode.CAUTIOUS.value == "cautious"
 
 
 def test_can_generate_rule_requires_verified_detection_spec() -> None:

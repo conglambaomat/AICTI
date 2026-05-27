@@ -57,7 +57,7 @@ def test_metrics_routes_return_empty_database_truthful_summaries() -> None:
         },
     }
     assert ops_response.status_code == 200
-    expected_empty_queue = {
+    expected_empty_queue: dict[str, object] = {
         "queue_depth": 0,
         "run_success_rate": None,
         "run_counts": {},

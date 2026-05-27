@@ -115,6 +115,7 @@ def test_valid_behavior_spec_persists_with_lineage() -> None:
     )
 
     result = service.build_detection_spec(spec=valid_spec)
+    assert not isinstance(result, dict)
 
     # Verify result contains lineage
     assert result.detection_spec_id is not None
@@ -155,6 +156,7 @@ def test_transaction_rollback_on_persistence_failure() -> None:
     )
 
     first = service.build_detection_spec(spec=valid_spec)
+    assert not isinstance(first, dict)
 
     with pytest.raises(SQLAlchemyError):
         db.add(DetectionSpecModel(id=first.detection_spec_id, report_id="report-collision"))

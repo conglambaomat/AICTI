@@ -64,7 +64,7 @@ def test_review_decision_requires_run_id() -> None:
     service = ReviewService(db)
 
     with pytest.raises(TypeError):
-        service.record_decision(
+        service.record_decision(  # type: ignore[call-arg]
             rule_id="rule-missing-run",
             decision="approved",
             reviewer="analyst@example.com",
@@ -373,9 +373,7 @@ def test_export_allowed_when_all_proof_obligations_proven() -> None:
     )
 
 
-def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> (
-    None
-):
+def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> None:
     db = _build_session()
     service = ReviewService(db)
 
@@ -433,13 +431,16 @@ class _ProofLookupFailingSession:
     def __init__(self, db: Session) -> None:
         self._db = db
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> object:
         return getattr(self._db, name)
 
-    def execute(self, statement, params=None, *args, **kwargs):
+    def execute(self, statement: object, params: object = None, *args: object, **kwargs: object) -> object:
         if "FROM proof_obligations" in str(statement):
             raise SQLAlchemyError("simulated proof obligation lookup failure")
-        return self._db.execute(statement, params or {}, *args, **kwargs)
+        return self._db.execute(  # type: ignore[call-overload]
+            statement,
+            params or {},
+        )
 
 
 def test_proof_obligation_lookup_error_blocks_export_fail_closed() -> None:
@@ -451,7 +452,8 @@ def test_proof_obligation_lookup_error_blocks_export_fail_closed() -> None:
         run_id="run-proof-lookup-error",
         comments="Approved before proof lookup failure.",
     )
-    service = ReviewService(_ProofLookupFailingSession(db))
+    service = ReviewService(db)
+    service.db = _ProofLookupFailingSession(db._db if isinstance(db, _ProofLookupFailingSession) else db)  # type: ignore[assignment]
 
     with pytest.raises(ExportBlockedError, match="proof obligation gate failed"):
         service.assert_can_export(

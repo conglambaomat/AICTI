@@ -151,9 +151,14 @@ def test_explicit_evidence_retrieval_link_disambiguates_duplicate_chunk_candidat
     db.commit()
 
     lineage = RetrievalAuditService(db).get_run_evidence_lineage("run-1")
+    items = lineage.get("items")
+    assert isinstance(items, list)
+    assert items
+    first_item = items[0]
+    assert isinstance(first_item, dict)
 
-    assert lineage["items"][0]["retrieval_score_fused"] == 0.75
-    assert lineage["items"][0]["retrieval_rank"] == 1
+    assert first_item["retrieval_score_fused"] == 0.75
+    assert first_item["retrieval_rank"] == 1
 
 
 def test_inconsistent_evidence_retrieval_link_fails_closed() -> None:

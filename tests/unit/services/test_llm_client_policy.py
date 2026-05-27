@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
-from de_forge.services.llm_client import ConfigurationError, LLMClient, LLMRequest
+from de_forge.services.llm_client import (
+    ConfigurationError,
+    LLMClient,
+    LLMRequest,
+    TransportResponse,
+)
 
 
 @dataclass
@@ -12,15 +18,13 @@ class DummyResponse:
     content: str = "{}"
     model: str = "cx/gpt-5.5"
     finish_reason: str = "stop"
-    usage: dict[str, int] | None = None
-
-    def __post_init__(self) -> None:
-        if self.usage is None:
-            self.usage = {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+    usage: dict[str, int] = field(
+        default_factory=lambda: {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+    )
 
 
 class DummyTransport:
-    def send(self, payload: dict, timeout_seconds: int) -> DummyResponse:
+    def send(self, payload: dict[str, Any], timeout_seconds: int) -> TransportResponse:
         return DummyResponse()
 
 
