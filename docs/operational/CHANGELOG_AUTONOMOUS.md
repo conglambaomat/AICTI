@@ -11,6 +11,11 @@ Concise operational log of autonomous progress.
 
 ## Entries
 
+- 2026-05-27 00:00 UTC
+  - Change summary: Added production-hardening implementation plan tracking for SOTA Core v2 invariant closure; planned and executed fail-closed export eligibility, proof coverage, compiler provenance, graph lineage, PDF ingestion, LLM policy, agent citation, readiness, metrics, legacy review, and documentation hardening.
+  - Scope: `docs/superpowers/specs/2026-05-26-de-forge-production-hardening-design.md`, `docs/superpowers/plans/2026-05-26-de-forge-production-hardening-plan.md`, production hardening implementation files, operational evidence docs.
+  - Commit SHA: pending
+
 - 2026-05-24 00:20 UTC
   - Change summary: Reopened MCP gap register from closed snapshot to active SOTA architecture backlog with prioritized open gaps MCP-REG-004..008 and one-gap-per-cycle execution policy.
   - Scope: `docs/operational/MCP_GAP_REGISTER.md`, `docs/operational/IMPLEMENTATION_PROGRESS.md`, `docs/operational/CHANGELOG_AUTONOMOUS.md`.
