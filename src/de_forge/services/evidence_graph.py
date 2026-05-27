@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 from collections import defaultdict, deque
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from sqlalchemy import select
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from de_forge.models.contract import GraphEdge, GraphNode
@@ -157,7 +160,7 @@ class EvidenceGraphService:
         self,
         *,
         rule_node_id: str,
-        nodes: list[GraphNode],
+        nodes: Sequence[GraphNode],
         adjacency: dict[str, list[tuple[str, GraphNode]]],
     ) -> bool:
         required_hops = [

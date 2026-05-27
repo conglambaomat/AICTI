@@ -339,7 +339,9 @@ def test_export_allowed_when_all_proof_obligations_proven() -> None:
     )
 
 
-def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> None:
+def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> (
+    None
+):
     db = _build_session()
     service = ReviewService(db)
 

@@ -128,8 +128,12 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
     @fastapi_app.get("/ready")
     async def ready() -> dict[str, object]:
         health_payload = await build_health_payload(fastapi_app, app_settings)
-        checks = dict(health_payload["checks"])
-        errors = list(health_payload["errors"])
+        raw_checks = health_payload["checks"]
+        raw_errors = health_payload["errors"]
+        if not isinstance(raw_checks, dict) or not isinstance(raw_errors, list):
+            raise TypeError("invalid health payload")
+        checks = dict(raw_checks)
+        errors = list(raw_errors)
         seed_routes_check = (
             "failed"
             if app_settings.enable_dev_seed_routes

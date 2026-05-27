@@ -39,7 +39,9 @@ def test_ready_endpoint_fails_without_production_provider_key() -> None:
 
 
 def test_ready_endpoint_fails_when_seed_routes_enabled_outside_dev() -> None:
-    test_app = create_app(Settings(env="production", openai_api_key="key", enable_dev_seed_routes=True))
+    test_app = create_app(
+        Settings(env="production", openai_api_key="key", enable_dev_seed_routes=True)
+    )
 
     response = TestClient(test_app).get("/ready")
 

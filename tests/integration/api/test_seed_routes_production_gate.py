@@ -35,7 +35,9 @@ def test_create_app_mounts_seed_routes_when_enabled_in_development() -> None:
 
 
 def test_create_app_mounts_seed_routes_when_enabled_in_test() -> None:
-    test_app = create_app(Settings(env="test", enable_dev_seed_routes=True, openai_api_key="test-key"))
+    test_app = create_app(
+        Settings(env="test", enable_dev_seed_routes=True, openai_api_key="test-key")
+    )
 
     response = TestClient(test_app, raise_server_exceptions=False).post("/v1/pipeline:seed")
 

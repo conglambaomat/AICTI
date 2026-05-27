@@ -143,7 +143,9 @@ class GraphNode(Base):
     __tablename__ = "graph_nodes"
     __table_args__ = (
         CheckConstraint(GRAPH_NODE_TYPE_CHECK, name="ck_graph_nodes_node_type_allowed"),
-        UniqueConstraint("run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"),
+        UniqueConstraint(
+            "run_id", "node_type", "ref_table", "ref_id", name="uq_graph_nodes_run_type_ref"
+        ),
         UniqueConstraint("id", "run_id", name="uq_graph_nodes_id_run"),
         Index("ix_graph_nodes_run_id", "run_id"),
         Index("ix_graph_nodes_node_type", "node_type"),
@@ -254,7 +256,9 @@ class GeneratedRule(Base):
     detection_spec_id: Mapped[str] = mapped_column(ForeignKey("detection_specs.id"), nullable=False)
     query_candidate_id: Mapped[str | None] = mapped_column(ForeignKey("query_candidates.id"))
     rule_content: Mapped[str | None] = mapped_column(Text())
-    generation_source: Mapped[str] = mapped_column(String(30), nullable=False, default="manual_draft")
+    generation_source: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="manual_draft"
+    )
     detection_ast_id: Mapped[str | None] = mapped_column(String(36))
     compiled_sigma_id: Mapped[str | None] = mapped_column(String(36))
 
@@ -359,7 +363,9 @@ class PipelineRunRecord(Base):
 class RetrievalAuditRun(Base):
     __tablename__ = "retrieval_audit_runs"
     __table_args__ = (
-        CheckConstraint("length(query_hash) > 0", name="ck_retrieval_audit_runs_query_hash_non_empty"),
+        CheckConstraint(
+            "length(query_hash) > 0", name="ck_retrieval_audit_runs_query_hash_non_empty"
+        ),
         CheckConstraint("top_k > 0", name="ck_retrieval_audit_runs_top_k_positive"),
         Index("ix_retrieval_audit_runs_run_id", "run_id"),
         Index("ix_retrieval_audit_runs_report_id", "report_id"),
@@ -379,9 +385,15 @@ class RetrievalCandidate(Base):
     __tablename__ = "retrieval_candidates"
     __table_args__ = (
         CheckConstraint("rank > 0", name="ck_retrieval_candidates_rank_positive"),
-        CheckConstraint("score_sparse >= 0", name="ck_retrieval_candidates_score_sparse_non_negative"),
-        CheckConstraint("score_dense >= 0", name="ck_retrieval_candidates_score_dense_non_negative"),
-        CheckConstraint("score_fused >= 0", name="ck_retrieval_candidates_score_fused_non_negative"),
+        CheckConstraint(
+            "score_sparse >= 0", name="ck_retrieval_candidates_score_sparse_non_negative"
+        ),
+        CheckConstraint(
+            "score_dense >= 0", name="ck_retrieval_candidates_score_dense_non_negative"
+        ),
+        CheckConstraint(
+            "score_fused >= 0", name="ck_retrieval_candidates_score_fused_non_negative"
+        ),
         UniqueConstraint("retrieval_run_id", "chunk_id", name="uq_retrieval_candidates_run_chunk"),
         Index("ix_retrieval_candidates_retrieval_run_id", "retrieval_run_id"),
         Index("ix_retrieval_candidates_run_id", "run_id"),

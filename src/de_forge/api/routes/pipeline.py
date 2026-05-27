@@ -135,9 +135,7 @@ async def run_pipeline(
         )
     except PipelineTransitionError as exc:
         failed_record = (
-            db.query(PipelineRunRecordModel)
-            .filter(PipelineRunRecordModel.run_id == run_id)
-            .first()
+            db.query(PipelineRunRecordModel).filter(PipelineRunRecordModel.run_id == run_id).first()
         )
         if failed_record is not None and failed_record.status == "abstain":
             detection_spec = db.get(DetectionSpecModel, failed_record.detection_spec_id)
@@ -592,9 +590,9 @@ async def export_sigma(
         return JSONResponse(status_code=404, content={"detail": "Run mapping not found"})
 
     try:
-        ExportEligibilityService(
-            SqlAlchemyExportEligibilityRepository(db)
-        ).assert_exportable(run_id=payload.run_id, rule_id=rule_id)
+        ExportEligibilityService(SqlAlchemyExportEligibilityRepository(db)).assert_exportable(
+            run_id=payload.run_id, rule_id=rule_id
+        )
     except ExportBlockedReason as exc:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 

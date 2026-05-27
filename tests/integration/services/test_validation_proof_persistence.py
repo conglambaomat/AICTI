@@ -221,11 +221,15 @@ def test_generate_proof_obligations_marks_proven_when_required_artifacts_pass() 
         run_id="run-proof", rule_id=rule_id
     )
 
-    obligations = db.execute(
-        select(ProofObligationRecord)
-        .where(ProofObligationRecord.id.in_(obligation_ids))
-        .order_by(ProofObligationRecord.claim_type)
-    ).scalars().all()
+    obligations = (
+        db.execute(
+            select(ProofObligationRecord)
+            .where(ProofObligationRecord.id.in_(obligation_ids))
+            .order_by(ProofObligationRecord.claim_type)
+        )
+        .scalars()
+        .all()
+    )
     assert {obligation.status for obligation in obligations} == {"proven"}
     assert {obligation.claim_type for obligation in obligations} == {
         "citation_faithful",
@@ -244,9 +248,13 @@ def test_generate_proof_obligations_marks_missing_artifacts_unknown() -> None:
         run_id="run-missing-proof", rule_id=rule_id
     )
 
-    obligations = db.execute(
-        select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
-    ).scalars().all()
+    obligations = (
+        db.execute(
+            select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
+        )
+        .scalars()
+        .all()
+    )
     assert {obligation.status for obligation in obligations} == {"unknown"}
 
 
@@ -264,9 +272,13 @@ def test_generate_proof_obligations_keeps_static_only_artifacts_unknown() -> Non
         run_id="run-static-only-proof", rule_id=rule_id
     )
 
-    obligations = db.execute(
-        select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
-    ).scalars().all()
+    obligations = (
+        db.execute(
+            select(ProofObligationRecord).where(ProofObligationRecord.id.in_(obligation_ids))
+        )
+        .scalars()
+        .all()
+    )
     assert {obligation.status for obligation in obligations} == {"unknown"}
 
 
@@ -296,9 +308,7 @@ def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
         passed=True,
         details={"regressions": []},
     )
-    service.generate_proof_obligations_from_artifacts(
-        run_id="run-selectable", rule_id=rule_id
-    )
+    service.generate_proof_obligations_from_artifacts(run_id="run-selectable", rule_id=rule_id)
     for claim_type in (
         "positive_tests_pass",
         "benign_baseline_not_matched",
@@ -320,10 +330,7 @@ def test_verify_persisted_proofs_allows_only_proven_obligations() -> None:
     db.commit()
 
     assert (
-        service.verify_persisted_proofs_selectable(
-            run_id="run-selectable", rule_id=rule_id
-        )
-        is True
+        service.verify_persisted_proofs_selectable(run_id="run-selectable", rule_id=rule_id) is True
     )
 
 
@@ -345,9 +352,7 @@ def test_verify_persisted_proofs_requires_full_required_coverage() -> None:
     )
     db.commit()
 
-    with pytest.raises(
-        ProofObligationError, match="missing required proof obligations"
-    ):
+    with pytest.raises(ProofObligationError, match="missing required proof obligations"):
         service.verify_persisted_proofs_selectable(run_id="run-1", rule_id=rule_id)
 
 

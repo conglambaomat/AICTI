@@ -25,9 +25,7 @@ def test_evidence_retrieval_links_table_exists_with_required_constraints() -> No
     inspector = inspect(engine)
     assert "evidence_retrieval_links" in inspector.get_table_names()
     columns = {column["name"] for column in inspector.get_columns("evidence_retrieval_links")}
-    assert {"id", "run_id", "evidence_id", "retrieval_candidate_id", "created_at"}.issubset(
-        columns
-    )
+    assert {"id", "run_id", "evidence_id", "retrieval_candidate_id", "created_at"}.issubset(columns)
 
     foreign_keys = {
         foreign_key["name"]: (

@@ -164,7 +164,6 @@ def test_quality_snapshot_preserves_explicit_rates_and_average() -> None:
     }
 
 
-
 def test_empty_db_quality_summary_reports_unknown_rates_and_zero_samples() -> None:
     db = _build_session()
 

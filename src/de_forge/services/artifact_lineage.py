@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from de_forge.models.artifact import Artifact, ArtifactLink
@@ -57,7 +61,7 @@ class ArtifactLineageService:
     def _has_report_ancestor(
         self,
         artifact_id: str,
-        artifacts: list[Artifact],
+        artifacts: Sequence[Artifact],
         parents_by_child: dict[str, list[str]],
     ) -> bool:
         artifacts_by_id = {artifact.id: artifact for artifact in artifacts}

@@ -14,13 +14,13 @@ from de_forge.models import (
     PipelineRunRecord,
     ProofObligationRecord,
     RegressionRun,
-    TestRun,
     Report,
     ReportChunk,
+    TestRun,
     ValidationResult,
 )
-from de_forge.services.evidence import EvidenceInput, EvidenceService
 from de_forge.services.dynamic_validation import SyntheticValidationResult
+from de_forge.services.evidence import EvidenceInput, EvidenceService
 from de_forge.services.orchestrator import PipelineOrchestrator, PipelineTransitionError
 from de_forge.services.validation_proof_persistence import ValidationProofPersistenceService
 
@@ -63,9 +63,7 @@ def _seed_report(db: Session, report_id: str = "report-1") -> tuple[str, str]:
     return report.id, chunk.id
 
 
-def _persist_evidence(
-    db: Session, report_id: str, chunk_id: str, run_id: str = "run-1"
-) -> None:
+def _persist_evidence(db: Session, report_id: str, chunk_id: str, run_id: str = "run-1") -> None:
     EvidenceService(db).persist_evidence(
         report_id=report_id,
         run_id=run_id,
@@ -121,9 +119,7 @@ def test_run_report_pipeline_fails_closed_without_evidence() -> None:
     report_id, _ = _seed_report(db)
 
     with pytest.raises(PipelineTransitionError, match="evidence required"):
-        PipelineOrchestrator(db).run_report_pipeline(
-            report_id=report_id, run_id="run-no-evidence"
-        )
+        PipelineOrchestrator(db).run_report_pipeline(report_id=report_id, run_id="run-no-evidence")
 
     record = db.execute(
         select(PipelineRunRecord).where(PipelineRunRecord.run_id == "run-no-evidence")
@@ -208,9 +204,11 @@ def test_run_report_pipeline_regenerates_when_existing_rule_has_empty_content() 
         report_id=report_id, run_id="run-empty-rule"
     )
 
-    rules = db.execute(
-        select(GeneratedRule).where(GeneratedRule.detection_spec_id == spec_id)
-    ).scalars().all()
+    rules = (
+        db.execute(select(GeneratedRule).where(GeneratedRule.detection_spec_id == spec_id))
+        .scalars()
+        .all()
+    )
     assert any(rule.rule_content and "CommandLine|contains" in rule.rule_content for rule in rules)
     assert record.status == "ok"
     assert record.stage == "awaiting_review"
@@ -233,25 +231,33 @@ def test_run_report_pipeline_persists_validation_proof_and_awaits_review() -> No
     assert record.detection_spec_id == spec_id
     assert record.rule_id is not None
 
-    validations = db.execute(
-        select(ValidationResult).where(ValidationResult.run_id == "run-success")
-    ).scalars().all()
+    validations = (
+        db.execute(select(ValidationResult).where(ValidationResult.run_id == "run-success"))
+        .scalars()
+        .all()
+    )
     assert [validation.status for validation in validations] == ["passed"]
 
-    dynamic_runs = db.execute(
-        select(TestRun).where(TestRun.run_id == "run-success")
-    ).scalars().all()
+    dynamic_runs = (
+        db.execute(select(TestRun).where(TestRun.run_id == "run-success")).scalars().all()
+    )
     assert [dynamic_run.status for dynamic_run in dynamic_runs] == ["passed"]
     assert json.loads(dynamic_runs[0].result_json)["validation_type"] == "dynamic_synthetic"
 
-    regression_runs = db.execute(
-        select(RegressionRun).where(RegressionRun.run_id == "run-success")
-    ).scalars().all()
+    regression_runs = (
+        db.execute(select(RegressionRun).where(RegressionRun.run_id == "run-success"))
+        .scalars()
+        .all()
+    )
     assert [regression_run.status for regression_run in regression_runs] == ["passed"]
 
-    obligations = db.execute(
-        select(ProofObligationRecord).where(ProofObligationRecord.run_id == "run-success")
-    ).scalars().all()
+    obligations = (
+        db.execute(
+            select(ProofObligationRecord).where(ProofObligationRecord.run_id == "run-success")
+        )
+        .scalars()
+        .all()
+    )
     assert obligations
     assert {obligation.status for obligation in obligations} == {"proven"}
 
@@ -334,7 +340,9 @@ def test_run_report_pipeline_preserves_dynamic_validation_failure_stage(
     assert record.rule_id is not None
 
 
-def test_run_report_pipeline_fails_closed_when_proof_verification_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_report_pipeline_fails_closed_when_proof_verification_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     db = _build_session()
     report_id, chunk_id = _seed_report(db)
     _persist_evidence(db, report_id, chunk_id, run_id="run-proof-fail")

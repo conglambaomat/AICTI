@@ -36,7 +36,10 @@ class ValidationProofPersistenceService:
             raise ValueError(f"rule_id {rule_id} not found")
 
     def _require_pipeline_run(self, run_id: str) -> None:
-        if self.db.query(PipelineRunRecord).filter(PipelineRunRecord.run_id == run_id).first() is None:
+        if (
+            self.db.query(PipelineRunRecord).filter(PipelineRunRecord.run_id == run_id).first()
+            is None
+        ):
             raise ValueError(f"run_id {run_id} not found")
 
     def record_static_validation(
@@ -139,9 +142,7 @@ class ValidationProofPersistenceService:
         self.db.commit()
         return result_id
 
-    def generate_proof_obligations_from_artifacts(
-        self, *, run_id: str, rule_id: str
-    ) -> list[str]:
+    def generate_proof_obligations_from_artifacts(self, *, run_id: str, rule_id: str) -> list[str]:
         self._require_rule(rule_id)
 
         static_passed = self._has_passed_static_validation(run_id, rule_id)

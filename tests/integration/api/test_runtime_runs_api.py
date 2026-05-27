@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -14,7 +17,13 @@ from sqlalchemy.pool import StaticPool
 from de_forge.api.routes.runs import router as runs_router
 from de_forge.db.base import Base
 from de_forge.db.session import get_db
-from de_forge.models import DetectionSpec, GeneratedRule, PipelineRunRecord, Report, ValidationResult
+from de_forge.models import (
+    DetectionSpec,
+    GeneratedRule,
+    PipelineRunRecord,
+    Report,
+    ValidationResult,
+)
 
 
 def _build_client() -> tuple[TestClient, Session]:

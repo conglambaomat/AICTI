@@ -111,7 +111,7 @@ class MetricsService:
         for clause in where_clauses:
             statement = statement.where(clause)
         statement = statement.group_by(model.status)
-        return dict(db.execute(statement).all())
+        return {str(status): int(count) for status, count in db.execute(statement).all()}
 
     @staticmethod
     def _rate_from_counts(counts: dict[str, int], passing_status: str) -> float | None:

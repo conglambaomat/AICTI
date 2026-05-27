@@ -96,9 +96,7 @@ def test_record_retrieval_persists_run_and_ranked_candidates() -> None:
     assert persisted_run.top_k == 2
 
     persisted_candidates = (
-        db.execute(select(RetrievalCandidate).order_by(RetrievalCandidate.rank))
-        .scalars()
-        .all()
+        db.execute(select(RetrievalCandidate).order_by(RetrievalCandidate.rank)).scalars().all()
     )
     assert len(persisted_candidates) == 2
     assert [candidate.retrieval_run_id for candidate in persisted_candidates] == [
@@ -107,7 +105,10 @@ def test_record_retrieval_persists_run_and_ranked_candidates() -> None:
     ]
     assert [candidate.run_id for candidate in persisted_candidates] == ["run-1", "run-1"]
     assert [candidate.report_id for candidate in persisted_candidates] == [report.id, report.id]
-    assert [candidate.chunk_id for candidate in persisted_candidates] == [chunk_one.id, chunk_two.id]
+    assert [candidate.chunk_id for candidate in persisted_candidates] == [
+        chunk_one.id,
+        chunk_two.id,
+    ]
     assert [candidate.rank for candidate in persisted_candidates] == [1, 2]
     assert [candidate.score_sparse for candidate in persisted_candidates] == [1.5, 0.5]
     assert [candidate.score_dense for candidate in persisted_candidates] == [0.75, 0.25]

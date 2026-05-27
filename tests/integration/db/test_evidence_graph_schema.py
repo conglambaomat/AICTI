@@ -53,7 +53,10 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
         "created_at",
     }.issubset(edge_columns)
 
-    node_indexes = {index["name"]: tuple(index["column_names"]) for index in inspector.get_indexes("graph_nodes")}
+    node_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspector.get_indexes("graph_nodes")
+    }
     assert node_indexes["ix_graph_nodes_run_id"] == ("run_id",)
     assert node_indexes["ix_graph_nodes_node_type"] == ("node_type",)
     assert node_indexes["ix_graph_nodes_ref_lookup"] == ("ref_table", "ref_id")
@@ -77,7 +80,10 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
         ("id", "run_id"),
     )
 
-    edge_indexes = {index["name"]: tuple(index["column_names"]) for index in inspector.get_indexes("graph_edges")}
+    edge_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspector.get_indexes("graph_edges")
+    }
     assert edge_indexes["ix_graph_edges_run_id"] == ("run_id",)
     assert edge_indexes["ix_graph_edges_edge_type"] == ("edge_type",)
 
@@ -93,10 +99,12 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
     )
 
     node_check_constraints = {
-        constraint["name"]: constraint["sqltext"] for constraint in inspector.get_check_constraints("graph_nodes")
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("graph_nodes")
     }
     edge_check_constraints = {
-        constraint["name"]: constraint["sqltext"] for constraint in inspector.get_check_constraints("graph_edges")
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("graph_edges")
     }
     assert "ck_graph_nodes_node_type_allowed" in node_check_constraints
     assert "node_type in" in node_check_constraints["ck_graph_nodes_node_type_allowed"]
@@ -113,7 +121,9 @@ def test_evidence_graph_tables_exist_with_required_columns() -> None:
         "ref_id",
     )
 
-    assert edge_check_constraints["ck_graph_edges_no_self_edge"] == "source_node_id != target_node_id"
+    assert (
+        edge_check_constraints["ck_graph_edges_no_self_edge"] == "source_node_id != target_node_id"
+    )
 
 
 def test_graph_node_ref_columns_are_non_nullable_for_portable_uniqueness() -> None:

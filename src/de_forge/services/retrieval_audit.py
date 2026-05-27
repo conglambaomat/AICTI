@@ -75,9 +75,7 @@ class RetrievalAuditService:
     def get_run_evidence_lineage(self, run_id: str) -> dict[str, object]:
         evidence_rows = (
             self.db.execute(
-                select(EvidenceSpan)
-                .where(EvidenceSpan.run_id == run_id)
-                .order_by(EvidenceSpan.id)
+                select(EvidenceSpan).where(EvidenceSpan.run_id == run_id).order_by(EvidenceSpan.id)
             )
             .scalars()
             .all()

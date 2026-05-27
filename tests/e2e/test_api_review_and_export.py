@@ -64,7 +64,6 @@ def test_post_review_rejection() -> None:
     assert body["decision"] == "rejected"
 
 
-
 def test_post_review_rejects_invalid_decision() -> None:
     seed = client.post("/v1/pipeline:seed")
     assert seed.status_code == 201

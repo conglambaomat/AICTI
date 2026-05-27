@@ -19,7 +19,6 @@ from de_forge.models import (
 )
 from de_forge.services.review import ReviewService
 
-
 _REQUIRED_CLAIMS = [
     "detects_report_behavior",
     "not_overbroad",

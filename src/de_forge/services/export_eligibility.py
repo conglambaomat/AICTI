@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from de_forge.models import DetectionSpec, GeneratedRule, PipelineRunRecord, ProofObligationRecord
 from de_forge.services.artifact_lineage import ArtifactLineageError, ArtifactLineageService
 from de_forge.services.compiler_provenance import (
     CompilerProvenanceError,
     CompilerProvenanceService,
+    RuleWithCompilerProvenance,
 )
 from de_forge.services.evidence_graph import EvidenceGraphError, EvidenceGraphService
 from de_forge.services.proof_coverage import ProofCoverageError, ProofCoverageService
@@ -27,13 +31,13 @@ class ExportEligibilityRepository(Protocol):
     def get_run(self, run_id: str) -> object | None:
         """Return the pipeline run for run_id, if present."""
 
-    def get_rule(self, rule_id: str) -> object | None:
+    def get_rule(self, rule_id: str) -> RuleWithCompilerProvenance | None:
         """Return the generated rule for rule_id, if present."""
 
-    def get_detection_spec(self, spec_id: str) -> object | None:
+    def get_detection_spec(self, spec_id: str | None) -> object | None:
         """Return the detection spec for spec_id, if present."""
 
-    def get_proof_rows(self, run_id: str, rule_id: str) -> object:
+    def get_proof_rows(self, run_id: str, rule_id: str) -> list[Mapping[str, object]]:
         """Return persisted proof obligation rows for the run and rule."""
 
     def latest_review_decision(self, run_id: str, rule_id: str) -> object | None:
@@ -53,21 +57,17 @@ class SqlAlchemyExportEligibilityRepository:
         self.db = db
 
     def get_run(self, run_id: str) -> PipelineRunRecord | None:
-        return (
-            self.db.query(PipelineRunRecord)
-            .filter(PipelineRunRecord.run_id == run_id)
-            .first()
-        )
+        return self.db.query(PipelineRunRecord).filter(PipelineRunRecord.run_id == run_id).first()
 
-    def get_rule(self, rule_id: str) -> GeneratedRule | None:
-        return self.db.get(GeneratedRule, rule_id)
+    def get_rule(self, rule_id: str) -> RuleWithCompilerProvenance | None:
+        return cast("RuleWithCompilerProvenance | None", self.db.get(GeneratedRule, rule_id))
 
     def get_detection_spec(self, spec_id: str | None) -> DetectionSpec | None:
         if spec_id is None:
             return None
         return self.db.get(DetectionSpec, spec_id)
 
-    def get_proof_rows(self, run_id: str, rule_id: str) -> list[dict[str, object]]:
+    def get_proof_rows(self, run_id: str, rule_id: str) -> list[Mapping[str, object]]:
         rows = (
             self.db.query(ProofObligationRecord)
             .filter(
@@ -94,9 +94,7 @@ class SqlAlchemyExportEligibilityRepository:
         EvidenceGraphService(self.db).assert_export_path_complete(run_id=run_id, rule_id=rule_id)
 
     def assert_artifact_lineage_complete(self, run_id: str, rule_id: str) -> None:
-        ArtifactLineageService(self.db).assert_rule_lineage_complete(
-            run_id=run_id, rule_id=rule_id
-        )
+        ArtifactLineageService(self.db).assert_rule_lineage_complete(run_id=run_id, rule_id=rule_id)
 
 
 class ExportEligibilityService:
@@ -120,6 +118,8 @@ class ExportEligibilityService:
             raise ExportBlockedReason("GENERATED_RULE_MISSING")
 
         spec_id = getattr(run, "detection_spec_id", None)
+        if spec_id is not None and not isinstance(spec_id, str):
+            raise ExportBlockedReason("DETECTION_SPEC_MISSING")
         spec = self.repository.get_detection_spec(spec_id)
         if spec is None or not getattr(spec, "is_validated", False):
             raise ExportBlockedReason("DETECTION_SPEC_MISSING")

@@ -117,18 +117,28 @@ class PipelineOrchestrator:
             .scalars()
             .all()
         )
-        spec = specs[0] if specs else None
         if len(specs) > 1:
             self._remember_pipeline_run(
                 run_id=run_id,
                 report_id=report_id,
                 status="failed",
                 stage="detection_spec_ambiguous",
-                detection_spec_id=spec.id,
+                detection_spec_id=specs[0].id,
                 rule_id=None,
             )
             raise PipelineTransitionError("single validated DetectionSpec required")
-        if spec is not None and spec.abstain_code is not None:
+        spec = specs[0] if specs else None
+        if spec is None:
+            self._remember_pipeline_run(
+                run_id=run_id,
+                report_id=report_id,
+                status="failed",
+                stage="detection_spec_missing",
+                detection_spec_id=None,
+                rule_id=None,
+            )
+            raise PipelineTransitionError("validated DetectionSpec required")
+        if spec.abstain_code is not None:
             return self._remember_pipeline_run(
                 run_id=run_id,
                 report_id=report_id,
@@ -214,7 +224,9 @@ class PipelineOrchestrator:
         try:
             dynamic_result = self.dynamic_validator.run_synthetic_validation(
                 rule.rule_content,
-                attack_events=[{"CommandLine": "powershell -EncodedCommand abc", "Image": "powershell.exe"}],
+                attack_events=[
+                    {"CommandLine": "powershell -EncodedCommand abc", "Image": "powershell.exe"}
+                ],
                 benign_events=[{"CommandLine": "cmd.exe /c whoami", "Image": "cmd.exe"}],
             )
             self.validation_proof.record_dynamic_validation(
@@ -233,7 +245,10 @@ class PipelineOrchestrator:
             )
             raise PipelineTransitionError("dynamic validation gate failed") from exc
 
-        if dynamic_result.true_positives != dynamic_result.attack_total or dynamic_result.false_positives:
+        if (
+            dynamic_result.true_positives != dynamic_result.attack_total
+            or dynamic_result.false_positives
+        ):
             self._remember_pipeline_run(
                 run_id=run_id,
                 report_id=report_id,
@@ -274,7 +289,7 @@ class PipelineOrchestrator:
             self._persist_artifact_graph_path(
                 run_id=run_id,
                 report=report,
-                evidence_rows=evidence_rows,
+                evidence_rows=list(evidence_rows),
                 spec=spec,
                 rule=rule,
             )
@@ -342,7 +357,10 @@ class PipelineOrchestrator:
                 node_type="evidence_quote",
                 ref_table="evidence_spans",
                 ref_id=evidence.id,
-                payload={"report_id": evidence.report_id, "supports_claim": evidence.supports_claim},
+                payload={
+                    "report_id": evidence.report_id,
+                    "supports_claim": evidence.supports_claim,
+                },
             )
             graph.add_edge(
                 run_id=run_id,
@@ -363,12 +381,16 @@ class PipelineOrchestrator:
             edge_type="derived_from",
         )
 
-        validation_rows = self.db.execute(
-            select(ValidationResultModel).where(
-                ValidationResultModel.run_id == run_id,
-                ValidationResultModel.rule_id == rule.id,
+        validation_rows = (
+            self.db.execute(
+                select(ValidationResultModel).where(
+                    ValidationResultModel.run_id == run_id,
+                    ValidationResultModel.rule_id == rule.id,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         validation_node_ids: list[str] = []
         for validation in validation_rows:
             validation_node = graph.upsert_node(
@@ -386,12 +408,16 @@ class PipelineOrchestrator:
                 edge_type="validated_by",
             )
 
-        proof_rows = self.db.execute(
-            select(ProofObligationRecordModel).where(
-                ProofObligationRecordModel.run_id == run_id,
-                ProofObligationRecordModel.rule_candidate_id == rule.id,
+        proof_rows = (
+            self.db.execute(
+                select(ProofObligationRecordModel).where(
+                    ProofObligationRecordModel.run_id == run_id,
+                    ProofObligationRecordModel.rule_candidate_id == rule.id,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for proof in proof_rows:
             proof_node = graph.upsert_node(
                 run_id=run_id,

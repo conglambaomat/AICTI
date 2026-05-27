@@ -109,9 +109,7 @@ def test_evidence_retrieval_links_schema_matches_lineage_contract(migrated_engin
 
     assert "evidence_retrieval_links" in inspector.get_table_names()
     columns = {column["name"] for column in inspector.get_columns("evidence_retrieval_links")}
-    assert {"id", "run_id", "evidence_id", "retrieval_candidate_id", "created_at"}.issubset(
-        columns
-    )
+    assert {"id", "run_id", "evidence_id", "retrieval_candidate_id", "created_at"}.issubset(columns)
 
     foreign_keys = {
         foreign_key["name"]: (
@@ -394,13 +392,17 @@ def test_retrieval_audit_tables_exist_after_migration(migrated_engine) -> None:
         "chunk_id",
     ]
 
-    run_checks = {constraint["name"] for constraint in inspector.get_check_constraints("retrieval_audit_runs")}
+    run_checks = {
+        constraint["name"] for constraint in inspector.get_check_constraints("retrieval_audit_runs")
+    }
     assert {
         "ck_retrieval_audit_runs_query_hash_non_empty",
         "ck_retrieval_audit_runs_top_k_positive",
     }.issubset(run_checks)
 
-    candidate_checks = {constraint["name"] for constraint in inspector.get_check_constraints("retrieval_candidates")}
+    candidate_checks = {
+        constraint["name"] for constraint in inspector.get_check_constraints("retrieval_candidates")
+    }
     assert {
         "ck_retrieval_candidates_rank_positive",
         "ck_retrieval_candidates_score_sparse_non_negative",
@@ -459,7 +461,9 @@ def test_migrated_breadth_tables_match_current_models(migrated_engine) -> None:
     pipeline_columns = {column["name"] for column in inspector.get_columns("pipeline_runs")}
     proof_columns = {column["name"] for column in inspector.get_columns("proof_obligations")}
     candidate_columns = {column["name"] for column in inspector.get_columns("candidate_scores")}
-    oracle_columns = {column["name"] for column in inspector.get_columns("oracle_evaluation_results")}
+    oracle_columns = {
+        column["name"] for column in inspector.get_columns("oracle_evaluation_results")
+    }
     regression_columns = {column["name"] for column in inspector.get_columns("regression_runs")}
     quality_columns = {column["name"] for column in inspector.get_columns("quality_snapshots")}
 
@@ -504,9 +508,7 @@ def test_migrated_breadth_tables_match_current_models(migrated_engine) -> None:
     assert {"id", "rule_id", "run_id", "status", "result_json", "created_at"}.issubset(
         regression_columns
     )
-    assert {"id", "run_id", "snapshot_type", "metrics_json", "created_at"}.issubset(
-        quality_columns
-    )
+    assert {"id", "run_id", "snapshot_type", "metrics_json", "created_at"}.issubset(quality_columns)
 
 
 def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_engine) -> None:
@@ -554,12 +556,18 @@ def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_e
     assert any(fk["referred_table"] == "pipeline_runs" for fk in regression_fks)
     assert any(fk["referred_table"] == "pipeline_runs" for fk in quality_fks)
 
-    candidate_checks = {check["name"] for check in inspector.get_check_constraints("candidate_scores")}
+    candidate_checks = {
+        check["name"] for check in inspector.get_check_constraints("candidate_scores")
+    }
     oracle_checks = {
         check["name"] for check in inspector.get_check_constraints("oracle_evaluation_results")
     }
-    regression_checks = {check["name"] for check in inspector.get_check_constraints("regression_runs")}
-    quality_checks = {check["name"] for check in inspector.get_check_constraints("quality_snapshots")}
+    regression_checks = {
+        check["name"] for check in inspector.get_check_constraints("regression_runs")
+    }
+    quality_checks = {
+        check["name"] for check in inspector.get_check_constraints("quality_snapshots")
+    }
 
     assert "ck_candidate_scores_score_value_between_0_and_1" in candidate_checks
     assert "ck_candidate_scores_score_type_non_empty" in candidate_checks

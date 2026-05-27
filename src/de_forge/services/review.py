@@ -191,7 +191,9 @@ class ReviewService:
         if self._has_failed_or_unknown_proof_obligations(rule_id, run_id=run_id):
             raise ExportBlockedError("proof obligation gate failed before export")
 
-    def _has_failed_or_unknown_proof_obligations(self, rule_id: str, *, run_id: str | None = None) -> bool:
+    def _has_failed_or_unknown_proof_obligations(
+        self, rule_id: str, *, run_id: str | None = None
+    ) -> bool:
         db = self._require_db()
         try:
             rows = db.execute(
@@ -216,7 +218,9 @@ class ReviewService:
     def _has_review_handoff_memory(self, rule_id: str, *, run_id: str | None = None) -> bool:
         db = self._require_db()
         scope = (
-            f"{rule_id}:{run_id}:review.handoff" if run_id is not None else f"{rule_id}:review.handoff"
+            f"{rule_id}:{run_id}:review.handoff"
+            if run_id is not None
+            else f"{rule_id}:review.handoff"
         )
         row = (
             db.execute(

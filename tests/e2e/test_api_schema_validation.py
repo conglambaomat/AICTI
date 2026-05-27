@@ -267,7 +267,9 @@ def test_reports_ingest_is_idempotent_by_content_hash(monkeypatch) -> None:
 
         def ingest(self, **kwargs) -> FakeResult:
             assert kwargs["source_type"] == "txt"
-            assert kwargs["content_bytes"] == b"Credential dumping behavior\n\nLSASS access observed"
+            assert (
+                kwargs["content_bytes"] == b"Credential dumping behavior\n\nLSASS access observed"
+            )
             return FakeResult()
 
     monkeypatch.setattr(pipeline, "assert_schema_contract_current", lambda db: None)

@@ -24,9 +24,11 @@ class RunStateService:
         self._db = db
 
     def list_runs(self) -> dict[str, list[dict[str, Any]]]:
-        runs = self._db.execute(
-            select(PipelineRunRecord).order_by(PipelineRunRecord.created_at)
-        ).scalars().all()
+        runs = (
+            self._db.execute(select(PipelineRunRecord).order_by(PipelineRunRecord.created_at))
+            .scalars()
+            .all()
+        )
         return {"items": [self._run_payload(run) for run in runs]}
 
     def get_run_detail(self, run_id: str) -> dict[str, Any] | None:
@@ -79,11 +81,15 @@ class RunStateService:
         if run is None:
             return None
 
-        results = self._db.execute(
-            select(ValidationResult)
-            .where(ValidationResult.run_id == run_id)
-            .order_by(ValidationResult.created_at, ValidationResult.id)
-        ).scalars().all()
+        results = (
+            self._db.execute(
+                select(ValidationResult)
+                .where(ValidationResult.run_id == run_id)
+                .order_by(ValidationResult.created_at, ValidationResult.id)
+            )
+            .scalars()
+            .all()
+        )
         return {
             "run_id": run.run_id,
             "items": [
@@ -104,12 +110,16 @@ class RunStateService:
         ).scalar_one_or_none()
 
     def _proof_status(self, run_id: str, rule_id: str) -> str:
-        obligations = self._db.execute(
-            select(ProofObligationRecord).where(
-                ProofObligationRecord.run_id == run_id,
-                ProofObligationRecord.rule_candidate_id == rule_id,
+        obligations = (
+            self._db.execute(
+                select(ProofObligationRecord).where(
+                    ProofObligationRecord.run_id == run_id,
+                    ProofObligationRecord.rule_candidate_id == rule_id,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if not obligations:
             return "missing"
         if all(obligation.status == "proven" for obligation in obligations):

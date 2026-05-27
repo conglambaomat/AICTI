@@ -43,8 +43,10 @@ class BaseAgent(ABC):
         citations = self.extract_citations(response.content)
         abstain = bool(response.content.get("abstain", False))
         abstain_reason = response.content.get("abstain_reason")
-        if self.requires_citations and abstain and (
-            not isinstance(abstain_reason, str) or not abstain_reason.strip()
+        if (
+            self.requires_citations
+            and abstain
+            and (not isinstance(abstain_reason, str) or not abstain_reason.strip())
         ):
             raise AgentOutputValidationError("abstain_reason required for abstain output")
         if self.requires_citations and not abstain and not citations:
