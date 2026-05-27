@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from de_forge.models import PipelineRunRecord, ProofObligationRecord, RegressionRun, ValidationResult
+from de_forge.models import (
+    PipelineRunRecord,
+    ProofObligationRecord,
+    RegressionRun,
+    ValidationResult,
+)
 
 TERMINAL_RUN_STATUSES = {"ok", "failed", "abstain"}
 
@@ -36,16 +41,18 @@ class MetricsService:
         }
 
     def quality_summary(self) -> dict[str, Any]:
-        db = self._require_db()
-        proof_rows = db.query(ProofObligationRecord).all()
-        citation_rows = [row for row in proof_rows if row.claim_type == "citation_faithful"]
-        validation_rows = db.query(ValidationResult).all()
-        regression_rows = db.query(RegressionRun).all()
+        proof_counts = self._status_counts(ProofObligationRecord)
+        citation_counts = self._status_counts(
+            ProofObligationRecord,
+            ProofObligationRecord.claim_type == "citation_faithful",
+        )
+        validation_counts = self._status_counts(ValidationResult)
+        regression_counts = self._status_counts(RegressionRun)
 
-        citation_faithfulness = self._rate(citation_rows, "proven")
-        proof_pass_rate = self._rate(proof_rows, "proven")
-        static_validity_rate = self._rate(validation_rows, "passed")
-        regression_pass_rate = self._rate(regression_rows, "passed")
+        citation_faithfulness = self._rate_from_counts(citation_counts, "proven")
+        proof_pass_rate = self._rate_from_counts(proof_counts, "proven")
+        static_validity_rate = self._rate_from_counts(validation_counts, "passed")
+        regression_pass_rate = self._rate_from_counts(regression_counts, "passed")
         available_rates = [
             rate
             for rate in (
@@ -66,23 +73,28 @@ class MetricsService:
             if available_rates
             else None,
             "sample_counts": {
-                "proof_obligations": len(proof_rows),
-                "static_validations": len(validation_rows),
-                "regression_runs": len(regression_rows),
+                "proof_obligations": sum(proof_counts.values()),
+                "static_validations": sum(validation_counts.values()),
+                "regression_runs": sum(regression_counts.values()),
             },
         }
 
     def ops_summary(self) -> dict[str, Any]:
-        db = self._require_db()
-        rows = db.query(PipelineRunRecord).all()
-        terminal_rows = [row for row in rows if row.status in TERMINAL_RUN_STATUSES]
-        run_counts = dict(sorted(Counter(row.status for row in rows).items()))
+        self._require_db()
+        run_counts = dict(sorted(self._status_counts(PipelineRunRecord).items()))
+        terminal_count = sum(
+            count for status, count in run_counts.items() if status in TERMINAL_RUN_STATUSES
+        )
+        ok_count = run_counts.get("ok", 0)
+        total_runs = sum(run_counts.values())
 
         return {
-            "queue_depth": sum(1 for row in rows if row.status not in TERMINAL_RUN_STATUSES),
-            "run_success_rate": self._rate(terminal_rows, "ok"),
+            "queue_depth": sum(
+                count for status, count in run_counts.items() if status not in TERMINAL_RUN_STATUSES
+            ),
+            "run_success_rate": round(ok_count / terminal_count, 4) if terminal_count else None,
             "run_counts": run_counts,
-            "total_runs": len(rows),
+            "total_runs": total_runs,
         }
 
     def dashboard_summary(self) -> dict[str, Any]:
@@ -93,8 +105,17 @@ class MetricsService:
             raise ValueError("database session required")
         return self.db
 
+    def _status_counts(self, model: Any, *where_clauses: Any) -> dict[str, int]:
+        db = self._require_db()
+        statement = select(model.status, func.count()).select_from(model)
+        for clause in where_clauses:
+            statement = statement.where(clause)
+        statement = statement.group_by(model.status)
+        return dict(db.execute(statement).all())
+
     @staticmethod
-    def _rate(rows: list[Any], passing_status: str) -> float | None:
-        if not rows:
+    def _rate_from_counts(counts: dict[str, int], passing_status: str) -> float | None:
+        total = sum(counts.values())
+        if total == 0:
             return None
-        return round(sum(1 for row in rows if row.status == passing_status) / len(rows), 4)
+        return round(counts.get(passing_status, 0) / total, 4)
