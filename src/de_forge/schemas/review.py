@@ -25,3 +25,5 @@ class ReviewDecision(BaseModel):
     action: ReviewAction
     reviewer_notes: str
     export_allowed: bool
+    persisted: bool
+    authoritative_for_export: bool

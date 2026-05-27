@@ -39,6 +39,8 @@ class ReviewService:
             action=request.action,
             reviewer_notes=request.reviewer_notes,
             export_allowed=export_allowed,
+            persisted=False,
+            authoritative_for_export=False,
         )
 
     def _require_db(self) -> Session:
