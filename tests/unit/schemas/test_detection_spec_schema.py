@@ -357,7 +357,7 @@ def test_detection_spec_first_gate_rejects_missing_validated_spec():
                         "required_telemetry": ["process_creation"],
                         "detection_logic": "Some logic",
                     }
-                ]
+                ],
             }
         )
     errors = str(exc_info.value).lower()

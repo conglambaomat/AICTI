@@ -44,7 +44,9 @@ def test_health_fails_closed_when_database_probe_fails(monkeypatch: pytest.Monke
     assert "database_probe_failed" in body["errors"]
 
 
-def test_health_fails_closed_when_schema_guard_raises_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_health_fails_closed_when_schema_guard_raises_unexpected_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def pass_database_probe() -> None:
         return None
 

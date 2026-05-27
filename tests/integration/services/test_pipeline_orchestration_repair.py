@@ -84,9 +84,15 @@ def _persist_evidence(db: Session, report_id: str, chunk_id: str, run_id: str = 
 
 
 def _persist_validated_spec(db: Session, report_id: str, spec_id: str = "spec-1") -> str:
-    evidence_id = db.execute(
-        select(EvidenceSpan).where(EvidenceSpan.report_id == report_id).order_by(EvidenceSpan.id)
-    ).scalar_one().id
+    evidence_id = (
+        db.execute(
+            select(EvidenceSpan)
+            .where(EvidenceSpan.report_id == report_id)
+            .order_by(EvidenceSpan.id)
+        )
+        .scalar_one()
+        .id
+    )
     spec_payload = {
         "report_id": report_id,
         "behavior_rules": [

@@ -20,7 +20,9 @@ def create_sqlite_engine_with_foreign_keys() -> Engine:
     engine = create_engine("sqlite:///:memory:")
 
     @event.listens_for(engine, "connect")
-    def enable_foreign_keys(dbapi_connection: _SQLiteConnection, _connection_record: object) -> None:
+    def enable_foreign_keys(
+        dbapi_connection: _SQLiteConnection, _connection_record: object
+    ) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
     return engine

@@ -11,8 +11,6 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-
-
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -434,7 +432,9 @@ def test_retrieval_audit_tables_exist_after_migration(migrated_engine: Engine) -
     }.issubset(candidate_indexes)
 
 
-def test_migrated_detection_spec_and_generated_rule_columns_match_models(migrated_engine: Engine) -> None:
+def test_migrated_detection_spec_and_generated_rule_columns_match_models(
+    migrated_engine: Engine,
+) -> None:
     inspector = inspect(migrated_engine)
 
     detection_columns = {column["name"] for column in inspector.get_columns("detection_specs")}
@@ -520,7 +520,9 @@ def test_migrated_breadth_tables_match_current_models(migrated_engine: Engine) -
     assert {"id", "run_id", "snapshot_type", "metrics_json", "created_at"}.issubset(quality_columns)
 
 
-def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(migrated_engine: Engine) -> None:
+def test_migrated_breadth_tables_have_required_indexes_fks_and_checks(
+    migrated_engine: Engine,
+) -> None:
     inspector = inspect(migrated_engine)
 
     pipeline_indexes = {idx["name"] for idx in inspector.get_indexes("pipeline_runs")}

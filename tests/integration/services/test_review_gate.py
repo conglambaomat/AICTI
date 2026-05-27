@@ -373,7 +373,9 @@ def test_export_allowed_when_all_proof_obligations_proven() -> None:
     )
 
 
-def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> None:
+def test_rejected_decision_writes_non_approved_handoff_and_export_requires_approved_handoff() -> (
+    None
+):
     db = _build_session()
     service = ReviewService(db)
 
@@ -434,7 +436,9 @@ class _ProofLookupFailingSession:
     def __getattr__(self, name: str) -> object:
         return getattr(self._db, name)
 
-    def execute(self, statement: object, params: object = None, *args: object, **kwargs: object) -> object:
+    def execute(
+        self, statement: object, params: object = None, *args: object, **kwargs: object
+    ) -> object:
         if "FROM proof_obligations" in str(statement):
             raise SQLAlchemyError("simulated proof obligation lookup failure")
         return self._db.execute(  # type: ignore[call-overload]
@@ -453,7 +457,9 @@ def test_proof_obligation_lookup_error_blocks_export_fail_closed() -> None:
         comments="Approved before proof lookup failure.",
     )
     service = ReviewService(db)
-    service.db = _ProofLookupFailingSession(db._db if isinstance(db, _ProofLookupFailingSession) else db)  # type: ignore[assignment]
+    service.db = _ProofLookupFailingSession(
+        db._db if isinstance(db, _ProofLookupFailingSession) else db
+    )  # type: ignore[assignment]
 
     with pytest.raises(ExportBlockedError, match="proof obligation gate failed"):
         service.assert_can_export(

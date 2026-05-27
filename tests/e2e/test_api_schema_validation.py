@@ -96,7 +96,9 @@ def test_pipeline_run_returns_abstain_contract_shape(monkeypatch: pytest.MonkeyP
     assert body["abstain_code"] == "NO_EVIDENCE"
 
 
-def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_run_rejects_detection_spec_without_persisted_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
     from de_forge.services.orchestrator import PipelineTransitionError
@@ -143,7 +145,9 @@ def test_pipeline_run_rejects_detection_spec_without_persisted_report(monkeypatc
     assert "persisted Report required" in body
 
 
-def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_run_routes_through_report_scoped_orchestrator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import PipelineRunRequest
 
@@ -201,7 +205,9 @@ def test_pipeline_run_routes_through_report_scoped_orchestrator(monkeypatch: pyt
     assert captured["run_id"] == body["run_id"]
 
 
-def test_pipeline_run_failure_preserves_persisted_record_stage(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_run_failure_preserves_persisted_record_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.models import Report as ReportModel
     from de_forge.schemas.api_pipeline import PipelineRunRequest
@@ -352,7 +358,9 @@ def test_review_rejects_invalid_decision_before_persistence() -> None:
     assert response.status_code == 422
 
 
-def test_review_route_passes_run_context_and_comments_to_service(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_review_route_passes_run_context_and_comments_to_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReviewRequest
 
@@ -380,7 +388,9 @@ def test_review_route_passes_run_context_and_comments_to_service(monkeypatch: py
         comments="Persist this audit comment.",
     )
 
-    response = __import__("asyncio").run(pipeline.create_review(payload, db=cast("Session", object())))
+    response = __import__("asyncio").run(
+        pipeline.create_review(payload, db=cast("Session", object()))
+    )
 
     assert response.run_id == "run_demo"
     assert captured["run_id"] == "run_demo"
@@ -424,7 +434,9 @@ def test_pipeline_approve_helper_records_run_context(monkeypatch: pytest.MonkeyP
     assert captured["comments"] == "pipeline approval helper"
 
 
-def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_approve_helper_rejects_mismatched_run_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
 
     class FakeRecord:
@@ -445,7 +457,9 @@ def test_pipeline_approve_helper_rejects_mismatched_run_rule(monkeypatch: pytest
     assert response.status_code == 404
 
 
-def test_pipeline_approve_helper_rejects_default_api_reviewer(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pipeline_approve_helper_rejects_default_api_reviewer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
 
     class FakeRecord:
@@ -504,7 +518,9 @@ def test_pipeline_approve_helper_rejects_blank_reviewer(monkeypatch: pytest.Monk
     assert "human reviewer" in bytes(response.body).decode().lower()
 
 
-def test_legacy_review_decision_forwards_db_to_create_review(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_legacy_review_decision_forwards_db_to_create_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from de_forge.api.routes import pipeline
     from de_forge.schemas.api_pipeline import ReviewRequest
 

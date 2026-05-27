@@ -417,7 +417,9 @@ def test_export_fails_closed_when_evidence_graph_is_broken() -> None:
 
     node_ids = {
         node.id
-        for node in db.execute(select(EvidenceNode).where(EvidenceNode.run_id == run_body["run_id"]))
+        for node in db.execute(
+            select(EvidenceNode).where(EvidenceNode.run_id == run_body["run_id"])
+        )
         .scalars()
         .all()
     }
