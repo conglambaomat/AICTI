@@ -26,13 +26,13 @@ class StubLlmClient:
 
 
 def test_extract_evidence_returns_grounded_quotes_with_offsets() -> None:
-    chunks = [
+    chunks: list[dict[str, object]] = [
         {
             "chunk_id": "c1",
             "text": "The attacker used powershell.exe -enc aGVsbG8= to execute payload.",
         }
     ]
-    llm_response = {
+    llm_response: dict[str, object] = {
         "evidence": [
             {
                 "chunk_id": "c1",
@@ -59,8 +59,10 @@ def test_extract_evidence_returns_grounded_quotes_with_offsets() -> None:
 
 
 def test_extract_evidence_abstains_when_evidence_is_weak() -> None:
-    chunks = [{"chunk_id": "c1", "text": "Report mentions CVE-2024-0001 only."}]
-    llm_response = {"evidence": []}
+    chunks: list[dict[str, object]] = [
+        {"chunk_id": "c1", "text": "Report mentions CVE-2024-0001 only."}
+    ]
+    llm_response: dict[str, object] = {"evidence": []}
 
     retrieval = StubRetrievalService(chunks)
     llm = StubLlmClient(llm_response)

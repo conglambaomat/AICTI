@@ -171,7 +171,7 @@ def test_record_regression_persists_status() -> None:
     rule_id = _seed_rule(db)
     _seed_pipeline_run(db, run_id="run-regression", rule_id=rule_id)
     service = ValidationProofPersistenceService(db)
-    details = {"repeated_pattern": "bad-pattern"}
+    details: dict[str, object] = {"repeated_pattern": "bad-pattern"}
 
     result_id = service.record_regression(
         run_id="run-regression",

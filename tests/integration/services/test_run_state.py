@@ -141,7 +141,14 @@ def test_get_run_portfolio_reports_proof_status_from_obligations() -> None:
         )
     )
     db.commit()
-    assert service.get_run_portfolio("run-1")["items"][0]["proof_status"] == "blocked"
+    blocked_portfolio = service.get_run_portfolio("run-1")
+    assert blocked_portfolio is not None
+    blocked_items = blocked_portfolio.get("items")
+    assert isinstance(blocked_items, list)
+    assert blocked_items
+    blocked_item = blocked_items[0]
+    assert isinstance(blocked_item, dict)
+    assert blocked_item["proof_status"] == "blocked"
 
     db.query(ProofObligationRecord).delete()
     db.add_all(
@@ -167,7 +174,14 @@ def test_get_run_portfolio_reports_proof_status_from_obligations() -> None:
         ]
     )
     db.commit()
-    assert service.get_run_portfolio("run-1")["items"][0]["proof_status"] == "proven"
+    proven_portfolio = service.get_run_portfolio("run-1")
+    assert proven_portfolio is not None
+    proven_items = proven_portfolio.get("items")
+    assert isinstance(proven_items, list)
+    assert proven_items
+    proven_item = proven_items[0]
+    assert isinstance(proven_item, dict)
+    assert proven_item["proof_status"] == "proven"
 
 
 def test_get_run_validation_returns_ordered_results_with_parsed_details() -> None:
@@ -195,6 +209,11 @@ def test_get_run_validation_returns_ordered_results_with_parsed_details() -> Non
     )
     db.commit()
 
+    validation_1 = db.get(ValidationResult, "validation-1")
+    validation_2 = db.get(ValidationResult, "validation-2")
+    assert validation_1 is not None
+    assert validation_2 is not None
+
     assert RunStateService(db).get_run_validation("run-1") == {
         "run_id": "run-1",
         "items": [
@@ -203,14 +222,14 @@ def test_get_run_validation_returns_ordered_results_with_parsed_details() -> Non
                 "rule_id": "rule-1",
                 "status": "passed",
                 "details": {"order": 1},
-                "created_at": db.get(ValidationResult, "validation-1").created_at,
+                "created_at": validation_1.created_at,
             },
             {
                 "id": "validation-2",
                 "rule_id": "rule-1",
                 "status": "failed",
                 "details": {"order": 2},
-                "created_at": db.get(ValidationResult, "validation-2").created_at,
+                "created_at": validation_2.created_at,
             },
         ],
     }

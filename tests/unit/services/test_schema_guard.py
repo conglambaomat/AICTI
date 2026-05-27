@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
 from de_forge.db.base import Base
 from de_forge.models import *  # noqa: F403
@@ -10,7 +11,7 @@ from de_forge.models.evidence_graph import EvidenceEdge, EvidenceNode  # noqa: F
 from de_forge.services.schema_guard import SchemaContractError, SchemaGuard
 
 
-def _build_complete_schema_engine() -> object:
+def _build_complete_schema_engine() -> Engine:
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
     return engine
