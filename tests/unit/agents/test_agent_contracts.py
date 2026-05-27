@@ -85,6 +85,7 @@ class FakeClient(LLMClient):
 
 
 class TestAgent(BaseAgent):
+    __test__ = False
     agent_name = "test_agent"
     prompt_version = "v1"
     response_schema_name = "TestOutput"

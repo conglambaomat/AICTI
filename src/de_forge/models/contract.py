@@ -279,6 +279,7 @@ class ValidationResult(Base):
 
 
 class TestRun(Base):
+    __test__ = False
     __tablename__ = "test_runs"
     __table_args__ = (
         Index("ix_test_runs_rule_id", "rule_id"),
