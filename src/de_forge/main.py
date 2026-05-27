@@ -17,46 +17,13 @@ from de_forge.core.config import Settings, settings
 from de_forge.db.session import check_database_connection, engine
 from de_forge.services.schema_guard import SchemaContractError, SchemaGuard
 
-def create_app(app_settings: Settings = settings) -> FastAPI:
-    """Create the FastAPI application."""
-    fastapi_app = FastAPI(
-        title="DE-Forge",
-        description="Evidence-Grounded AI-assisted Detection Rule Generation",
-        version="0.1.0",
-    )
-
-    fastapi_app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    fastapi_app.include_router(pipeline_router)
-    if app_settings.enable_dev_seed_routes and app_settings.env in {"development", "test"}:
-        fastapi_app.include_router(pipeline_seed_router)
-    fastapi_app.include_router(pipeline_legacy_router)
-    fastapi_app.include_router(ingestion_router)
-    fastapi_app.include_router(review_router)
-    fastapi_app.include_router(api_router)
-
-    return fastapi_app
-
-
-app = create_app()
-
 _started_at = monotonic()
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "ok", "service": "DE-Forge", "env": settings.env}
-
-
-@app.get("/health")
-async def health() -> dict[str, object]:
+async def build_health_payload(
+    fastapi_app: FastAPI | None = None,
+    app_settings: Settings = settings,
+) -> dict[str, object]:
     """Detailed health check."""
     run_id = str(uuid4())
     trace_id = str(uuid4())
@@ -87,9 +54,9 @@ async def health() -> dict[str, object]:
     return {
         "status": "healthy" if ready else "degraded",
         "service": "DE-Forge",
-        "version": app.version,
-        "env": settings.env,
-        "model": settings.openai_model,
+        "version": fastapi_app.version if fastapi_app else "0.1.0",
+        "env": app_settings.env,
+        "model": app_settings.openai_model,
         "database": database_status,
         "readiness": readiness,
         "ready": ready,
@@ -123,3 +90,80 @@ async def health() -> dict[str, object]:
             },
         },
     }
+
+
+async def health() -> dict[str, object]:
+    return await build_health_payload()
+
+
+def create_app(app_settings: Settings = settings) -> FastAPI:
+    """Create the FastAPI application."""
+    fastapi_app = FastAPI(
+        title="DE-Forge",
+        description="Evidence-Grounded AI-assisted Detection Rule Generation",
+        version="0.1.0",
+    )
+
+    fastapi_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    fastapi_app.include_router(pipeline_router)
+    if app_settings.enable_dev_seed_routes and app_settings.env in {"development", "test"}:
+        fastapi_app.include_router(pipeline_seed_router)
+    fastapi_app.include_router(pipeline_legacy_router)
+    fastapi_app.include_router(ingestion_router)
+    fastapi_app.include_router(review_router)
+    fastapi_app.include_router(api_router)
+
+    @fastapi_app.get("/")
+    async def root() -> dict[str, str]:
+        """Health check endpoint."""
+        return {"status": "ok", "service": "DE-Forge", "env": app_settings.env}
+
+    @fastapi_app.get("/ready")
+    async def ready() -> dict[str, object]:
+        health_payload = await build_health_payload(fastapi_app, app_settings)
+        checks = dict(health_payload["checks"])
+        errors = list(health_payload["errors"])
+        seed_routes_check = (
+            "failed"
+            if app_settings.enable_dev_seed_routes
+            and app_settings.env not in {"development", "test"}
+            else "ok"
+        )
+        provider_config_check = (
+            "ok"
+            if app_settings.env != "production" or bool(app_settings.openai_api_key)
+            else "failed"
+        )
+        checks["seed_routes"] = seed_routes_check
+        checks["provider_config"] = provider_config_check
+        if seed_routes_check == "failed":
+            errors.append("seed_routes_enabled_outside_dev")
+        if provider_config_check == "failed":
+            errors.append("provider_config_missing")
+        is_ready = (
+            bool(health_payload["ready"])
+            and seed_routes_check == "ok"
+            and provider_config_check == "ok"
+        )
+        return {
+            "ready": is_ready,
+            "readiness": "ready" if is_ready else "not_ready",
+            "checks": checks,
+            "errors": errors,
+        }
+
+    @fastapi_app.get("/health")
+    async def app_health() -> dict[str, object]:
+        return await build_health_payload(fastapi_app, app_settings)
+
+    return fastapi_app
+
+
+app = create_app()
