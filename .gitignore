@@ -29,3 +29,8 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local runtime artifacts
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+*.db
