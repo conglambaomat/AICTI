@@ -388,3 +388,39 @@ def test_generate_rule_abstain_contract_is_preserved() -> None:
     assert response["abstain_reason"] == "NO_EVIDENCE"
     assert response["sigma_rule"] == {}
     assert response["metadata"]["profile"] == "balanced"
+
+
+def test_persistent_rule_generation_records_compiler_provenance() -> None:
+    db = _build_session()
+    service = RuleGenerationService(db)
+    spec_id = "validated-spec-compiler-provenance"
+    spec_payload = (
+        '{"report_id":"report-compiler-provenance",'
+        '"behavior_rules":[{"evidence":["e"],"attack_ids":["T1059.001"],'
+        '"required_telemetry":["process_creation"],'
+        '"detection_logic":"CommandLine contains \'-enc\'"}],'
+        '"false_positive_hypotheses":["fp"],"test_plan":"tp",'
+        '"evidence_ids":["ev-1"],"behavior_ids":["bh-1"],'
+        '"detection_strategy":"behavioral","analytic":"process analytic",'
+        '"data_component":"process_creation",'
+        '"allowed_telemetry_fields":["Image","CommandLine"],'
+        '"rationale_traceability":["ev-1 -> bh-1"]}'
+    )
+    db.add(
+        DetectionSpecModel(
+            id=spec_id,
+            report_id="report-compiler-provenance",
+            spec_payload=spec_payload,
+            is_validated=True,
+        )
+    )
+    db.commit()
+
+    result = service.generate_sigma_rule(detection_spec_id=spec_id)
+
+    rule = db.get(GeneratedRuleModel, result.rule_id)
+    assert rule is not None
+    assert rule.generation_source == "compiler"
+    assert rule.detection_ast_id
+    assert rule.compiled_sigma_id
+    assert rule.compiled_sigma_id.startswith("sigma_")

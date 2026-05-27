@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from de_forge.core.errors import ProofObligationError
 from de_forge.schemas.proof_obligation import ProofObligation
-from de_forge.schemas.review import ReviewAction, ReviewDecision, ReviewRequest
+from de_forge.schemas.review import ReviewDecision, ReviewRequest
 from de_forge.services.evidence_graph import EvidenceGraphService
 from de_forge.services.proof_obligation_service import ProofObligationService
 
@@ -32,7 +32,7 @@ class ReviewService:
         self.db = db
 
     def decide(self, request: ReviewRequest) -> ReviewDecision:
-        export_allowed = request.action == ReviewAction.APPROVE
+        export_allowed = False
         return ReviewDecision(
             run_id=request.run_id,
             rule_candidate_id=request.rule_candidate_id,

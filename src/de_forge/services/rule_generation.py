@@ -67,7 +67,7 @@ class RuleGenerationService:
 
         spec = self._get_validated_detection_spec(detection_spec_id=detection_spec_id)
         rule_id = str(uuid4())
-        rule_content = self._materialize_sigma_from_spec(spec)
+        detection_ast_id, rule_content, compiled_sigma_id = self._materialize_sigma_from_spec(spec)
 
         try:
             self.db.add(
@@ -75,7 +75,9 @@ class RuleGenerationService:
                     id=rule_id,
                     detection_spec_id=spec.id,
                     rule_content=rule_content,
-                    generation_source="manual_draft",
+                    generation_source="compiler",
+                    detection_ast_id=detection_ast_id,
+                    compiled_sigma_id=compiled_sigma_id,
                 )
             )
             self.db.commit()
@@ -106,7 +108,7 @@ class RuleGenerationService:
 
         return spec
 
-    def _materialize_sigma_from_spec(self, spec: DetectionSpecModel) -> str:
+    def _materialize_sigma_from_spec(self, spec: DetectionSpecModel) -> tuple[str, str, str]:
         if not spec.spec_payload:
             raise ValueError("DetectionSpec missing spec_payload for constrained rule generation")
 
@@ -119,4 +121,4 @@ class RuleGenerationService:
             falsepositives=[],
             level="medium",
         )
-        return SigmaCompiler().to_yaml(compiled)
+        return ast.id, SigmaCompiler().to_yaml(compiled), compiled.id

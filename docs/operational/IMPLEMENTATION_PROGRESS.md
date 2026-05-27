@@ -40,13 +40,13 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
   - `docs/operational/IMPLEMENTATION_PROGRESS.md`
   - `docs/operational/CHANGELOG_AUTONOMOUS.md`
 - Verification evidence:
-  - pytest: task-scoped tests passed through Task 27; docs governance tests passed (`python -m pytest tests/docs/test_manifest_freeze.py tests/docs/test_docs_preflight.py tests/docs/test_docs_references.py tests/docs/test_progress_templates.py -v`)
+  - pytest: Task 29 final verification passed targeted hardening tests (`48 passed, 1 warning`), API/E2E tests (`54 passed`), DB integration tests (`137 passed`), unit tests (`187 passed, 2 warnings`), and docs governance tests.
   - docs preflight: `python scripts/docs_preflight.py` passed with `DOCS_PREFLIGHT: PASS`
-  - mypy: final verification pending in Task 29
-  - ruff check: task-scoped lint passed through Task 27
-  - ruff format --check: final verification pending in Task 29
-- Commit SHA: pending
-- Next step: run full production-hardening verification.
+  - mypy: Task 29 final verification passed
+  - ruff check: Task 29 final verification passed
+  - ruff format --check: Task 29 final verification passed
+- Commit SHA: `c0129d8`
+- Next step: post-hardening audit gaps identified and tracked separately.
 - Blockers/risks: none
 
 ### 2026-05-24 00:20 UTC — MCP register reopen from SOTA architecture audit matrix

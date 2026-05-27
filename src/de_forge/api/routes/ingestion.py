@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from de_forge.api.routes.ingestion_boundary import assert_report_size, classify_report_upload
 from de_forge.db.session import get_db
 from de_forge.services.ingestion import IngestionService
 from de_forge.services.pdf_text_extraction import PdfExtractionError, PdfTextExtractionService
@@ -27,16 +28,14 @@ async def ingest_report(
     Raises:
         HTTPException: If file exceeds 10MB or contains invalid UTF-8.
     """
-    max_file_size = 10 * 1024 * 1024  # 10MB
-    filename = file.filename or "unknown"
+    filename = file.filename or "unknown.txt"
 
     content_bytes = await file.read()
-    if len(content_bytes) > max_file_size:
-        raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
+    assert_report_size(content_bytes)
 
-    source_type = "txt"
+    source_type = classify_report_upload(filename, content_bytes)
     metadata: dict[str, object] | None = None
-    if filename.lower().endswith(".pdf"):
+    if source_type == "pdf":
         try:
             extraction = PdfTextExtractionService().extract_text(content_bytes)
         except PdfExtractionError as exc:

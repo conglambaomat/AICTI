@@ -55,3 +55,39 @@ def test_pdf_upload_ingests_text_report() -> None:
     chunks = db.query(ReportChunk).filter_by(report_id=report.id).all()
     assert chunks
     assert "PowerShell" in chunks[0].chunk_text
+
+
+def test_upload_rejects_oversized_report() -> None:
+    client, _ = _build_client()
+    oversized = b"a" * (10 * 1024 * 1024 + 1)
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("oversized.txt", oversized, "text/plain")},
+    )
+
+    assert response.status_code == 413
+
+
+def test_upload_rejects_mismatched_pdf_extension() -> None:
+    client, _ = _build_client()
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("report.pdf", b"not a pdf", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert "pdf" in response.json()["detail"].lower()
+
+
+def test_upload_rejects_unsupported_extension() -> None:
+    client, _ = _build_client()
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("report.bin", b"binary", "application/octet-stream")},
+    )
+
+    assert response.status_code == 400
+    assert "unsupported" in response.json()["detail"].lower()

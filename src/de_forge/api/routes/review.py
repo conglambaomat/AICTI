@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from de_forge.db.session import get_db
 from de_forge.schemas.review import ReviewDecision, ReviewRequest
-from de_forge.services.review import ExportBlockedError, ReviewService
+from de_forge.services.export_eligibility import (
+    ExportBlockedReason,
+    ExportEligibilityService,
+    SqlAlchemyExportEligibilityRepository,
+)
+from de_forge.services.review import ReviewService
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -39,17 +44,20 @@ def record_decision(
 
 
 class ExportCheckRequest(BaseModel):
-    rule_id: str
-    rule_status: str
+    run_id: str
 
 
 @router.post("/assert-export")
 def assert_export(request: ExportCheckRequest, db: Session = Depends(get_db)) -> dict[str, str]:
-    service = ReviewService(db)
+    repository = SqlAlchemyExportEligibilityRepository(db)
+    run = repository.get_run(request.run_id)
+    rule_id = getattr(run, "rule_id", None) if run is not None else ""
     try:
-        service.assert_can_export(rule_id=request.rule_id, rule_status=request.rule_status)
-    except ExportBlockedError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        ExportEligibilityService(repository).assert_exportable(
+            run_id=request.run_id, rule_id=rule_id if isinstance(rule_id, str) else ""
+        )
+    except ExportBlockedReason as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return {"status": "ok"}
 
 

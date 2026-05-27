@@ -70,3 +70,25 @@ def test_ingestion_route_rejects_invalid_pdf_fail_closed() -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "PDF text extraction failed"
+
+
+def test_inline_report_ingest_rejects_oversized_content() -> None:
+    oversized = "a" * (10 * 1024 * 1024 + 1)
+
+    response = client.post(
+        "/v1/reports:ingest",
+        json={"source_type": "txt", "content": oversized},
+    )
+
+    assert response.status_code == 413
+
+
+def test_legacy_ingest_rejects_oversized_upload() -> None:
+    oversized = b"a" * (10 * 1024 * 1024 + 1)
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("oversized.txt", oversized, "text/plain")},
+    )
+
+    assert response.status_code == 413

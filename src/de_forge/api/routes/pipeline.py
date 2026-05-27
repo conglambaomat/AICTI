@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from de_forge.api.routes.ingestion_boundary import assert_report_size, classify_report_upload
 from de_forge.db.session import get_db
 from de_forge.models import DetectionSpec as DetectionSpecModel
 from de_forge.models import EvidenceSpan as EvidenceSpanModel
@@ -49,11 +50,13 @@ legacy_router = APIRouter(tags=["pipeline-legacy"])
 async def ingest_report(
     payload: ReportIngestRequest, db: Session = Depends(get_db)
 ) -> ReportIngestResponse:
-    assert_schema_contract_current(db)
-    source_type = payload.source_type
     content_bytes = payload.content.encode("utf-8")
+    assert_report_size(content_bytes)
+    filename = payload.external_ref or f"inline-report.{payload.source_type}"
+    source_type = classify_report_upload(filename, content_bytes)
+    assert_schema_contract_current(db)
     metadata: dict[str, object] | None = payload.metadata or None
-    if payload.source_type == "pdf":
+    if source_type == "pdf":
         try:
             extraction = PdfTextExtractionService().extract_text(content_bytes)
         except PdfExtractionError as exc:
@@ -65,7 +68,7 @@ async def ingest_report(
     try:
         result = IngestionService(db).ingest(
             source_type=source_type,
-            filename=payload.external_ref or "inline-report.txt",
+            filename=filename,
             content_bytes=content_bytes,
             metadata=metadata,
         )
@@ -633,12 +636,13 @@ async def legacy_ingest(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ) -> ReportIngestResponse:
-    assert_schema_contract_current(db)
-    filename = file.filename or "unknown"
+    filename = file.filename or "unknown.txt"
     content_bytes = await file.read()
-    source_type = "txt"
+    assert_report_size(content_bytes)
+    assert_schema_contract_current(db)
+    source_type = classify_report_upload(filename, content_bytes)
     metadata: dict[str, object] | None = None
-    if filename.lower().endswith(".pdf"):
+    if source_type == "pdf":
         try:
             extraction = PdfTextExtractionService().extract_text(content_bytes)
         except PdfExtractionError as exc:

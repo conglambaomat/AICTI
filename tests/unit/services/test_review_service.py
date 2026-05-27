@@ -13,7 +13,7 @@ def test_review_service_records_approval_decision() -> None:
     decision = ReviewService().decide(request)
 
     assert decision.action == ReviewAction.APPROVE
-    assert decision.export_allowed is True
+    assert decision.export_allowed is False
 
 
 def test_review_service_blocks_export_on_reject() -> None:
