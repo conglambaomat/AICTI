@@ -45,9 +45,9 @@ Task cannot be marked complete until both `docs/operational/IMPLEMENTATION_PROGR
   - mypy: Task 29 final verification passed
   - ruff check: Task 29 final verification passed
   - ruff format --check: Task 29 final verification passed
-- Commit SHA: `c0129d8`
-- Next step: post-hardening audit gaps identified and tracked separately.
-- Blockers/risks: none
+- Commit SHA: `c0129d8`, `edbaaf8`
+- Next step: final production-readiness audit found remaining acceptance/E2E and operational-hardening gaps; tracked in runtime tasks #253, #260, #261, and #262.
+- Blockers/risks: final production acceptance gate is not yet fully proven by positive/adversarial E2E coverage.
 
 ### 2026-05-24 00:20 UTC — MCP register reopen from SOTA architecture audit matrix
 - Status: done

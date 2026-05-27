@@ -24,7 +24,8 @@ def test_production_hardening_progress_entry_has_closure_evidence() -> None:
     entry = text.split("### 2026-05-27 00:00 UTC", 1)[1].split("\n### ", 1)[0]
 
     assert "Commit SHA: pending" not in entry
-    assert "Commit SHA: `c0129d8`" in entry
+    assert "c0129d8" in entry
+    assert "edbaaf8" in entry
     assert "final verification pending" not in entry.lower()
     assert "Next step: run full production-hardening verification" not in entry
 
@@ -34,4 +35,5 @@ def test_production_hardening_changelog_entry_has_commit_sha() -> None:
     entry = text.split("- 2026-05-27 00:00 UTC", 1)[1].split("\n- 2026-05", 1)[0]
 
     assert "Commit SHA: pending" not in entry
-    assert "Commit SHA: `c0129d8`" in entry
+    assert "c0129d8" in entry
+    assert "edbaaf8" in entry
